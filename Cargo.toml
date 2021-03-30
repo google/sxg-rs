@@ -1,0 +1,6 @@
+[workspace]
+members = [
+  "cloudflare_worker",
+  "sxg_rs",
+]
+
