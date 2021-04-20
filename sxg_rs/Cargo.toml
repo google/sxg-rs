@@ -10,7 +10,6 @@ edition = "2018"
 base64 = "0.13.0"
 pem = "0.8.3"
 sha2 = "0.9.3"
-url = "2.2.1"
 
 [dependencies.p256]
 version = "0.7.2"

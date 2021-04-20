@@ -4,3 +4,4 @@ account_id = "XXXXXX"
 workers_dev = true
 route = ""
 zone_id = ""
+vars = { HOST = "example.com" }

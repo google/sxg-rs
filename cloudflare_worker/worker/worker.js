@@ -2,16 +2,53 @@ addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request))
 })
 
-async function fetchLibsxgTestdata(filename) {
-  const TESTDATA_DIR = 'https://raw.githubusercontent.com/google/libsxg/master/tests/testdata/';
-  const response = await fetch(`${TESTDATA_DIR}/${filename}`);
-  const text = await response.text();
-  return text;
-}
-
 function acceptsSxg(request) {
   const accept = request.headers.get('accept') ?? '';
   return accept.includes('application/signed-exchange');
+}
+
+function cloneUrlWith(urlString, mutate) {
+  const url = new URL(urlString);
+  mutate(url);
+  return url.href;
+}
+
+const HARMFUL_HEADER = [
+    "authentication-control",
+    "authentication-info",
+    "clear-site-data",
+    "connection",
+    "keep-alive",
+    "optional-www-authenticate",
+    "proxy-authenticate",
+    "proxy-authentication-info",
+    "proxy-connection",
+    "public-key-pins",
+    "sec-websocket-accept",
+    "set-cookie",
+    "set-cookie2",
+    "setprofile",
+    "strict-transport-security",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+    "variant-key-04",
+    "variants-04",
+    "www-authenticate",
+];
+
+async function myFetch(url) {
+  const response = await fetch(url);
+  const headers = Array.from(response.headers).filter((entry) => {
+    const key = entry[0];
+    return !HARMFUL_HEADER.includes(key) &&
+        !key.startsWith('cf-');
+  });
+  return {
+    body: await response.text(),
+    headers,
+    statusCode: response.status,
+  };
 }
 
 /**
@@ -19,14 +56,15 @@ function acceptsSxg(request) {
  * @param {Request} request
  */
 async function handleRequest(request) {
-  const url = new URL(request.url);
-  if (url.pathname === "/validity") {
+  const requestUrl = request.url;
+  const certUrl = cloneUrlWith(requestUrl, u => u.pathname = '/.sxg_cert');
+  const fallbackUrl = cloneUrlWith(requestUrl, u => u.host = HOST);
+  const validityUrl = cloneUrlWith(fallbackUrl, u => u.pathname = '/.sxg_validity');
+  if (requestUrl === validityUrl) {
     return new Response(
       new UInt8Array([96]),
       {
         status: 200,
-        headers: {
-        },
       },
     );
   }
@@ -34,17 +72,10 @@ async function handleRequest(request) {
     createCertCbor,
     createSignedExchange,
   } = wasm_bindgen;
-  const [
-    certString,
-    privateKeyString,
-  ] = await Promise.all([
-    fetchLibsxgTestdata('cert256.pem'),
-    fetchLibsxgTestdata('priv256.key'),
-    wasm_bindgen(wasm),
-  ]);
-  if (url.pathname === "/cert") {
+  await wasm_bindgen(wasm);
+  if (requestUrl === certUrl) {
     return new Response(
-      createCertCbor(certString),
+      createCertCbor(),
       {
         status: 200,
         headers: {
@@ -54,20 +85,22 @@ async function handleRequest(request) {
     );
   }
   if (!acceptsSxg(request)) {
-    return new Response(
-        `This is not SXG`,
-        {
-          status: 200,
-          headers: {
-            'content-type': 'text/html;charset=UTF-8',
-          },
-        },
-    );
+    return Response.redirect(fallbackUrl, 302);
   }
-  // This is the private key inside https://raw.githubusercontent.com/google/libsxg/master/tests/testdata/priv256.key
-  // TODO add code to parse pem file
-  const privateKeyBase64 = 'szcbp4ROOkiX22BTLNKvFpW8ssRPayfzmlfwbDG52ZE=';
-  const sxg = createSignedExchange(request.url, `This is SXG.`, certString, privateKeyBase64, Math.round(Date.now() / 1000));
+  const {
+    body: payloadBody,
+    headers: payloadHeaders,
+    statusCode: payloadStatusCode,
+  } = await myFetch(fallbackUrl);
+  const sxg = createSignedExchange(
+    certUrl,
+    validityUrl,
+    fallbackUrl,
+    payloadStatusCode,
+    payloadHeaders,
+    payloadBody,
+    Math.round(Date.now() / 1000 - 60 * 60 * 12),
+  );
   return new Response(
       sxg,
       {
