@@ -15,8 +15,6 @@
 extern crate cfg_if;
 extern crate wasm_bindgen;
 
-mod utils;
-
 use cfg_if::cfg_if;
 use once_cell::sync::Lazy;
 use wasm_bindgen::prelude::*;

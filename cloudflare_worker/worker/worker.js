@@ -19,14 +19,8 @@ addEventListener('fetch', event => {
 })
 
 function acceptsSxg(request) {
-  const accept = request.headers.get('accept') ?? '';
+  const accept = request.headers.get('accept') || '';
   return accept.includes('application/signed-exchange');
-}
-
-function cloneUrlWith(urlString, mutate) {
-  const url = new URL(urlString);
-  mutate(url);
-  return url.href;
 }
 
 // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-uncached-header-fields
@@ -61,22 +55,19 @@ const VARIANT_HEADERS = [
   'variants-04',
 ];
 
+const CERT_URL = `https://${WORKER_HOST}/cert`;
+const VALIDITY_URL = `https://${HTML_HOST}/.sxg_validity`;
 
-/**
- * Fetch and log a request
- * @param {Request} request
- */
-async function handleRequest(request) {
-  const requestUrl = request.url;
-  const certUrl = cloneUrlWith(requestUrl, u => u.pathname = '/.sxg_cert');
-  const fallbackUrl = cloneUrlWith(requestUrl, u => u.host = HOST);
-  const validityUrl = cloneUrlWith(fallbackUrl, u => u.pathname = '/.sxg_validity');
-  const {
-    createCertCbor,
-    createSignedExchange,
-  } = wasm_bindgen;
+async function importWasmFunctions() {
   await wasm_bindgen(wasm);
-  if (requestUrl === certUrl) {
+  return wasm_bindgen;
+}
+
+async function handleRequestOnWorkerHost(request) {
+  if (request.url === CERT_URL) {
+    const {
+      createCertCbor
+    } = await importWasmFunctions();
     return new Response(
       createCertCbor(),
       {
@@ -86,30 +77,40 @@ async function handleRequest(request) {
         },
       },
     );
+  } else {
+    return new Response('Invalid path');
   }
+}
+
+async function handleRequestOnHtmlHost(request) {
   if (!acceptsSxg(request)) {
     return fetch(request);
   }
-  const response = await fetch(fallbackUrl);
-  const headers = Array.from(response.headers).filter((entry) => {
+  const {
+    url,
+  } = request;
+  const payload = await fetch(url);
+  const payloadStatusCode = payload.status;
+  if (payloadStatusCode !== 200) {
+    return payload;
+  }
+  const payloadHeaders = Array.from(payload.headers).filter((entry) => {
     const key = entry[0].toLowerCase();
     return key.startsWith('cf-') === false &&
+      STATEFUL_HEADERS.includes(key) === false &&
+      VALIDITY_URL.includes(key) === false &&
       UNCACHED_HEADERS.includes(key) === false;
   });
-  const containsHarmfulHeader = headers.some((entry) => {
-    const key = entry[0].toLowerCase();
-    return STATEFUL_HEADERS.includes(key) || VARIANT_HEADERS.includes(key);
-  });
-  if (containsHarmfulHeader) {
-    return response;
-  }
-  const payloadBody = await response.text();
+  const payloadBody = await payload.text();
+  const {
+    createSignedExchange,
+  } = await importWasmFunctions();
   const sxg = createSignedExchange(
-    certUrl,
-    validityUrl,
-    fallbackUrl,
-    response.status,
-    headers,
+    CERT_URL,
+    VALIDITY_URL,
+    url,
+    payloadStatusCode,
+    payloadHeaders,
     payloadBody,
     Math.round(Date.now() / 1000 - 60 * 60 * 12),
   );
@@ -123,4 +124,15 @@ async function handleRequest(request) {
         },
       },
   );
+}
+
+async function handleRequest(request) {
+  const requestHost = (new URL(request.url)).host;
+  if (requestHost === WORKER_HOST) {
+    return await handleRequestOnWorkerHost(request);
+  } else if (requestHost === HTML_HOST) {
+    return await handleRequestOnHtmlHost(request);
+  } else {
+    return new Response(`Invalid host name. Did you set HTML_HOST and WORKER_HOST in wrangler.toml?`);
+  }
 }
