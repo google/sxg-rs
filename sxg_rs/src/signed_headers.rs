@@ -1,19 +1,19 @@
 use std::collections::BTreeMap;
 
-pub struct SignedHeaders(BTreeMap<Vec<u8>, Vec<u8>>);
+pub struct SignedHeaders<'a>(BTreeMap<&'a str, &'a str>);
 
-impl SignedHeaders {
+impl<'a> SignedHeaders<'a> {
     pub fn new() -> Self {
         SignedHeaders(BTreeMap::new())
     }
-    pub fn insert(&mut self, key: &str, value: &str) {
-        self.0.insert(key.as_bytes().to_vec(), value.as_bytes().to_vec());
+    pub fn insert(&mut self, key: &'a str, value: &'a str) {
+        self.0.insert(key, value);
     }
     pub fn serialize(&self) -> Vec<u8> {
         use crate::cbor::DataItem;
         let cbor_data = DataItem::Map(
             self.0.iter().map(|(key, value)| {
-                (DataItem::ByteString(key.clone()), DataItem::ByteString(value.clone()))
+                (DataItem::ByteString(key.as_bytes()), DataItem::ByteString(value.as_bytes()))
             }).collect()
         );
         cbor_data.serialize()

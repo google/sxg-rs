@@ -1,14 +1,14 @@
 use std::fmt;
 
 #[derive(Debug)]
-pub enum ShItem {
-    ByteSequence(Vec<u8>),
+pub enum ShItem<'a> {
+    ByteSequence(&'a [u8]),
     Integer(u64),
-    String(String),
+    String(&'a str),
 }
 
 // should be https://tools.ietf.org/html/draft-ietf-httpbis-header-structure-10#section-4.1.5
-impl fmt::Display for ShItem {
+impl<'a> fmt::Display for ShItem<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ShItem::ByteSequence(bytes) => {

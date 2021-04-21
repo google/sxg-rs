@@ -2,16 +2,16 @@
 
 use std::collections::BTreeMap;
 
-pub enum DataItem {
+pub enum DataItem<'a> {
     #[allow(dead_code)]
     UnsignedInteger(u64),
-    ByteString(Vec<u8>),
-    TextString(String),
-    Array(Vec<DataItem>),
-    Map(Vec<(DataItem, DataItem)>),
+    ByteString(&'a [u8]),
+    TextString(&'a str),
+    Array(Vec<DataItem<'a>>),
+    Map(Vec<(DataItem<'a>, DataItem<'a>)>),
 }
 
-impl DataItem {
+impl<'a> DataItem<'a> {
     pub fn serialize(&self) -> Vec<u8> {
         let mut result = Vec::new();
         self.append_binary_to(&mut result);
@@ -118,11 +118,11 @@ mod tests {
             from_hex("1bffffffffffffffff"),
         );
         assert_eq!(
-            DataItem::ByteString(vec![1, 2, 3, 4]).serialize(),
+            DataItem::ByteString(&[1, 2, 3, 4]).serialize(),
             from_hex("4401020304"),
         );
         assert_eq!(
-            DataItem::TextString("IETF".to_string()).serialize(),
+            DataItem::TextString("IETF").serialize(),
             from_hex("6449455446"),
         );
         assert_eq!(

@@ -1,31 +1,31 @@
 use ::p256::ecdsa::signature::Signer;
 use crate::structured_header::{ShItem, ShParamList, ParamItem};
 
-pub struct SignatureParams {
-    pub cert_url: String,
+pub struct SignatureParams<'a> {
+    pub cert_url: &'a str,
     pub cert_sha256: Vec<u8>,
     pub date: std::time::SystemTime,
     pub expires: std::time::SystemTime,
-    pub headers: Vec<u8>,
-    pub id: String,
+    pub headers: &'a [u8],
+    pub id: &'a str,
     pub private_key: Vec<u8>,
-    pub request_url: String,
-    pub validity_url: String,
+    pub request_url: &'a str,
+    pub validity_url: &'a str,
 }
 
 // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-the-signature-header
-pub struct Signature {
-    cert_url: String,
+pub struct Signature<'a> {
+    cert_url: &'a str,
     cert_sha256: Vec<u8>,
     date: u64,
     expires: u64,
-    id: String,
+    id: &'a str,
     sig: Vec<u8>,
-    validity_url: String,
+    validity_url: &'a str,
 }
 
-impl Signature {
-    pub fn new(params: SignatureParams) -> Self {
+impl<'a> Signature<'a> {
+    pub fn new(params: SignatureParams<'a>) -> Self {
         let SignatureParams {
             cert_url,
             cert_sha256,
@@ -70,14 +70,14 @@ impl Signature {
     }
     pub fn serialize(&self) -> Vec<u8> {
         let mut list = ShParamList::new();
-        let mut param = ParamItem::new(self.id.clone());
-        param.push(("sig".to_string(), Some(ShItem::ByteSequence(self.sig.clone()))));
-        param.push(("integrity".to_string(), Some(ShItem::String("digest/mi-sha256-03".to_string()))));
-        param.push(("cert-url".to_string(), Some(ShItem::String(self.cert_url.clone()))));
-        param.push(("cert-sha256".to_string(), Some(ShItem::ByteSequence(self.cert_sha256.clone()))));
-        param.push(("validity-url".to_string(), Some(ShItem::String(self.validity_url.clone()))));
-        param.push(("date".to_string(), Some(ShItem::Integer(self.date))));
-        param.push(("expires".to_string(), Some(ShItem::Integer(self.expires))));
+        let mut param = ParamItem::new(&self.id);
+        param.push(("sig", Some(ShItem::ByteSequence(&self.sig))));
+        param.push(("integrity", Some(ShItem::String("digest/mi-sha256-03"))));
+        param.push(("cert-url", Some(ShItem::String(&self.cert_url))));
+        param.push(("cert-sha256", Some(ShItem::ByteSequence(&self.cert_sha256))));
+        param.push(("validity-url", Some(ShItem::String(&self.validity_url))));
+        param.push(("date", Some(ShItem::Integer(self.date))));
+        param.push(("expires", Some(ShItem::Integer(self.expires))));
         list.push(param);
         format!("{}", list).into_bytes()
     }
