@@ -8,7 +8,7 @@ pub struct SignatureParams<'a> {
     pub expires: std::time::SystemTime,
     pub headers: &'a [u8],
     pub id: &'a str,
-    pub private_key: Vec<u8>,
+    pub private_key: &'a [u8],
     pub request_url: &'a str,
     pub validity_url: &'a str,
 }
