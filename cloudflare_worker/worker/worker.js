@@ -13,43 +13,38 @@ function cloneUrlWith(urlString, mutate) {
   return url.href;
 }
 
-const HARMFUL_HEADER = [
-    "authentication-control",
-    "authentication-info",
-    "clear-site-data",
-    "connection",
-    "keep-alive",
-    "optional-www-authenticate",
-    "proxy-authenticate",
-    "proxy-authentication-info",
-    "proxy-connection",
-    "public-key-pins",
-    "sec-websocket-accept",
-    "set-cookie",
-    "set-cookie2",
-    "setprofile",
-    "strict-transport-security",
-    "trailer",
-    "transfer-encoding",
-    "upgrade",
-    "variant-key-04",
-    "variants-04",
-    "www-authenticate",
+// https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-uncached-header-fields
+const UNCACHED_HEADERS = [
+  'connection',
+  'keep-alive',
+  'proxy-connection',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
 ];
 
-async function myFetch(url) {
-  const response = await fetch(url);
-  const headers = Array.from(response.headers).filter((entry) => {
-    const key = entry[0];
-    return !HARMFUL_HEADER.includes(key) &&
-        !key.startsWith('cf-');
-  });
-  return {
-    body: await response.text(),
-    headers,
-    statusCode: response.status,
-  };
-}
+// https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#stateful-headers
+const STATEFUL_HEADERS = [
+  'authentication-control',
+  'authentication-info',
+  'clear-site-data',
+  'optional-www-authenticate',
+  'proxy-authenticate',
+  'proxy-authentication-info',
+  'public-key-pins',
+  'sec-websocket-accept',
+  'set-cookie',
+  'set-cookie2',
+  'setprofile',
+  'strict-transport-security',
+  'www-authenticate',
+];
+
+const VARIANT_HEADERS = [
+  'variant-key-04',
+  'variants-04',
+];
+
 
 /**
  * Fetch and log a request
@@ -60,14 +55,6 @@ async function handleRequest(request) {
   const certUrl = cloneUrlWith(requestUrl, u => u.pathname = '/.sxg_cert');
   const fallbackUrl = cloneUrlWith(requestUrl, u => u.host = HOST);
   const validityUrl = cloneUrlWith(fallbackUrl, u => u.pathname = '/.sxg_validity');
-  if (requestUrl === validityUrl) {
-    return new Response(
-      new UInt8Array([96]),
-      {
-        status: 200,
-      },
-    );
-  }
   const {
     createCertCbor,
     createSignedExchange,
@@ -85,19 +72,28 @@ async function handleRequest(request) {
     );
   }
   if (!acceptsSxg(request)) {
-    return Response.redirect(fallbackUrl, 302);
+    return fetch(request);
   }
-  const {
-    body: payloadBody,
-    headers: payloadHeaders,
-    statusCode: payloadStatusCode,
-  } = await myFetch(fallbackUrl);
+  const response = await fetch(fallbackUrl);
+  const headers = Array.from(response.headers).filter((entry) => {
+    const key = entry[0].toLowerCase();
+    return key.startsWith('cf-') === false &&
+      UNCACHED_HEADERS.includes(key) === false;
+  });
+  const containsHarmfulHeader = headers.some((entry) => {
+    const key = entry[0].toLowerCase();
+    return STATEFUL_HEADERS.includes(key) || VARIANT_HEADERS.includes(key);
+  });
+  if (containsHarmfulHeader) {
+    return response;
+  }
+  const payloadBody = await response.text();
   const sxg = createSignedExchange(
     certUrl,
     validityUrl,
     fallbackUrl,
-    payloadStatusCode,
-    payloadHeaders,
+    response.status,
+    headers,
     payloadBody,
     Math.round(Date.now() / 1000 - 60 * 60 * 12),
   );

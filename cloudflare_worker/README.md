@@ -6,6 +6,6 @@
    1. Fill in your Cloudflare account ID.
    1. Replace `example.com` by your domain.
 
-1. Add your certificate and keys to [cert](./cert) folder.
+1. Add your certificate and keys to [certs](./certs) folder.
 1. `wrangler publish`
 
