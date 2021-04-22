@@ -49,7 +49,6 @@ name = "cloudflare_worker"
 version = "0.1.0"
 dependencies = [
  "cfg-if 0.1.10",
- "console_error_panic_hook",
  "once_cell",
  "pem",
  "sxg_rs",
