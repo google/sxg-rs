@@ -96,9 +96,8 @@ async function handleRequestOnHtmlHost(request) {
   }
   const payloadHeaders = Array.from(payload.headers).filter((entry) => {
     const key = entry[0].toLowerCase();
-    return key.startsWith('cf-') === false &&
-      STATEFUL_HEADERS.includes(key) === false &&
-      VALIDITY_URL.includes(key) === false &&
+    return STATEFUL_HEADERS.includes(key) === false &&
+      VARIANT_HEADERS.includes(key) === false &&
       UNCACHED_HEADERS.includes(key) === false;
   });
   const payloadBody = await payload.text();
