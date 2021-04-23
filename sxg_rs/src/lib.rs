@@ -40,7 +40,7 @@ pub struct CreateSignedExchangeParams<'a> {
     pub cert_url: &'a str,
     pub fallback_url: &'a str,
     pub now: std::time::SystemTime,
-    pub payload_body: &'a str,
+    pub payload_body: &'a [u8],
     pub payload_headers: Vec<(String, String)>,
     pub privkey_der: &'a [u8],
     pub status_code: u16,
@@ -59,7 +59,7 @@ pub fn create_signed_exchange(params: CreateSignedExchangeParams) -> Vec<u8> {
         status_code,
         validity_url,
     } = params;
-    let (mice_digest, payload_body) = crate::mice::calculate(&payload_body.as_bytes());
+    let (mice_digest, payload_body) = crate::mice::calculate(payload_body);
     let mut headers = signed_headers::SignedHeaders::new();
     for (k, v) in payload_headers.iter() {
         headers.insert(k, v);

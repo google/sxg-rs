@@ -62,7 +62,7 @@ pub fn create_signed_exchange(
     fallback_url: &str,
     status_code: u16,
     payload_headers: JsValue,
-    payload_body: &str,
+    payload_body: &[u8],
     now_in_seconds: u32,
 ) -> Vec<u8> {
     let payload_headers: Vec<(String, String)> = payload_headers.into_serde().unwrap();

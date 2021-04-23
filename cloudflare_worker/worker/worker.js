@@ -100,7 +100,7 @@ async function handleRequestOnHtmlHost(request) {
       VARIANT_HEADERS.includes(key) === false &&
       UNCACHED_HEADERS.includes(key) === false;
   });
-  const payloadBody = await payload.text();
+  const payloadBody = await payload.arrayBuffer();
   const {
     createSignedExchange,
   } = await importWasmFunctions();
@@ -110,7 +110,7 @@ async function handleRequestOnHtmlHost(request) {
     url,
     payloadStatusCode,
     payloadHeaders,
-    payloadBody,
+    new Uint8Array(payloadBody),
     Math.round(Date.now() / 1000 - 60 * 60 * 12),
   );
   return new Response(
