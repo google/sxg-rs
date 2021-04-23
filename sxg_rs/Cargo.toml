@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 base64 = "0.13.0"
+serde = { version = "1.0.125", features = ["derive"] }
 sha2 = "0.9.3"
 
 [dependencies.p256]

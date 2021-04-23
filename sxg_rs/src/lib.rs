@@ -13,9 +13,9 @@
 // limitations under the License.
 
 mod cbor;
+pub mod headers;
 mod mice;
 mod signature;
-mod signed_headers;
 mod structured_header;
 mod sxg;
 mod utils;
@@ -41,7 +41,7 @@ pub struct CreateSignedExchangeParams<'a> {
     pub fallback_url: &'a str,
     pub now: std::time::SystemTime,
     pub payload_body: &'a [u8],
-    pub payload_headers: Vec<(String, String)>,
+    pub payload_headers: headers::Headers,
     pub privkey_der: &'a [u8],
     pub status_code: u16,
     pub validity_url: &'a str,
@@ -60,28 +60,17 @@ pub fn create_signed_exchange(params: CreateSignedExchangeParams) -> Vec<u8> {
         validity_url,
     } = params;
     let (mice_digest, payload_body) = crate::mice::calculate(payload_body);
-    let mut headers = signed_headers::SignedHeaders::new();
-    for (k, v) in payload_headers.iter() {
-        headers.insert(k, v);
-    }
-    let status_code = status_code.to_string();
-    headers.insert(":status", &status_code);
-    headers.insert("content-type", "text/html;charset=UTF-8");
-    headers.insert("content-encoding", "mi-sha256-03");
-    let digest = format!("mi-sha256-03={}", ::base64::encode(&mice_digest));
-    headers.insert("digest", &digest);
-    let headers = headers.serialize();
+    let signed_headers = payload_headers.get_signed_headers_bytes(status_code, &mice_digest);
     let signature = signature::Signature::new(signature::SignatureParams {
         cert_url,
         cert_sha256: utils::get_sha(cert_der),
         date: now,
         expires: now + std::time::Duration::from_secs(60 * 60 * 24 * 6),
-        headers: &headers,
+        headers: &signed_headers,
         id: "sig",
         private_key: privkey_der,
         request_url: fallback_url,
         validity_url,
     });
-    sxg::build(fallback_url, &signature.serialize(), &headers, &payload_body)
+    sxg::build(fallback_url, &signature.serialize(), &signed_headers, &payload_body)
 }
-

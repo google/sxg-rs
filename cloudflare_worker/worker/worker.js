@@ -23,38 +23,6 @@ function acceptsSxg(request) {
   return accept.includes('application/signed-exchange');
 }
 
-// https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-uncached-header-fields
-const UNCACHED_HEADERS = [
-  'connection',
-  'keep-alive',
-  'proxy-connection',
-  'trailer',
-  'transfer-encoding',
-  'upgrade',
-];
-
-// https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#stateful-headers
-const STATEFUL_HEADERS = [
-  'authentication-control',
-  'authentication-info',
-  'clear-site-data',
-  'optional-www-authenticate',
-  'proxy-authenticate',
-  'proxy-authentication-info',
-  'public-key-pins',
-  'sec-websocket-accept',
-  'set-cookie',
-  'set-cookie2',
-  'setprofile',
-  'strict-transport-security',
-  'www-authenticate',
-];
-
-const VARIANT_HEADERS = [
-  'variant-key-04',
-  'variants-04',
-];
-
 const CERT_URL = `https://${WORKER_HOST}/cert`;
 const VALIDITY_URL = `https://${HTML_HOST}/.sxg_validity`;
 
@@ -89,21 +57,22 @@ async function handleRequestOnHtmlHost(request) {
   const {
     url,
   } = request;
-  const payload = await fetch(url);
+  const [
+      {
+        canSignHeaders,
+        createSignedExchange,
+      },
+      payload,
+  ] = await Promise.all([
+      importWasmFunctions(),
+      fetch(url),
+  ]);
   const payloadStatusCode = payload.status;
-  if (payloadStatusCode !== 200) {
+  const payloadHeaders = Array.from(payload.headers);
+  if (payloadStatusCode !== 200 || !canSignHeaders(payloadHeaders)) {
     return payload;
   }
-  const payloadHeaders = Array.from(payload.headers).filter((entry) => {
-    const key = entry[0].toLowerCase();
-    return STATEFUL_HEADERS.includes(key) === false &&
-      VARIANT_HEADERS.includes(key) === false &&
-      UNCACHED_HEADERS.includes(key) === false;
-  });
   const payloadBody = await payload.arrayBuffer();
-  const {
-    createSignedExchange,
-  } = await importWasmFunctions();
   const sxg = createSignedExchange(
     CERT_URL,
     VALIDITY_URL,

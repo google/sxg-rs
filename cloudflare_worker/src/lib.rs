@@ -55,6 +55,12 @@ pub fn create_cert_cbor() -> Vec<u8> {
     ::sxg_rs::create_cert_cbor(&CERT_DER, &ISSUER_DER, OCSP_DER)
 }
 
+#[wasm_bindgen(js_name=canSignHeaders)]
+pub fn can_sign_headers(headers: JsValue) -> bool {
+    let headers: ::sxg_rs::headers::Headers = headers.into_serde().unwrap();
+    headers.can_be_signed()
+}
+
 #[wasm_bindgen(js_name=createSignedExchange)]
 pub fn create_signed_exchange(
     cert_url: &str,
@@ -65,7 +71,7 @@ pub fn create_signed_exchange(
     payload_body: &[u8],
     now_in_seconds: u32,
 ) -> Vec<u8> {
-    let payload_headers: Vec<(String, String)> = payload_headers.into_serde().unwrap();
+    let payload_headers = payload_headers.into_serde().unwrap();
     ::sxg_rs::create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
         cert_url,
         cert_der: &CERT_DER,
