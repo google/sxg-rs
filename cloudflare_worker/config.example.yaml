@@ -1,0 +1,5 @@
+---
+html_host: my_domain.com
+reject_stateful_headers: false
+worker_host: sxg.my_worker_subdomain.workers.dev
+

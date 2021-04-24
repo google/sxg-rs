@@ -18,14 +18,15 @@ limitations under the License.
 
 1. Install [Rust](https://www.rust-lang.org/tools/install).
 1. Install [@cloudflare/wrangler](https://github.com/cloudflare/wrangler).
-1. Create a `wrangler.toml` from the template `wrangler.toml.example`.
+1. Create a `wrangler.toml` from the template `wrangler.example.toml`.
    1. Put your Cloudflare account ID.
-   1. Put your `zone_id` and `route` as described
+   1. Put your `zone_id` and `routes` as described
       [here](https://developers.cloudflare.com/workers/get-started/guide#optional-configure-for-deploying-to-a-registered-domain).
-   1. Put your domain as `HTML_HOST`.
+1. Create a `config.yaml` from the template `config.example.yaml`.
+   1. Put your domain as `html_host`.
    1. Put your
       [cloudflare worker subdomain](https://developers.cloudflare.com/workers/get-started/guide#1-sign-up-for-a-workers-account)
-      into `WORKER_HOST`.
+      into `worker_host`.
 
 1. Add your certificate and keys to [certs](./certs) folder.
 1. `wrangler publish`

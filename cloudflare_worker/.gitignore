@@ -1,3 +1,4 @@
+/config.yaml
 /target
 /wrangler.toml
 **/*.rs.bk

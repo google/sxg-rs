@@ -1,7 +1,0 @@
-name = "sxg"
-type = "rust"
-account_id = "XXXXXX"
-workers_dev = true
-route = ""
-zone_id = ""
-vars = { HTML_HOST = "my_domain.com", WORKER_HOST = "sxg.my_worker_subdomain.workers.dev" }

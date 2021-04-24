@@ -12,59 +12,53 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate cfg_if;
-extern crate wasm_bindgen;
+mod config;
 
-use cfg_if::cfg_if;
-use once_cell::sync::Lazy;
+use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
-cfg_if! {
-    // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
-    // allocator.
-    if #[cfg(feature = "wee_alloc")] {
-        extern crate wee_alloc;
-        #[global_allocator]
-        static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-    }
+use config::CONFIG;
+
+#[derive(Serialize)]
+struct HttpResponse {
+    body: Vec<u8>,
+    headers: Vec<(&'static str, &'static str)>,
+    status: u16,
 }
 
-fn get_der(pem_text: &str, expected_tag: &str) -> Vec<u8> {
-    for pem in ::pem::parse_many(pem_text) {
-        if pem.tag == expected_tag {
-            return pem.contents;
+#[wasm_bindgen(js_name=servePresetContent)]
+pub fn serve_preset_content(url: &str) -> JsValue {
+    let response = if url == CONFIG.cert_url {
+        HttpResponse {
+            body: ::sxg_rs::create_cert_cbor(&CONFIG.cert_der, &CONFIG.issuer_der, &CONFIG.ocsp_der),
+            headers: vec![
+                ("content-type", "application/cert-chain+cbor"),
+            ],
+            status: 200,
         }
-    }
-    panic!("The PEM file does not contains the expected block");
-}
 
-static CERT_DER: Lazy<Vec<u8>> = Lazy::new(|| {
-    get_der(include_str!("../certs/cert.pem"), "CERTIFICATE")
-});
-static ISSUER_DER: Lazy<Vec<u8>> = Lazy::new(|| {
-    get_der(include_str!("../certs/issuer.pem"), "CERTIFICATE")
-});
-static PRIVKEY_DER: Lazy<Vec<u8>> = Lazy::new(|| {
-    let a = get_der(include_str!("../certs/privkey.pem"), "EC PRIVATE KEY");
-    a[7..(7 + 32)].to_vec()
-});
-const OCSP_DER: &[u8] = include_bytes!("../certs/ocsp.der");
-
-#[wasm_bindgen(js_name=createCertCbor)]
-pub fn create_cert_cbor() -> Vec<u8> {
-    ::sxg_rs::create_cert_cbor(&CERT_DER, &ISSUER_DER, OCSP_DER)
+    } else if url == CONFIG.validity_url {
+        HttpResponse {
+            body: vec![0x60],
+            headers: vec![
+                ("content-type", "application/cbor"),
+            ],
+            status: 200,
+        }
+    } else {
+        return JsValue::UNDEFINED;
+    };
+    JsValue::from_serde(&response).unwrap()
 }
 
 #[wasm_bindgen(js_name=canSignHeaders)]
 pub fn can_sign_headers(headers: JsValue) -> bool {
     let headers: ::sxg_rs::headers::Headers = headers.into_serde().unwrap();
-    headers.can_be_signed()
+    headers.can_be_signed(CONFIG.reject_stateful_headers)
 }
 
 #[wasm_bindgen(js_name=createSignedExchange)]
 pub fn create_signed_exchange(
-    cert_url: &str,
-    validity_url: &str,
     fallback_url: &str,
     status_code: u16,
     payload_headers: JsValue,
@@ -73,14 +67,14 @@ pub fn create_signed_exchange(
 ) -> Vec<u8> {
     let payload_headers = payload_headers.into_serde().unwrap();
     ::sxg_rs::create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
-        cert_url,
-        cert_der: &CERT_DER,
+        cert_url: &CONFIG.cert_url,
+        cert_der: &CONFIG.cert_der,
         fallback_url,
         now: std::time::UNIX_EPOCH + std::time::Duration::from_secs(now_in_seconds as u64),
         payload_body,
         payload_headers,
-        privkey_der: &PRIVKEY_DER,
+        privkey_der: &CONFIG.privkey_der,
         status_code,
-        validity_url,
+        validity_url: &CONFIG.validity_url,
     })
 }

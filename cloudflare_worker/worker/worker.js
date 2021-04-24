@@ -23,50 +23,38 @@ function acceptsSxg(request) {
   return accept.includes('application/signed-exchange');
 }
 
-const CERT_URL = `https://${WORKER_HOST}/cert`;
-const VALIDITY_URL = `https://${HTML_HOST}/.sxg_validity`;
-
 async function importWasmFunctions() {
   await wasm_bindgen(wasm);
   return wasm_bindgen;
 }
 
-async function handleRequestOnWorkerHost(request) {
-  if (request.url === CERT_URL) {
-    const {
-      createCertCbor
-    } = await importWasmFunctions();
-    return new Response(
-      createCertCbor(),
-      {
-        status: 200,
-        headers: {
-          'content-type': 'application/cert-chain+cbor',
-        },
-      },
-    );
-  } else {
-    return new Response('Invalid path');
-  }
+function responseFromWasm(data) {
+  return new Response(
+    new Uint8Array(data.body),
+    {
+      status: data.status,
+      headers: data.headers,
+    },
+  );
 }
 
-async function handleRequestOnHtmlHost(request) {
-  if (!acceptsSxg(request)) {
-    return fetch(request);
-  }
+async function handleRequest(request) {
+  const {
+    canSignHeaders,
+    createSignedExchange,
+    servePresetContent,
+  } = await importWasmFunctions();
   const {
     url,
   } = request;
-  const [
-      {
-        canSignHeaders,
-        createSignedExchange,
-      },
-      payload,
-  ] = await Promise.all([
-      importWasmFunctions(),
-      fetch(url),
-  ]);
+  const presetContent = servePresetContent(url);
+  if (presetContent) {
+    return responseFromWasm(presetContent);
+  }
+  if (!acceptsSxg(request)) {
+    return fetch(request);
+  }
+  const payload = await fetch(url);
   const payloadStatusCode = payload.status;
   const payloadHeaders = Array.from(payload.headers);
   if (payloadStatusCode !== 200 || !canSignHeaders(payloadHeaders)) {
@@ -74,8 +62,6 @@ async function handleRequestOnHtmlHost(request) {
   }
   const payloadBody = await payload.arrayBuffer();
   const sxg = createSignedExchange(
-    CERT_URL,
-    VALIDITY_URL,
     url,
     payloadStatusCode,
     payloadHeaders,
@@ -92,15 +78,4 @@ async function handleRequestOnHtmlHost(request) {
         },
       },
   );
-}
-
-async function handleRequest(request) {
-  const requestHost = (new URL(request.url)).host;
-  if (requestHost === WORKER_HOST) {
-    return await handleRequestOnWorkerHost(request);
-  } else if (requestHost === HTML_HOST) {
-    return await handleRequestOnHtmlHost(request);
-  } else {
-    return new Response(`Invalid host name. Did you set HTML_HOST and WORKER_HOST in wrangler.toml?`);
-  }
 }

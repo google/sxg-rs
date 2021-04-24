@@ -18,10 +18,9 @@ use serde::{Deserialize, Serialize};
 pub struct Headers(Vec<(String, String)>);
 
 impl Headers {
-    pub fn can_be_signed(&self) -> bool {
+    pub fn can_be_signed(&self, reject_stateful_headers: bool) -> bool {
         for (k, v) in self.0.iter() {
-            const REJECT_STATEFUL_HEADERS: bool = false;
-            if REJECT_STATEFUL_HEADERS && find_header_in(k, &STATEFUL_HEADERS) {
+            if reject_stateful_headers && find_header_in(k, &STATEFUL_HEADERS) {
                 return false;
             }
             if k.eq_ignore_ascii_case("cache-control") {
