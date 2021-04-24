@@ -140,6 +140,10 @@ mod tests {
             from_hex("6449455446"),
         );
         assert_eq!(
+            DataItem::Map(vec![]).serialize(),
+            from_hex("a0"),
+        );
+        assert_eq!(
             DataItem::Map(vec![
                 (DataItem::UnsignedInteger(1), DataItem::UnsignedInteger(2)),
                 (DataItem::UnsignedInteger(3), DataItem::UnsignedInteger(4)),

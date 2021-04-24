@@ -39,7 +39,7 @@ pub fn serve_preset_content(url: &str) -> JsValue {
 
     } else if url == CONFIG.validity_url {
         HttpResponse {
-            body: vec![0x60],
+            body: ::sxg_rs::create_validity(),
             headers: vec![
                 ("content-type", "application/cbor"),
             ],

@@ -35,6 +35,11 @@ pub fn create_cert_cbor(cert_der: &[u8], issuer_der: &[u8], ocsp_der: &[u8]) -> 
     cert_cbor.serialize()
 }
 
+pub fn create_validity() -> Vec<u8> {
+    let validity = cbor::DataItem::Map(vec![]);
+    validity.serialize()
+}
+
 pub struct CreateSignedExchangeParams<'a> {
     pub cert_der: &'a [u8],
     pub cert_url: &'a str,
