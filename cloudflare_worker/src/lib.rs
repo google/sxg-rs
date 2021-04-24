@@ -51,6 +51,16 @@ pub fn serve_preset_content(url: &str) -> JsValue {
     JsValue::from_serde(&response).unwrap()
 }
 
+#[wasm_bindgen(js_name=shouldResponseDebugInfo)]
+pub fn should_response_debug_info() -> bool {
+    CONFIG.response_debug_info
+}
+
+#[wasm_bindgen(js_name=requestAcceptsSxg)]
+pub fn request_accepts_sxg(accept_header: &str) -> bool {
+    ::sxg_rs::media_type::request_accepts_sxg(accept_header)
+}
+
 #[wasm_bindgen(js_name=canSignHeaders)]
 pub fn can_sign_headers(headers: JsValue) -> bool {
     let headers = ::sxg_rs::headers::Headers::new(headers.into_serde().unwrap());

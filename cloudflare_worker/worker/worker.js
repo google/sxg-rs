@@ -18,11 +18,6 @@ addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request))
 })
 
-function acceptsSxg(request) {
-  const accept = request.headers.get('accept') || '';
-  return accept.includes('application/signed-exchange');
-}
-
 async function importWasmFunctions() {
   await wasm_bindgen(wasm);
   return wasm_bindgen;
@@ -42,7 +37,9 @@ async function handleRequest(request) {
   const {
     canSignHeaders,
     createSignedExchange,
+    requestAcceptsSxg,
     servePresetContent,
+    shouldResponseDebugInfo,
   } = await importWasmFunctions();
   const {
     url,
@@ -51,8 +48,12 @@ async function handleRequest(request) {
   if (presetContent) {
     return responseFromWasm(presetContent);
   }
-  if (!acceptsSxg(request)) {
-    return fetch(request);
+  if (!requestAcceptsSxg(request.headers.get('accept') || '')) {
+    if (shouldResponseDebugInfo()) {
+      return new Response('Your request does not accept application/signed-exchange;v=b3 at hightest priority');
+    } else {
+      return fetch(request);
+    }
   }
   const payload = await fetch(url);
   const payloadStatusCode = payload.status;

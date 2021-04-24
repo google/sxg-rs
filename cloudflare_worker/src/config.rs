@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 struct ConfigInput {
     html_host: String,
     reject_stateful_headers: bool,
+    response_debug_info: bool,
     worker_host: String,
 }
 
@@ -15,6 +16,7 @@ pub struct Config {
     pub ocsp_der: Vec<u8>,
     pub privkey_der: Vec<u8>,
     pub reject_stateful_headers: bool,
+    pub response_debug_info: bool,
     pub validity_url: String,
 }
 
@@ -23,6 +25,7 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
     let ConfigInput {
         html_host,
         reject_stateful_headers,
+        response_debug_info,
         worker_host,
     } = serde_yaml::from_str(&input).unwrap();
     Config {
@@ -35,6 +38,7 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
             a[7..(7 + 32)].to_vec()
         },
         reject_stateful_headers,
+        response_debug_info,
         validity_url: format!("https://{}/.sxg_validity", html_host),
     }
 });
