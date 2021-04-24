@@ -53,7 +53,7 @@ pub fn serve_preset_content(url: &str) -> JsValue {
 
 #[wasm_bindgen(js_name=canSignHeaders)]
 pub fn can_sign_headers(headers: JsValue) -> bool {
-    let headers: ::sxg_rs::headers::Headers = headers.into_serde().unwrap();
+    let headers = ::sxg_rs::headers::Headers::new(headers.into_serde().unwrap());
     headers.can_be_signed(CONFIG.reject_stateful_headers)
 }
 
@@ -65,7 +65,7 @@ pub fn create_signed_exchange(
     payload_body: &[u8],
     now_in_seconds: u32,
 ) -> Vec<u8> {
-    let payload_headers = payload_headers.into_serde().unwrap();
+    let payload_headers = ::sxg_rs::headers::Headers::new(payload_headers.into_serde().unwrap());
     ::sxg_rs::create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
         cert_url: &CONFIG.cert_url,
         cert_der: &CONFIG.cert_der,

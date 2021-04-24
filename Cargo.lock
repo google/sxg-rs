@@ -427,8 +427,8 @@ name = "sxg_rs"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "once_cell",
  "p256",
- "serde",
  "sha2",
 ]
 

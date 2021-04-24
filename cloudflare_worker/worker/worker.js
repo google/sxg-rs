@@ -56,7 +56,7 @@ async function handleRequest(request) {
   }
   const payload = await fetch(url);
   const payloadStatusCode = payload.status;
-  const payloadHeaders = Array.from(payload.headers);
+  const payloadHeaders = Object.fromEntries(payload.headers);
   if (payloadStatusCode !== 200 || !canSignHeaders(payloadHeaders)) {
     return payload;
   }

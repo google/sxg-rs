@@ -12,23 +12,49 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use once_cell::sync::Lazy;
 
-#[derive(Deserialize, Serialize)]
-pub struct Headers(Vec<(String, String)>);
+pub struct Headers(HashMap<String, String>);
 
 impl Headers {
+    pub fn new(data: HashMap<String, String>) -> Self {
+        let mut headers = Headers(HashMap::new());
+        for (mut k, v) in data.into_iter() {
+            k.make_ascii_lowercase();
+            headers.0.insert(k, v);
+        }
+        headers
+    }
     pub fn can_be_signed(&self, reject_stateful_headers: bool) -> bool {
         for (k, v) in self.0.iter() {
-            if reject_stateful_headers && find_header_in(k, &STATEFUL_HEADERS) {
+            if reject_stateful_headers && STATEFUL_HEADERS.contains(k.as_str()) {
                 return false;
             }
-            if k.eq_ignore_ascii_case("cache-control") {
+            if k == "cache-control" {
                 // https://github.com/google/webpackager/blob/master/docs/cache_requirements.md#user-content-google-sxg-cache
                 if v.contains("no-cache") || v.contains("private") {
                     return false;
                 }
             }
+        }
+        // Google SXG cache sets the maximum of SXG to be 8 megabytes.
+        if let Some(size) = self.0.get("content-length") {
+            if let Ok(size) = size.parse::<u64>() {
+                const MAX_SIZE: u64 = 8_000_000;
+                if size > MAX_SIZE {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+        // The payload of SXG must have a content-type. See step 8 of
+        // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-signature-validity
+        if self.0.contains_key("content-type") == false {
+            return false;
         }
         true
     }
@@ -36,7 +62,7 @@ impl Headers {
         use crate::cbor::DataItem;
         let mut entries: Vec<(&str, &str)> = vec![];
         for (k, v) in self.0.iter() {
-            if find_header_in(k, &UNCACHED_HEADERS) || find_header_in(k, &STATEFUL_HEADERS) {
+            if UNCACHED_HEADERS.contains(k.as_str()) || STATEFUL_HEADERS.contains(k.as_str()) {
                 continue;
             }
             entries.push((k, v));
@@ -55,41 +81,41 @@ impl Headers {
     }
 }
 
-const UNCACHED_HEADERS: [&'static str; 11] = [
-    // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-uncached-header-fields
-    "connection",
-    "keep-alive",
-    "proxy-connection",
-    "trailer",
-    "transfer-encoding",
-    "upgrade",
+pub static UNCACHED_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    vec![
+        // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-uncached-header-fields
+        "connection",
+        "keep-alive",
+        "proxy-connection",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
 
-    // These headers are reserved for SXG
-    ":status",
-    "content-encoding",
-    "digest",
-    "variant-key-04",
-    "variants-04",
-];
+        // These headers are reserved for SXG
+        ":status",
+        "content-encoding",
+        "digest",
+        "variant-key-04",
+        "variants-04",
+    ].into_iter().collect()
+});
 
-const STATEFUL_HEADERS: [&'static str; 13] = [
-    // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#stateful-headers
-    "authentication-control",
-    "authentication-info",
-    "clear-site-data",
-    "optional-www-authenticate",
-    "proxy-authenticate",
-    "proxy-authentication-info",
-    "public-key-pins",
-    "sec-websocket-accept",
-    "set-cookie",
-    "set-cookie2",
-    "setprofile",
-    "strict-transport-security",
-    "www-authenticate",
-];
-
-fn find_header_in(header_name: &str, preset: &'static [&'static str]) -> bool {
-    preset.iter().any(|x| x.eq_ignore_ascii_case(header_name))
-}
+pub static STATEFUL_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    vec![
+        // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#stateful-headers
+        "authentication-control",
+        "authentication-info",
+        "clear-site-data",
+        "optional-www-authenticate",
+        "proxy-authenticate",
+        "proxy-authentication-info",
+        "public-key-pins",
+        "sec-websocket-accept",
+        "set-cookie",
+        "set-cookie2",
+        "setprofile",
+        "strict-transport-security",
+        "www-authenticate",
+    ].into_iter().collect()
+});
 
