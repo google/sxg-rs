@@ -14,12 +14,37 @@
 
 // https://tools.ietf.org/html/draft-thomson-http-mice-03
 
-pub fn calculate(input: &[u8]) -> (Vec<u8>, Vec<u8>) {
-    let record_size = input.len() as u64;
+use std::collections::VecDeque;
+use ::sha2::{Sha256, Digest};
+
+pub fn calculate(input: &[u8], record_size: usize) -> (Vec<u8>, Vec<u8>) {
+    let record_size = std::cmp::min(record_size, input.len());
+    let records: Vec<_> = if record_size > 0 {
+        input.chunks(record_size).collect()
+    } else {
+        vec![input]
+    };
+    let mut proofs: VecDeque<Vec<u8>> = VecDeque::new();
+    for record in records.iter().rev() {
+        let mut hasher = Sha256::new();
+        hasher.update(record);
+        if let Some(f) = proofs.front() {
+            hasher.update(f);
+            hasher.update(&[1u8]);
+        } else {
+            hasher.update(&[0u8]);
+        }
+        proofs.push_front(hasher.finalize().to_vec());
+    }
     let mut message = Vec::new();
-    message.extend_from_slice(&record_size.to_be_bytes());
-    message.extend_from_slice(input);
-    let integrity = crate::utils::get_sha(&[input, &[0u8]].concat());
+    message.extend_from_slice(&(record_size as u64).to_be_bytes());
+    for i in 0..records.len() {
+        if i > 0 {
+            message.extend_from_slice(&proofs[i]);
+        }
+        message.extend_from_slice(&records[i]);
+    }
+    let integrity = proofs.pop_front().unwrap();
     (integrity, message)
 }
 
@@ -30,9 +55,27 @@ mod tests {
     fn it_works() {
         // https://tools.ietf.org/html/draft-thomson-http-mice-03#section-4.1
         let input = "When I grow up, I want to be a watermelon".as_bytes();
-        let mut output = Vec::<u8>::new();
-        output.extend_from_slice(&0x29u64.to_be_bytes());
-        output.extend_from_slice(&input);
-        assert_eq!(calculate(input), (::base64::decode("dcRDgR2GM35DluAV13PzgnG6+pvQwPywfFvAu1UeFrs=").unwrap(), output));
+        assert_eq!(
+            calculate(input, 1000000),
+            (
+                ::base64::decode("dcRDgR2GM35DluAV13PzgnG6+pvQwPywfFvAu1UeFrs=").unwrap(),
+                [&0x29_u64.to_be_bytes(), input].concat(),
+            ),
+        );
+        // https://tools.ietf.org/html/draft-thomson-http-mice-03#section-4.2
+        assert_eq!(
+            calculate(input, 16),
+            (
+                ::base64::decode("IVa9shfs0nyKEhHqtB3WVNANJ2Njm5KjQLjRtnbkYJ4=").unwrap(),
+                [
+                    &0x10_u64.to_be_bytes(),
+                    &input[0..16],
+                    &::base64::decode("OElbplJlPK+Rv6JNK6p5/515IaoPoZo+2elWL7OQ60A=").unwrap(),
+                    &input[16..32],
+                    &::base64::decode("iPMpmgExHPrbEX3/RvwP4d16fWlK4l++p75PUu/KyN0=").unwrap(),
+                    &input[32..],
+                ].concat(),
+            ),
+        );
     }
 }

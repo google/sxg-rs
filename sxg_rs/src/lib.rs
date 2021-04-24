@@ -65,7 +65,7 @@ pub fn create_signed_exchange(params: CreateSignedExchangeParams) -> Vec<u8> {
         status_code,
         validity_url,
     } = params;
-    let (mice_digest, payload_body) = crate::mice::calculate(payload_body);
+    let (mice_digest, payload_body) = crate::mice::calculate(payload_body, 16384);
     let signed_headers = payload_headers.get_signed_headers_bytes(status_code, &mice_digest);
     let signature = signature::Signature::new(signature::SignatureParams {
         cert_url,
