@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+extern crate console_error_panic_hook;
+
 mod config;
 
 use serde::Serialize;
@@ -24,6 +26,11 @@ struct HttpResponse {
     body: Vec<u8>,
     headers: Vec<(&'static str, &'static str)>,
     status: u16,
+}
+
+#[wasm_bindgen(js_name=init)]
+pub fn init() {
+    console_error_panic_hook::set_once();
 }
 
 #[wasm_bindgen(js_name=servePresetContent)]
@@ -56,15 +63,17 @@ pub fn should_response_debug_info() -> bool {
     CONFIG.response_debug_info
 }
 
-#[wasm_bindgen(js_name=requestAcceptsSxg)]
-pub fn request_accepts_sxg(accept_header: &str) -> bool {
-    ::sxg_rs::media_type::request_accepts_sxg(accept_header)
+#[wasm_bindgen(js_name=validateRequestAcceptHeader)]
+pub fn request_accepts_sxg(accept_header: &str) -> Result<(), JsValue> {
+    let result = ::sxg_rs::media_type::validate_sxg_request_header(accept_header);
+    result.map_err(|err| JsValue::from_str(&err))
 }
 
-#[wasm_bindgen(js_name=canSignHeaders)]
-pub fn can_sign_headers(headers: JsValue) -> bool {
+#[wasm_bindgen(js_name=validatePayloadHeaders)]
+pub fn validate_payload_headers(headers: JsValue) -> Result<(), JsValue> {
     let headers = ::sxg_rs::headers::Headers::new(headers.into_serde().unwrap());
-    headers.can_be_signed(CONFIG.reject_stateful_headers)
+    let result = headers.validate(CONFIG.reject_stateful_headers);
+    result.map_err(|err| JsValue::from_str(&err))
 }
 
 #[wasm_bindgen(js_name=createSignedExchange)]

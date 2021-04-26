@@ -20,6 +20,7 @@ addEventListener('fetch', event => {
 
 async function importWasmFunctions() {
   await wasm_bindgen(wasm);
+  wasm_bindgen.init();
   return wasm_bindgen;
 }
 
@@ -35,35 +36,51 @@ function responseFromWasm(data) {
 
 async function handleRequest(request) {
   const {
-    canSignHeaders,
-    createSignedExchange,
-    requestAcceptsSxg,
     servePresetContent,
     shouldResponseDebugInfo,
   } = await importWasmFunctions();
-  const {
-    url,
-  } = request;
-  const presetContent = servePresetContent(url);
+  const presetContent = servePresetContent(request.url);
   if (presetContent) {
     return responseFromWasm(presetContent);
   }
-  if (!requestAcceptsSxg(request.headers.get('accept') || '')) {
+  const payload = await fetch(request);
+  let response;
+  try {
+    response = await genereateResponse(request, payload);
+  } catch (e) {
     if (shouldResponseDebugInfo()) {
-      return new Response('Your request does not accept application/signed-exchange;v=b3 at hightest priority');
+      response = new Response(
+        `Failed to create SXG.\n${e}`,
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'text/plain',
+          },
+        },
+      );
     } else {
-      return fetch(request);
+      response = payload;
     }
   }
-  const payload = await fetch(url);
+  return response;
+}
+
+async function genereateResponse(request, payload) {
+  const {
+    createSignedExchange,
+    validatePayloadHeaders,
+    validateRequestAcceptHeader,
+  } = await importWasmFunctions();
+  validateRequestAcceptHeader(request.headers.get('accept') || '');
   const payloadStatusCode = payload.status;
-  const payloadHeaders = Object.fromEntries(payload.headers);
-  if (payloadStatusCode !== 200 || !canSignHeaders(payloadHeaders)) {
-    return payload;
+  if (payloadStatusCode !== 200) {
+    throw `The resource status code is ${payloadStatusCode}`;
   }
+  const payloadHeaders = Object.fromEntries(payload.headers);
+  validatePayloadHeaders(payloadHeaders);
   const payloadBody = await payload.arrayBuffer();
   const sxg = createSignedExchange(
-    url,
+    request.url,
     payloadStatusCode,
     payloadHeaders,
     new Uint8Array(payloadBody),

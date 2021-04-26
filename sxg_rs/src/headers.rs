@@ -26,15 +26,15 @@ impl Headers {
         }
         headers
     }
-    pub fn can_be_signed(&self, reject_stateful_headers: bool) -> bool {
+    pub fn validate(&self, reject_stateful_headers: bool) -> Result<(), String> {
         for (k, v) in self.0.iter() {
             if reject_stateful_headers && STATEFUL_HEADERS.contains(k.as_str()) {
-                return false;
+                return Err(format!(r#"A stateful header "{}" is found."#, k));
             }
             if k == "cache-control" {
                 // https://github.com/google/webpackager/blob/master/docs/cache_requirements.md#user-content-google-sxg-cache
                 if v.contains("no-cache") || v.contains("private") {
-                    return false;
+                    return Err(format!(r#"The cache-control header is "{}"."#, v));
                 }
             }
         }
@@ -43,20 +43,20 @@ impl Headers {
             if let Ok(size) = size.parse::<u64>() {
                 const MAX_SIZE: u64 = 8_000_000;
                 if size > MAX_SIZE {
-                    return false;
+                    return Err(format!("The content-length header is {}, which exceeds the limit {}.", size, MAX_SIZE));
                 }
             } else {
-                return false;
+                return Err(format!(r#"The content-length header "{}" is not a valid length."#, size));
             }
         } else {
-            return false;
+            return Err(format!("The content-length header is missing."));
         }
         // The payload of SXG must have a content-type. See step 8 of
         // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-signature-validity
         if self.0.contains_key("content-type") == false {
-            return false;
+            return Err(format!("The content-type header is missing."));
         }
-        true
+        Ok(())
     }
     pub fn get_signed_headers_bytes(&self, status_code: u16, mice_digest: &[u8]) -> Vec<u8> {
         use crate::cbor::DataItem;

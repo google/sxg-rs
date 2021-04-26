@@ -31,12 +31,19 @@ impl<'a> MediaType {
     }
 }
 
-pub fn request_accepts_sxg(accept: &str) -> bool {
+pub fn validate_sxg_request_header(accept: &str) -> Result<(), String> {
+    const SXG: &'static str = "application/signed-exchange;v=b3";
     let media_types = accept.split(',');
     let media_types: Vec<_> = media_types.map(|s| MediaType::new(s)).collect();
-    let max_sxg_weight = media_types.iter().map(|t| t.weight_milliles * t.is_sxg_b3 as u16).max();
-    let max_weight = media_types.iter().map(|t| t.weight_milliles).max();
-    max_sxg_weight == max_weight
+    let q_sxg = media_types.iter().map(|t| t.weight_milliles * t.is_sxg_b3 as u16).max().unwrap();
+    let q_max = media_types.iter().map(|t| t.weight_milliles).max().unwrap();
+    if q_sxg == 0 {
+        Err(format!("The request accept header does not contain {}.", SXG))
+    } else if q_sxg < q_max {
+        Err(format!("The q value of {} is not the max in request accept header", SXG))
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -44,9 +51,10 @@ mod tests {
     use super::*;
     #[test]
     fn it_works() {
-        assert!(request_accepts_sxg("application/signed-exchange;v=b3"));
-        assert!(request_accepts_sxg("application/signed-exchange;v=b3;q=0.9,*/*;q=0.8"));
-        assert_eq!(request_accepts_sxg("text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9"), false);
+        assert!(validate_sxg_request_header("application/signed-exchange;v=b3").is_ok());
+        assert!(validate_sxg_request_header("application/signed-exchange;v=b3;q=0.9,*/*;q=0.8").is_ok());
+        assert!(validate_sxg_request_header("").is_err());
+        assert!(validate_sxg_request_header("text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9").is_err());
     }
 }
 
