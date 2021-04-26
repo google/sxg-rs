@@ -48,8 +48,6 @@ impl Headers {
             } else {
                 return Err(format!(r#"The content-length header "{}" is not a valid length."#, size));
             }
-        } else {
-            return Err(format!("The content-length header is missing."));
         }
         // The payload of SXG must have a content-type. See step 8 of
         // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-signature-validity

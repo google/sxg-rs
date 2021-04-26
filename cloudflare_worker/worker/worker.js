@@ -34,6 +34,51 @@ function responseFromWasm(data) {
   );
 }
 
+/**
+ * Consumes the input stream, and returns an byte array containing the data in
+ * the input stream. If the input stream contains more bytes than `maxSize`,
+ * returns null.
+ * @param {ReadableStream} inputStream
+ * @param {number} maxSize
+ * @returns {Promise<Uint8Array | null>}
+ */
+async function readIntoArray(inputStream, maxSize) {
+  const reader = inputStream.getReader();
+  const received = new Uint8Array(maxSize);
+  let receivedSize = 0;
+  while (true) {
+    const {
+      value,
+      done,
+    } = await reader.read();
+    if (value) {
+      if (receivedSize + value.byteLength > maxSize) {
+        reader.releaseLock();
+        inputStream.cancel();
+        return null;
+      }
+      received.set(value, receivedSize);
+      receivedSize += value.byteLength;
+    }
+    if (done) {
+      return received.subarray(0, receivedSize);
+    }
+  }
+}
+
+function teeResponse(response) {
+  const {
+    body,
+    headers,
+    status,
+  } = response;
+  const [body1, body2] = response.body.tee();
+  return [
+      new Response(body1, { headers, status }),
+      new Response(body2, { headers, status }),
+  ];
+}
+
 async function handleRequest(request) {
   const {
     servePresetContent,
@@ -44,9 +89,10 @@ async function handleRequest(request) {
     return responseFromWasm(presetContent);
   }
   const payload = await fetch(request);
+  const [payload1, payload2] = teeResponse(payload);
   let response;
   try {
-    response = await genereateResponse(request, payload);
+    response = await genereateResponse(request, payload1);
   } catch (e) {
     if (shouldResponseDebugInfo()) {
       response = new Response(
@@ -59,7 +105,7 @@ async function handleRequest(request) {
         },
       );
     } else {
-      response = payload;
+      response = payload2;
     }
   }
   return response;
@@ -78,7 +124,11 @@ async function genereateResponse(request, payload) {
   }
   const payloadHeaders = Object.fromEntries(payload.headers);
   validatePayloadHeaders(payloadHeaders);
-  const payloadBody = await payload.arrayBuffer();
+  const PAYLOAD_SIZE_LIMIT = 8000000;
+  const payloadBody = await readIntoArray(payload.body, PAYLOAD_SIZE_LIMIT);
+  if (!payloadBody) {
+    throw `The size of payload exceeds the limit ${PAYLOAD_SIZE_LIMIT}`;
+  }
   const sxg = createSignedExchange(
     request.url,
     payloadStatusCode,
