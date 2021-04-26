@@ -83,8 +83,11 @@ pub fn create_signed_exchange(
     payload_headers: JsValue,
     payload_body: &[u8],
     now_in_seconds: u32,
+    encryption_password: &str,
 ) -> Vec<u8> {
     let payload_headers = ::sxg_rs::headers::Headers::new(payload_headers.into_serde().unwrap());
+    let privkey = CONFIG.encrypted_privkey.decrypt(encryption_password).unwrap();
+    let privkey_der = &privkey.private_key_info().private_key[7..(7 + 32)];
     ::sxg_rs::create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
         cert_url: &CONFIG.cert_url,
         cert_der: &CONFIG.cert_der,
@@ -92,7 +95,7 @@ pub fn create_signed_exchange(
         now: std::time::UNIX_EPOCH + std::time::Duration::from_secs(now_in_seconds as u64),
         payload_body,
         payload_headers,
-        privkey_der: &CONFIG.privkey_der,
+        privkey_der,
         status_code,
         validity_url: &CONFIG.validity_url,
     })

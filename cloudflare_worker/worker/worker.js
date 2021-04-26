@@ -129,12 +129,16 @@ async function genereateResponse(request, payload) {
   if (!payloadBody) {
     throw `The size of payload exceeds the limit ${PAYLOAD_SIZE_LIMIT}`;
   }
+  if (!ENCRYPTION_PASSWORD) {
+    throw `The encyption password is not set.`;
+  }
   const sxg = createSignedExchange(
     request.url,
     payloadStatusCode,
     payloadHeaders,
     new Uint8Array(payloadBody),
     Math.round(Date.now() / 1000 - 60 * 60 * 12),
+    ENCRYPTION_PASSWORD,
   );
   return new Response(
       sxg,

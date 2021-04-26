@@ -29,5 +29,15 @@ limitations under the License.
       into `worker_host`.
 
 1. Add your certificate and keys to [certs](./certs) folder.
+1. Put your private key encryption password as
+   [secret](https://developers.cloudflare.com/workers/cli-wrangler/commands#secret).
+   The encryption password is what you use to create
+   `certs/encrypted_privkey.pem`.
+   1. Run `wrangler secret put ENCRYPTION_PASSWORD`. (Use the string
+      `ENCRYPTION_PASSWORD` as is, and don't repalce it with the
+      actual password.)
+   1. The terminal will interactively ask for the value of the secret.
+      Put the private encryption password here.
+
 1. `wrangler publish`
 
