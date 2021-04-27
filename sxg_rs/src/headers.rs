@@ -18,7 +18,7 @@ use once_cell::sync::Lazy;
 pub struct Headers(HashMap<String, String>);
 
 impl Headers {
-    pub fn new(data: HashMap<String, String>) -> Self {
+    pub fn new(data: Vec<(String, String)>) -> Self {
         let mut headers = Headers(HashMap::new());
         for (mut k, v) in data.into_iter() {
             k.make_ascii_lowercase();

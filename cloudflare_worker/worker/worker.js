@@ -122,7 +122,7 @@ async function genereateResponse(request, payload) {
   if (payloadStatusCode !== 200) {
     throw `The resource status code is ${payloadStatusCode}`;
   }
-  const payloadHeaders = Object.fromEntries(payload.headers);
+  const payloadHeaders = Array.from(payload.headers);
   validatePayloadHeaders(payloadHeaders);
   const PAYLOAD_SIZE_LIMIT = 8000000;
   const payloadBody = await readIntoArray(payload.body, PAYLOAD_SIZE_LIMIT);
