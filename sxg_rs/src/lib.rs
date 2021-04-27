@@ -65,6 +65,8 @@ pub fn create_signed_exchange(params: CreateSignedExchangeParams) -> Vec<u8> {
         status_code,
         validity_url,
     } = params;
+    // 16384 is the max mice record size allowed by SXG spec.
+    // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#section-3.5-7.9.1
     let (mice_digest, payload_body) = crate::mice::calculate(payload_body, 16384);
     let signed_headers = payload_headers.get_signed_headers_bytes(status_code, &mice_digest);
     let signature = signature::Signature::new(signature::SignatureParams {

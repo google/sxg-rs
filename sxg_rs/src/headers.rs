@@ -93,6 +93,9 @@ pub static UNCACHED_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         ":status",
         "content-encoding",
         "digest",
+
+        // These headers are prohibited by Google SXG cache
+        // https://github.com/google/webpackager/blob/master/docs/cache_requirements.md
         "variant-key-04",
         "variants-04",
     ].into_iter().collect()

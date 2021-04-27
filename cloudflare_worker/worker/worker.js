@@ -82,7 +82,7 @@ function teeResponse(response) {
 async function handleRequest(request) {
   const {
     servePresetContent,
-    shouldResponseDebugInfo,
+    shouldRespondDebugInfo,
   } = await importWasmFunctions();
   const presetContent = servePresetContent(request.url);
   if (presetContent) {
@@ -94,7 +94,7 @@ async function handleRequest(request) {
   try {
     response = await genereateResponse(request, payload1);
   } catch (e) {
-    if (shouldResponseDebugInfo()) {
+    if (shouldRespondDebugInfo()) {
       response = new Response(
         `Failed to create SXG.\n${e}`,
         {

@@ -1,6 +1,6 @@
 ---
 html_host: my_domain.com
 reject_stateful_headers: false
-response_debug_info: false
+respond_debug_info: false
 worker_host: sxg.my_worker_subdomain.workers.dev
 

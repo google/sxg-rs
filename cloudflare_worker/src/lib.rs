@@ -58,9 +58,9 @@ pub fn serve_preset_content(url: &str) -> JsValue {
     JsValue::from_serde(&response).unwrap()
 }
 
-#[wasm_bindgen(js_name=shouldResponseDebugInfo)]
-pub fn should_response_debug_info() -> bool {
-    CONFIG.response_debug_info
+#[wasm_bindgen(js_name=shouldRespondDebugInfo)]
+pub fn should_respond_debug_info() -> bool {
+    CONFIG.respond_debug_info
 }
 
 #[wasm_bindgen(js_name=validateRequestAcceptHeader)]
@@ -87,6 +87,7 @@ pub fn create_signed_exchange(
 ) -> Vec<u8> {
     let payload_headers = ::sxg_rs::headers::Headers::new(payload_headers.into_serde().unwrap());
     let privkey = CONFIG.encrypted_privkey.decrypt(encryption_password).unwrap();
+    // TODO: Add explanation why openssl puts private key is the [7:39] bytes.
     let privkey_der = &privkey.private_key_info().private_key[7..(7 + 32)];
     ::sxg_rs::create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
         cert_url: &CONFIG.cert_url,
