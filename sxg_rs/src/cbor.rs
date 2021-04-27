@@ -151,4 +151,25 @@ mod tests {
             from_hex("a201020304"),
         );
     }
+    #[test]
+    fn map_keys_are_sorted() {
+        use DataItem::*;
+        assert_eq!(
+            Map(vec![
+              (UnsignedInteger(2), UnsignedInteger(5)),
+              (UnsignedInteger(1), UnsignedInteger(6)),
+            ]).serialize(),
+            from_hex("a201060205"),
+        );
+        // Although "AA" is lexicographically less than "B", the CBOR format
+        // of the string is prefixed with the string length, hence "B" is less
+        // than "AA".
+        assert_eq!(
+            Map(vec![
+              (TextString("AA"), UnsignedInteger(6)),
+              (TextString("B"), UnsignedInteger(5)),
+            ]).serialize(),
+            from_hex("a261420562414106"),
+        );
+    }
 }
