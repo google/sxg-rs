@@ -46,3 +46,12 @@ fn get_der(pem_text: &str, expected_tag: &str) -> Vec<u8> {
     }
     panic!("The PEM file does not contains the expected block");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn it_works() {
+        &*CONFIG;
+    }
+}

@@ -29,6 +29,7 @@ limitations under the License.
       into `worker_host`.
 
 1. Add your certificate and keys to [certs](./certs) folder.
+1. Run `cargo test` to check errors in `config.yml` and `certs/*`.
 1. Put your private key as a
    [secret](https://developers.cloudflare.com/workers/cli-wrangler/commands#secret)
    to cloudflare worker.
