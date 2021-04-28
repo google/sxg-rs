@@ -64,7 +64,7 @@ mod tests {
         assert!(validate_sxg_request_header("text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9").is_err());
     }
     #[test]
-    fn opional_whitespaces() {
+    fn optional_whitespaces() {
         assert!(validate_sxg_request_header("  application/signed-exchange  ;  v=b3  ;  q=0.9  ,  */*  ;  q=0.8  ").is_ok());
     }
     #[test]
