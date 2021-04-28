@@ -12,7 +12,6 @@ struct ConfigInput {
 pub struct Config {
     pub cert_der: Vec<u8>,
     pub cert_url: String,
-    pub encrypted_privkey: ::pkcs8::EncryptedPrivateKeyDocument,
     pub issuer_der: Vec<u8>,
     pub ocsp_der: Vec<u8>,
     pub reject_stateful_headers: bool,
@@ -31,10 +30,6 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
     Config {
         cert_der: get_der(include_str!("../certs/cert.pem"), "CERTIFICATE"),
         cert_url: format!("https://{}/cert", worker_host),
-        encrypted_privkey: {
-            let pem_text = include_str!("../certs/encrypted_privkey.pem");
-            ::pkcs8::EncryptedPrivateKeyDocument::from_pem(pem_text).unwrap()
-        },
         issuer_der: get_der(include_str!("../certs/issuer.pem"), "CERTIFICATE"),
         ocsp_der: include_bytes!("../certs/ocsp.der").to_vec(),
         reject_stateful_headers,
