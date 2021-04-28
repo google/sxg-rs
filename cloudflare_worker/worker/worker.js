@@ -93,7 +93,7 @@ async function handleRequest(request) {
   const [payload1, payload2] = teeResponse(payload);
   let response;
   try {
-    response = await genereateResponse(request, payload1);
+    response = await generateResponse(request, payload1);
   } catch (e) {
     if (shouldRespondDebugInfo()) {
       let message;
@@ -120,7 +120,7 @@ async function handleRequest(request) {
   return response;
 }
 
-async function genereateResponse(request, payload) {
+async function generateResponse(request, payload) {
   const {
     createSignedExchange,
     validatePayloadHeaders,
