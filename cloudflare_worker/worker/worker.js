@@ -20,7 +20,7 @@ addEventListener('fetch', event => {
 
 async function importWasmFunctions() {
   await wasm_bindgen(wasm);
-  wasm_bindgen.init();
+  wasm_bindgen.reset();
   return wasm_bindgen;
 }
 
@@ -81,6 +81,7 @@ function teeResponse(response) {
 
 async function handleRequest(request) {
   const {
+    getLastErrorMessage,
     servePresetContent,
     shouldRespondDebugInfo,
   } = await importWasmFunctions();
@@ -95,10 +96,18 @@ async function handleRequest(request) {
     response = await genereateResponse(request, payload1);
   } catch (e) {
     if (shouldRespondDebugInfo()) {
+      let message;
+      if (e instanceof WebAssembly.RuntimeError) {
+        message = `WebAssembly code is aborted.\n${getLastErrorMessage()}`;
+      } else if (typeof e === 'string') {
+        message = `WebAssembly code gracefully throws an error.\n${e}`;
+      } else {
+        message = `JavaScript code throws an error.\n${e}`;
+      }
       response = new Response(
-        `Failed to create SXG.\n${e}`,
+        message,
         {
-          status: 500,
+          status: 200,
           headers: {
             'Content-Type': 'text/plain',
           },

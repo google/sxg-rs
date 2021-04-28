@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate console_error_panic_hook;
-
 mod config;
+mod utils;
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
@@ -28,9 +27,15 @@ struct HttpResponse {
     status: u16,
 }
 
-#[wasm_bindgen(js_name=init)]
-pub fn init() {
-    console_error_panic_hook::set_once();
+#[wasm_bindgen(js_name=reset)]
+pub fn reset() {
+    utils::init();
+    utils::reset_last_error_message();
+}
+
+#[wasm_bindgen(js_name=getLastErrorMessage)]
+pub fn get_last_error_message() -> JsValue {
+    utils::get_last_error_message()
 }
 
 #[wasm_bindgen(js_name=servePresetContent)]
