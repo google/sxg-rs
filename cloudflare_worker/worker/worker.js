@@ -20,7 +20,6 @@ addEventListener('fetch', event => {
 
 async function importWasmFunctions() {
   await wasm_bindgen(wasm);
-  wasm_bindgen.reset();
   return wasm_bindgen;
 }
 
@@ -82,29 +81,31 @@ function teeResponse(response) {
 async function handleRequest(request) {
   const {
     getLastErrorMessage,
+    reset,
     servePresetContent,
     shouldRespondDebugInfo,
   } = await importWasmFunctions();
-  const presetContent = servePresetContent(request.url);
-  if (presetContent) {
-    return responseFromWasm(presetContent);
-  }
-  const payload = await fetch(request);
-  const [payload1, payload2] = teeResponse(payload);
-  let response;
+  let fallback = new Response('');
   try {
-    response = await generateResponse(request, payload1);
+    reset();
+    const presetContent = servePresetContent(request.url);
+    if (presetContent) {
+      return responseFromWasm(presetContent);
+    }
+    let sxgPayload;
+    [sxgPayload, fallback] = teeResponse(await fetch(request));
+    return await generateSxgResponse(request, sxgPayload);
   } catch (e) {
     if (shouldRespondDebugInfo()) {
       let message;
       if (e instanceof WebAssembly.RuntimeError) {
-        message = `WebAssembly code is aborted.\n${getLastErrorMessage()}`;
+        message = `WebAssembly code is aborted.\n${e}.\n${getLastErrorMessage()}`;
       } else if (typeof e === 'string') {
-        message = `WebAssembly code gracefully throws an error.\n${e}`;
+        message = `A message is gracefully thrown.\n${e}`;
       } else {
         message = `JavaScript code throws an error.\n${e}`;
       }
-      response = new Response(
+      return new Response(
         message,
         {
           status: 200,
@@ -114,13 +115,12 @@ async function handleRequest(request) {
         },
       );
     } else {
-      response = payload2;
+      return fallback;
     }
   }
-  return response;
 }
 
-async function generateResponse(request, payload) {
+async function generateSxgResponse(request, payload) {
   const {
     createSignedExchange,
     validatePayloadHeaders,
