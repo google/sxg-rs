@@ -106,12 +106,13 @@ async function handleRequest(request) {
         message = `JavaScript code throws an error.\n${e}`;
       }
       return new Response(
-        message,
+        fallback.body,
         {
-          status: 200,
-          headers: {
-            'Content-Type': 'text/plain',
-          },
+          status: fallback.status,
+          headers: [
+              ...Array.from(fallback.headers || []),
+              ['sxg-edge-worker-debug-info', JSON.stringify(message)],
+          ],
         },
       );
     } else {
