@@ -18,7 +18,7 @@ mod utils;
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
-use config::CONFIG;
+use config::{ASSET, CONFIG};
 
 #[derive(Serialize)]
 struct HttpResponse {
@@ -42,7 +42,7 @@ pub fn get_last_error_message() -> JsValue {
 pub fn serve_preset_content(url: &str) -> JsValue {
     let response = if url == CONFIG.cert_url {
         HttpResponse {
-            body: ::sxg_rs::create_cert_cbor(&CONFIG.cert_der, &CONFIG.issuer_der, &CONFIG.ocsp_der),
+            body: ::sxg_rs::create_cert_cbor(&ASSET.cert_der, &ASSET.issuer_der, &ASSET.ocsp_der),
             headers: vec![
                 ("content-type", "application/cert-chain+cbor"),
             ],
@@ -102,7 +102,7 @@ pub fn create_signed_exchange(
     let privkey_der = ::base64::decode(privkey_base64).unwrap();
     ::sxg_rs::create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
         cert_url: &CONFIG.cert_url,
-        cert_der: &CONFIG.cert_der,
+        cert_der: &ASSET.cert_der,
         fallback_url,
         now: std::time::UNIX_EPOCH + std::time::Duration::from_secs(now_in_seconds as u64),
         payload_body,
