@@ -1,4 +1,7 @@
 ---
+forward_request_headers:
+  - "cf-ipcountry"
+  - "user-agent"
 html_host: my_domain.com
 reject_stateful_headers: false
 respond_debug_info: false

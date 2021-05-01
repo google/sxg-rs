@@ -17,8 +17,10 @@ use once_cell::sync::Lazy;
 
 pub struct Headers(HashMap<String, String>);
 
+type Entries = Vec<(String, String)>;
+
 impl Headers {
-    pub fn new(data: Vec<(String, String)>) -> Self {
+    pub fn new(data: Entries) -> Self {
         let mut headers = Headers(HashMap::new());
         for (mut k, v) in data.into_iter() {
             k.make_ascii_lowercase();
@@ -26,7 +28,38 @@ impl Headers {
         }
         headers
     }
-    pub fn validate(&self, reject_stateful_headers: bool) -> Result<(), String> {
+    pub fn forward_to_origin_server(self, forwarded_header_names: &HashSet<String>) -> Result<Entries, String> {
+        let accept = self.0.get("accept").ok_or("The request does not have accept header")?;
+        crate::media_type::validate_sxg_request_header(accept)?;
+        // Set Via per https://tools.ietf.org/html/rfc7230#section-5.7.1
+        let mut via = format!("sxgrs");
+        if let Some(upstream_via) = self.0.get("via") {
+            via = format!("{}, {}", upstream_via, via);
+        }
+        let mut new_headers: HashMap<String, String> = self.0.into_iter().filter_map(|(k, v)| {
+            let v = if forwarded_header_names.contains(&k) {
+                v
+            } else if k == "via" {
+                format!("{}, {}", v, via)
+            } else {
+                return None;
+            };
+            Some((k, v))
+        }).collect();
+        // The default user agent to send when issuing fetches. Should look like a mobile device.
+        const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36";
+        let default_values = vec![
+            ("user-agent", USER_AGENT),
+            ("via", &via),
+        ];
+        for (k, v) in default_values {
+            if new_headers.contains_key(k) == false {
+                new_headers.insert(k.to_string(), v.to_string());
+            }
+        }
+        Ok(new_headers.into_iter().collect())
+    }
+    pub fn validate_as_sxg_payload(&self, reject_stateful_headers: bool) -> Result<(), String> {
         for (k, v) in self.0.iter() {
             if reject_stateful_headers && STATEFUL_HEADERS.contains(k.as_str()) {
                 return Err(format!(r#"A stateful header "{}" is found."#, k));
@@ -79,7 +112,7 @@ impl Headers {
     }
 }
 
-pub static UNCACHED_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+static UNCACHED_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     vec![
         // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-uncached-header-fields
         "connection",
@@ -101,7 +134,7 @@ pub static UNCACHED_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     ].into_iter().collect()
 });
 
-pub static STATEFUL_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+static STATEFUL_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     vec![
         // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#stateful-headers
         "authentication-control",

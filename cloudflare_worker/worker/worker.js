@@ -80,20 +80,27 @@ function teeResponse(response) {
 
 async function handleRequest(request) {
   const {
+    createRequestHeaders,
     getLastErrorMessage,
     reset,
     servePresetContent,
     shouldRespondDebugInfo,
   } = await importWasmFunctions();
-  let fallback = new Response('');
+  let fallback = null;
   try {
     reset();
     const presetContent = servePresetContent(request.url);
     if (presetContent) {
       return responseFromWasm(presetContent);
     }
+    const requestHeaders = createRequestHeaders(Array.from(request.headers));
     let sxgPayload;
-    [sxgPayload, fallback] = teeResponse(await fetch(request));
+    [sxgPayload, fallback] = teeResponse(await fetch(
+      request.url,
+      {
+        headers: requestHeaders,
+      }
+    ));
     return await generateSxgResponse(request, sxgPayload);
   } catch (e) {
     if (shouldRespondDebugInfo()) {
@@ -104,6 +111,9 @@ async function handleRequest(request) {
         message = `A message is gracefully thrown.\n${e}`;
       } else {
         message = `JavaScript code throws an error.\n${e}`;
+      }
+      if (!fallback) {
+        fallback = new Response(message);
       }
       return new Response(
         fallback.body,
@@ -116,7 +126,16 @@ async function handleRequest(request) {
         },
       );
     } else {
-      return fallback;
+      if (fallback) {
+        // The error occurs after fetching from origin server, hence we reuse
+        // the response of that fetch.
+        return fallback;
+      } else {
+        // The error occurs before fetching from origin server, hence we need to
+        // fetch now. Since we are not generating SXG anyway in this case, we
+        // simply use all http headers from the user.
+        return fetch(request);
+      }
     }
   }
 }
@@ -125,9 +144,7 @@ async function generateSxgResponse(request, payload) {
   const {
     createSignedExchange,
     validatePayloadHeaders,
-    validateRequestAcceptHeader,
   } = await importWasmFunctions();
-  validateRequestAcceptHeader(request.headers.get('accept') || '');
   const payloadStatusCode = payload.status;
   if (payloadStatusCode !== 200) {
     throw `The resource status code is ${payloadStatusCode}`;

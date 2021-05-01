@@ -68,16 +68,24 @@ pub fn should_respond_debug_info() -> bool {
     CONFIG.respond_debug_info
 }
 
-#[wasm_bindgen(js_name=validateRequestAcceptHeader)]
-pub fn request_accepts_sxg(accept_header: &str) -> Result<(), JsValue> {
-    let result = ::sxg_rs::media_type::validate_sxg_request_header(accept_header);
-    result.map_err(|err| JsValue::from_str(&err))
+#[wasm_bindgen(js_name=createRequestHeaders)]
+pub fn create_request_headers(requestor_headers: JsValue) -> Result<JsValue, JsValue> {
+    let requestor_headers = ::sxg_rs::headers::Headers::new(requestor_headers.into_serde().unwrap());
+    let result = requestor_headers.forward_to_origin_server(&CONFIG.forward_request_headers);
+    match result {
+        Ok(entries) => {
+            Ok(JsValue::from_serde(&entries).unwrap())
+        },
+        Err(err) => {
+            Err(JsValue::from_str(&err))
+        },
+    }
 }
 
 #[wasm_bindgen(js_name=validatePayloadHeaders)]
 pub fn validate_payload_headers(headers: JsValue) -> Result<(), JsValue> {
     let headers = ::sxg_rs::headers::Headers::new(headers.into_serde().unwrap());
-    let result = headers.validate(CONFIG.reject_stateful_headers);
+    let result = headers.validate_as_sxg_payload(CONFIG.reject_stateful_headers);
     result.map_err(|err| JsValue::from_str(&err))
 }
 
