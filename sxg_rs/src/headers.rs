@@ -30,7 +30,7 @@ impl Headers {
     }
     pub fn forward_to_origin_server(self, forwarded_header_names: &HashSet<String>) -> Result<Entries, String> {
         let accept = self.0.get("accept").ok_or("The request does not have accept header")?;
-        crate::media_type::validate_sxg_request_header(accept)?;
+        validate_sxg_request_header(accept)?;
         // Set Via per https://tools.ietf.org/html/rfc7230#section-5.7.1
         let mut via = format!("sxgrs");
         if let Some(upstream_via) = self.0.get("via") {
@@ -153,3 +153,71 @@ static STATEFUL_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     ].into_iter().collect()
 });
 
+// Checks whether accept header of a http request, return an Err when the input
+// string does not have an `application/signed-exchange;v=b3` with the highest
+// `q` value.
+fn validate_sxg_request_header(accept: &str) -> Result<(), String> {
+    let accept = accept.trim();
+    let accept = crate::http_parser::parse_accept_header(accept)?;
+    if accept.len() == 0 {
+        return Err(format!("Accept header is empty"));
+    }
+    let q_max = accept.iter().map(|t| t.q_millis).max().unwrap();
+    let q_sxg = accept.iter().filter_map(|t| {
+        if t.media_range.primary_type.eq_ignore_ascii_case("application") && t.media_range.sub_type.eq_ignore_ascii_case("signed-exchange") {
+            let mut v = "";
+            for param in &t.media_range.parameters {
+                if param.name.eq_ignore_ascii_case("v") {
+                    v = &param.value;
+                }
+            }
+            if v == "b3" {
+                Some(t.q_millis)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }).max().unwrap_or(0);
+    const SXG: &'static str = "application/signed-exchange;v=b3";
+    if q_sxg == 0 {
+        Err(format!("The request accept header does not contain {}.", SXG))
+    } else if q_sxg < q_max {
+        Err(format!("The q value of {} is not the max in request accept header", SXG))
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn it_works() {
+        assert!(validate_sxg_request_header("application/signed-exchange;v=b3").is_ok());
+        assert!(validate_sxg_request_header("application/signed-exchange;v=b3;q=0.9,*/*;q=0.8").is_ok());
+        assert!(validate_sxg_request_header("").is_err());
+        assert!(validate_sxg_request_header("text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9").is_err());
+    }
+    #[test]
+    fn optional_whitespaces() {
+        assert!(validate_sxg_request_header("  application/signed-exchange  ;  v=b3  ;  q=0.9  ,  */*  ;  q=0.8  ").is_ok());
+    }
+    #[test]
+    fn uppercase_q_and_v() {
+        assert!(validate_sxg_request_header("text/html;q=0.5,application/signed-exchange;V=b3;Q=0.6").is_ok());
+    }
+    #[test]
+    fn default_q() {
+        assert!(validate_sxg_request_header("text/html;q=0.5,application/signed-exchange;v=b3").is_ok());
+    }
+    #[test]
+    fn missing_v() {
+        assert!(validate_sxg_request_header("application/signed-exchange").is_err());
+    }
+    #[test]
+    fn v_is_not_b3() {
+        assert!(validate_sxg_request_header("application/signed-exchange;v=b2").is_err());
+    }
+}

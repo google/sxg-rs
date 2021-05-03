@@ -13,8 +13,8 @@
 // limitations under the License.
 
 mod cbor;
-pub mod media_type;
 pub mod headers;
+mod http_parser;
 mod mice;
 mod signature;
 mod structured_header;
