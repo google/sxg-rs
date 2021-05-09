@@ -19,12 +19,6 @@ pub fn init() {
     });
 }
 
-pub fn reset_last_error_message() {
-    unsafe {
-        LAST_ERROR_MESSAGE = None
-    };
-}
-
 pub fn get_last_error_message() -> JsValue {
     let message = unsafe {
         &LAST_ERROR_MESSAGE

@@ -15,6 +15,7 @@
 mod config;
 mod utils;
 
+use js_sys::Function;
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
@@ -27,10 +28,9 @@ struct HttpResponse {
     status: u16,
 }
 
-#[wasm_bindgen(js_name=reset)]
-pub fn reset() {
+#[wasm_bindgen(js_name=init)]
+pub fn init() {
     utils::init();
-    utils::reset_last_error_message();
 }
 
 #[wasm_bindgen(js_name=getLastErrorMessage)]
@@ -90,25 +90,33 @@ pub fn validate_payload_headers(headers: JsValue) -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen(js_name=createSignedExchange)]
-pub fn create_signed_exchange(
-    fallback_url: &str,
+pub async fn create_signed_exchange(
+    fallback_url: String,
     status_code: u16,
     payload_headers: JsValue,
-    payload_body: &[u8],
+    payload_body: Vec<u8>,
     now_in_seconds: u32,
-    privkey_base64: &str,
-) -> Vec<u8> {
+    signer: Function,
+) -> Result<JsValue, JsValue> {
     let payload_headers = ::sxg_rs::headers::Headers::new(payload_headers.into_serde().unwrap());
-    let privkey_der = ::base64::decode(privkey_base64).unwrap();
-    ::sxg_rs::create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
+    let sxg_body = ::sxg_rs::create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
         cert_url: &CONFIG.cert_url,
         cert_der: &ASSET.cert_der,
-        fallback_url,
+        fallback_url: &fallback_url,
         now: std::time::UNIX_EPOCH + std::time::Duration::from_secs(now_in_seconds as u64),
-        payload_body,
+        payload_body: &payload_body,
         payload_headers,
-        privkey_der: &privkey_der,
+        signer: ::sxg_rs::signature::Signer::JsCallback(signer),
         status_code,
         validity_url: &CONFIG.validity_url,
-    })
+    }).await;
+    let sxg = HttpResponse {
+        body: sxg_body,
+        headers: vec![
+          ("content-type", "application/signed-exchange;v=b3"),
+          ("x-content-type-options", "nosniff"),
+        ],
+        status: 200,
+    };
+    Ok(JsValue::from_serde(&sxg).unwrap())
 }

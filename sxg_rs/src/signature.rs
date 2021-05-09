@@ -12,8 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ::p256::ecdsa::signature::Signer;
+use der_parser::ber::{BerObject, BerObjectContent};
+use js_sys::Function as JsFunction;
+use js_sys::Uint8Array;
+use wasm_bindgen::JsValue;
 use crate::structured_header::{ShItem, ShParamList, ParamItem};
+
+pub enum Signer<'a> {
+    JsCallback(JsFunction),
+    RawPrivateKey(&'a [u8]),
+}
 
 pub struct SignatureParams<'a> {
     pub cert_url: &'a str,
@@ -22,8 +30,8 @@ pub struct SignatureParams<'a> {
     pub expires: std::time::SystemTime,
     pub headers: &'a [u8],
     pub id: &'a str,
-    pub private_key: &'a [u8],
     pub request_url: &'a str,
+    pub signer: Signer<'a>,
     pub validity_url: &'a str,
 }
 
@@ -39,7 +47,7 @@ pub struct Signature<'a> {
 }
 
 impl<'a> Signature<'a> {
-    pub fn new(params: SignatureParams<'a>) -> Self {
+    pub async fn new(params: SignatureParams<'a>) -> Signature<'a> {
         let SignatureParams {
             cert_url,
             cert_sha256,
@@ -47,8 +55,8 @@ impl<'a> Signature<'a> {
             expires,
             headers,
             id,
-            private_key,
             request_url,
+            signer,
             validity_url,
         } = params;
         let date = time_to_number(date);
@@ -69,9 +77,7 @@ impl<'a> Signature<'a> {
             &(headers.len() as u64).to_be_bytes(),
             &headers,
         ].concat();
-        let private_key = ::p256::ecdsa::SigningKey::from_bytes(&private_key).unwrap();
-        let sig = private_key.sign(&message).to_asn1();
-        let sig = sig.as_ref().to_vec();
+        let sig = signer.sign(&message).await;
         Signature {
             cert_url,
             cert_sha256,
@@ -101,3 +107,51 @@ fn time_to_number(t: std::time::SystemTime) -> u64 {
     t.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
 }
 
+impl<'a> Signer<'a> {
+    async fn sign<'b>(&self, message: &'b [u8]) -> Vec<u8> {
+        match self {
+            Signer::JsCallback(callback) => {
+                let a = Uint8Array::new_with_length(message.len() as u32);
+                a.copy_from(&message);
+                let this = JsValue::null();
+                let sig = callback.call1(&this, &a).unwrap();
+                let sig = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(sig));
+                let sig = sig.await.unwrap();
+                let sig = Uint8Array::from(sig);
+                let sig = sig.to_vec();
+                raw_sig_to_asn1(sig)
+            },
+            Signer::RawPrivateKey(private_key) => {
+                use p256::ecdsa::signature::Signer as _;
+                let private_key = ::p256::ecdsa::SigningKey::from_bytes(&private_key).unwrap();
+                let sig = private_key.sign(&message).to_asn1();
+                sig.as_bytes().to_vec()
+            },
+        }
+    }
+}
+
+fn raw_sig_to_asn1(raw: Vec<u8>) -> Vec<u8> {
+    if raw.len() != 64 {
+        panic!("Expecting signature length to be 64, found {}.", raw.len());
+    }
+    let mut r = raw;
+    let mut s = r.split_off(32);
+    ensure_positive(&mut r);
+    ensure_positive(&mut s);
+    let asn1 = BerObject::from_obj(BerObjectContent::Sequence(vec![
+        BerObject::from_obj(BerObjectContent::Integer(&r)),
+        BerObject::from_obj(BerObjectContent::Integer(&s)),
+    ]));
+    asn1.to_vec().unwrap()
+}
+
+// Prepend the big-endian integer with leading zeros if needed, in order to
+// make it a positive integer. For example, when the input is 0xffff,
+// it will be parsed as a negative number, hence we need to change it to
+// 0x00ffff.
+fn ensure_positive(a: &mut Vec<u8>) -> () {
+    if a[0] >= 0x80 {
+        a.insert(0, 0x00);
+    }
+}

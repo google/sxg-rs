@@ -16,7 +16,7 @@ mod cbor;
 pub mod headers;
 mod http_parser;
 mod mice;
-mod signature;
+pub mod signature;
 mod structured_header;
 mod sxg;
 mod utils;
@@ -48,12 +48,12 @@ pub struct CreateSignedExchangeParams<'a> {
     pub now: std::time::SystemTime,
     pub payload_body: &'a [u8],
     pub payload_headers: headers::Headers,
-    pub privkey_der: &'a [u8],
+    pub signer: signature::Signer<'a>,
     pub status_code: u16,
     pub validity_url: &'a str,
 }
 
-pub fn create_signed_exchange(params: CreateSignedExchangeParams) -> Vec<u8> {
+pub async fn create_signed_exchange<'a>(params: CreateSignedExchangeParams<'a>) -> Vec<u8> {
     let CreateSignedExchangeParams {
         cert_der,
         cert_url,
@@ -61,7 +61,7 @@ pub fn create_signed_exchange(params: CreateSignedExchangeParams) -> Vec<u8> {
         now,
         payload_body,
         payload_headers,
-        privkey_der,
+        signer,
         status_code,
         validity_url,
     } = params;
@@ -76,9 +76,9 @@ pub fn create_signed_exchange(params: CreateSignedExchangeParams) -> Vec<u8> {
         expires: now + std::time::Duration::from_secs(60 * 60 * 24 * 6),
         headers: &signed_headers,
         id: "sig",
-        private_key: privkey_der,
         request_url: fallback_url,
+        signer,
         validity_url,
-    });
+    }).await;
     sxg::build(fallback_url, &signature.serialize(), &signed_headers, &payload_body)
 }

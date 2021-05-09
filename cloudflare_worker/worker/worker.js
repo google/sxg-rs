@@ -18,10 +18,11 @@ addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request))
 })
 
-async function importWasmFunctions() {
+const wasmFunctionsPromise = (async function initWasmFunctions() {
   await wasm_bindgen(wasm);
+  wasm_bindgen.init();
   return wasm_bindgen;
-}
+})();
 
 function responseFromWasm(data) {
   return new Response(
@@ -82,13 +83,11 @@ async function handleRequest(request) {
   const {
     createRequestHeaders,
     getLastErrorMessage,
-    reset,
     servePresetContent,
     shouldRespondDebugInfo,
-  } = await importWasmFunctions();
+  } = await wasmFunctionsPromise;
   let fallback = null;
   try {
-    reset();
     const presetContent = servePresetContent(request.url);
     if (presetContent) {
       return responseFromWasm(presetContent);
@@ -144,7 +143,7 @@ async function generateSxgResponse(request, payload) {
   const {
     createSignedExchange,
     validatePayloadHeaders,
-  } = await importWasmFunctions();
+  } = await wasmFunctionsPromise;
   const payloadStatusCode = payload.status;
   if (payloadStatusCode !== 200) {
     throw `The resource status code is ${payloadStatusCode}`;
@@ -156,25 +155,42 @@ async function generateSxgResponse(request, payload) {
   if (!payloadBody) {
     throw `The size of payload exceeds the limit ${PAYLOAD_SIZE_LIMIT}`;
   }
-  if (!PRIVATE_KEY) {
-    throw `The private key is not set.`;
-  }
-  const sxg = createSignedExchange(
+  const sxg = await createSignedExchange(
     request.url,
     payloadStatusCode,
     payloadHeaders,
     new Uint8Array(payloadBody),
     Math.round(Date.now() / 1000 - 60 * 60 * 12),
-    PRIVATE_KEY,
+    signer,
   );
-  return new Response(
-      sxg,
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/signed-exchange;v=b3',
-          'X-Content-Type-Options': 'nosniff',
+  return new responseFromWasm(sxg);
+}
+
+const privateKeyPromise = (async function initPrivateKey() {
+    if (!PRIVATE_KEY_JWK) {
+      throw `The wrangler secret PRIVATE_KEY_JWK is not set.`;
+    }
+    return await crypto.subtle.importKey(
+        "jwk",
+        JSON.parse(PRIVATE_KEY_JWK),
+        {
+          name: "ECDSA",
+          namedCurve: 'P-256',
         },
+        /*extractable=*/false,
+        ['sign'],
+    );
+})();
+
+async function signer(message) {
+  const privateKey = await privateKeyPromise;
+  const signature = await crypto.subtle.sign(
+      {
+        name: "ECDSA",
+        hash: 'SHA-256',
       },
+      privateKey,
+      message,
   );
+  return new Uint8Array(signature);
 }
