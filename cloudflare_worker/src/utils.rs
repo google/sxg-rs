@@ -1,15 +1,17 @@
 use std::panic;
-use std::sync::Once;
+use std::sync::{Mutex, Once};
+use once_cell::sync::Lazy;
 use wasm_bindgen::JsValue;
 
-pub static mut LAST_ERROR_MESSAGE: Option<String> = None;
+pub static LAST_ERROR_MESSAGE: Lazy<Mutex<String>> = Lazy::new(|| {
+    Mutex::new("".to_string())
+});
 
 fn hook(info: &panic::PanicInfo) {
     console_error_panic_hook::hook(info);
-    let message = format!("{}", info);
-    unsafe {
-        LAST_ERROR_MESSAGE = Some(message);
-    };
+    if let Ok(mut last_error_message) = LAST_ERROR_MESSAGE.try_lock() {
+        *last_error_message = format!("{}", info);
+    }
 }
 
 pub fn init() {
@@ -20,13 +22,10 @@ pub fn init() {
 }
 
 pub fn get_last_error_message() -> JsValue {
-    let message = unsafe {
-        &LAST_ERROR_MESSAGE
-    };
-    if let Some(message) = message {
-        JsValue::from_str(message)
+    if let Ok(last_error_message) = LAST_ERROR_MESSAGE.try_lock() {
+        JsValue::from_str(&last_error_message)
     } else {
-        JsValue::UNDEFINED
+        JsValue::from_str("Last error message is not available, because it is locked by another thread.")
     }
 }
 
