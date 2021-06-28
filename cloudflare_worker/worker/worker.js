@@ -79,6 +79,81 @@ function teeResponse(response) {
   ];
 }
 
+function arrayBufferToBase64(buffer) {
+  const data = Array.from(new Uint8Array(buffer));
+  const s = data.map(x => String.fromCharCode(x)).join('');
+  return btoa(s);
+}
+
+// Fetches latest OCSP from digicert, and writes it into key-value store.
+// The outgoing traffic to digicert is throttled; when this function is called
+// concurrently, the first fetched OCSP will be reused to be returned to all
+// callers.
+const fetchOcspFromDigicert = (() => {
+  // The un-throttled implementation to fetch OCSP
+  async function fetchOcspFromDigicertImpl() {
+    const {
+      createOcspRequest,
+    } = await wasmFunctionsPromise;
+    const ocspRequest = createOcspRequest();
+    const ocspResponse = await fetch('http://ocsp.digicert.com', {
+      method: 'POST',
+      body: ocspRequest,
+      headers: {
+        'content-type': 'application/ocsp-request',
+      },
+    });
+    const ocspDer = await ocspResponse.arrayBuffer();
+    const ocspBase64 = arrayBufferToBase64(ocspDer);
+    const now = Date.now() / 1000;
+    OCSP.put(
+      /*key=*/'ocsp',
+      /*value=*/JSON.stringify({
+        expirationTime: now + 3600 * 24 * 6,
+        nextFetchTime: now + 3600 * 24,
+        ocspBase64,
+      }),
+      {
+        expirationTtl: 3600 * 24 * 6, // in seconds
+      },
+    );
+    return ocspBase64;
+  }
+  let singletonTask = null;
+  return async function() {
+    if (singletonTask !== null) {
+      return await singletonTask;
+    } else {
+      singletonTask = fetchOcspFromDigicertImpl();
+      const result = await singletonTask();
+      singletonTask = null;
+      return result;
+    }
+  };
+})();
+
+async function getOcsp() {
+  const ocspInCache = await OCSP.get('ocsp');
+  if (ocspInCache) {
+    const {
+      expirationTime
+      nextFetchTime,
+      ocspBase64,
+    } = JSON.parse(ocspInCache);
+    const now = Date.now() / 1000;
+    if (now >= expirationTime) {
+      return await fetchOcspFromDigicert();
+    }
+    if (now >= nextFetchTime) {
+      // Spawns a non-blocking task to update latest OCSP in store
+      fetchOcspFromDigicert();
+    }
+    return ocspBase64;
+  } else {
+    return await fetchOcspFromDigicert();
+  }
+}
+
 async function handleRequest(request) {
   const {
     createRequestHeaders,
@@ -88,7 +163,8 @@ async function handleRequest(request) {
   } = await wasmFunctionsPromise;
   let fallback = null;
   try {
-    const presetContent = servePresetContent(request.url);
+    const ocsp = await getOcsp();
+    const presetContent = servePresetContent(request.url, ocsp);
     if (presetContent) {
       return responseFromWasm(presetContent);
     }

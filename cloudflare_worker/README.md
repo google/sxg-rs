@@ -27,6 +27,9 @@ limitations under the License.
    1. Put your
       [cloudflare worker subdomain](https://developers.cloudflare.com/workers/get-started/guide#1-sign-up-for-a-workers-account)
       into `worker_host`.
+   1. Use the command `wrangler kv:namespace create OCSP` to create the id of
+      [KV namespace](https://developers.cloudflare.com/workers/runtime-apis/kv),
+      and put it into `kv_namespaces`.
 
 1. Add your certificate and keys to [certs](./certs) folder.
 1. Run `cargo test` to check errors in `config.yml` and `certs/*`.

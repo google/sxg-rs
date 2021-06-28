@@ -5,4 +5,8 @@ workers_dev = true
 routes = [
   "my_domain.com/*",
 ]
+kv_namespaces = [
+  # Please use the command "wrangler kv:namespace create OCSP" to create the id of kv namespace
+  { binding = "OCSP", id = "XXXXXX" },
+]
 zone_id = "XXXXX"

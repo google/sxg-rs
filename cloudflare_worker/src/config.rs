@@ -26,14 +26,12 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
 pub struct Asset {
     pub cert_der: Vec<u8>,
     pub issuer_der: Vec<u8>,
-    pub ocsp_der: Vec<u8>,
 }
 
 pub static ASSET: Lazy<Asset> = Lazy::new(|| {
     Asset {
         cert_der: get_der(include_str!("../certs/cert.pem"), "CERTIFICATE"),
         issuer_der: get_der(include_str!("../certs/issuer.pem"), "CERTIFICATE"),
-        ocsp_der: include_bytes!("../certs/ocsp.der").to_vec(),
     }
 });
 

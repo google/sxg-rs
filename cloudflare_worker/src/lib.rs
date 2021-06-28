@@ -15,7 +15,7 @@
 mod config;
 mod utils;
 
-use js_sys::Function;
+use js_sys::{Function, Uint8Array};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
@@ -38,11 +38,18 @@ pub fn get_last_error_message() -> JsValue {
     utils::get_last_error_message()
 }
 
+#[wasm_bindgen(js_name=createOcspRequest)]
+pub fn create_ocsp_request() -> Uint8Array {
+    let request = ::sxg_rs::ocsp::create_ocsp_request(&ASSET.cert_der, &ASSET.issuer_der);
+    Uint8Array::from(request.as_slice())
+}
+
 #[wasm_bindgen(js_name=servePresetContent)]
-pub fn serve_preset_content(url: &str) -> JsValue {
+pub fn serve_preset_content(url: &str, ocsp_base64: &str) -> JsValue {
     let response = if url == CONFIG.cert_url {
+        let ocsp_der = ::base64::decode(ocsp_base64).unwrap();
         HttpResponse {
-            body: ::sxg_rs::create_cert_cbor(&ASSET.cert_der, &ASSET.issuer_der, &ASSET.ocsp_der),
+            body: ::sxg_rs::create_cert_cbor(&ASSET.cert_der, &ASSET.issuer_der, &ocsp_der),
             headers: vec![
                 ("content-type", "application/cert-chain+cbor"),
             ],

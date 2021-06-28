@@ -16,6 +16,7 @@ mod cbor;
 pub mod headers;
 mod http_parser;
 mod mice;
+pub mod ocsp;
 pub mod signature;
 mod structured_header;
 mod sxg;
