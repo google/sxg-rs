@@ -136,7 +136,7 @@ async function getOcsp() {
   const ocspInCache = await OCSP.get('ocsp');
   if (ocspInCache) {
     const {
-      expirationTime
+      expirationTime,
       nextFetchTime,
       ocspBase64,
     } = JSON.parse(ocspInCache);

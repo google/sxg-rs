@@ -30,7 +30,7 @@ This file looks like
 -----END CERTIFICATE-----
 ```
 
-### `cert.pem`
+### `issuer.pem`
 
 This is the intemediate certificate downloaded from digicert.
 This file looks like
