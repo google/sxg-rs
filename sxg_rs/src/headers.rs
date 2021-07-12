@@ -15,6 +15,7 @@
 use std::collections::{HashMap, HashSet};
 use once_cell::sync::Lazy;
 
+#[derive(Debug)]
 pub struct Headers(HashMap<String, String>);
 
 type Entries = Vec<(String, String)>;

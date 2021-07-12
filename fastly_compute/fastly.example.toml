@@ -1,0 +1,10 @@
+# This file describes a Fastly Compute@Edge package. To learn more visit:
+# https://developer.fastly.com/reference/fastly-toml/
+
+authors = ["<XXXXXX@example.com>"]
+description = "Create Signed Exchanges (SXGs) on edge"
+language = "rust"
+manifest_version = 1
+name = "SXG"
+# https://docs.fastly.com/en/guides/finding-and-managing-your-account-info#finding-your-service-id
+service_id = "XXXXXX"

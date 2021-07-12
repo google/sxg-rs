@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "cloudflare_worker",
+  "fastly_compute",
   "sxg_rs",
 ]
 
