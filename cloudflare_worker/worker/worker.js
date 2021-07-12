@@ -125,7 +125,7 @@ const fetchOcspFromDigicert = (() => {
       return await singletonTask;
     } else {
       singletonTask = fetchOcspFromDigicertImpl();
-      const result = await singletonTask();
+      const result = await singletonTask;
       singletonTask = null;
       return result;
     }
