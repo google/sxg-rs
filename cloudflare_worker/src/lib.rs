@@ -106,6 +106,7 @@ pub async fn create_signed_exchange(
     signer: Function,
 ) -> Result<JsValue, JsValue> {
     let payload_headers = ::sxg_rs::headers::Headers::new(payload_headers.into_serde().unwrap());
+    let signer = Box::new(::sxg_rs::signature::js_signer::JsSigner::new(signer));
     let sxg_body = ::sxg_rs::create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
         cert_url: &CONFIG.cert_url,
         cert_der: &ASSET.cert_der,
@@ -113,7 +114,7 @@ pub async fn create_signed_exchange(
         now: std::time::UNIX_EPOCH + std::time::Duration::from_secs(now_in_seconds as u64),
         payload_body: &payload_body,
         payload_headers,
-        signer: ::sxg_rs::signature::Signer::JsCallback(signer),
+        signer,
         status_code,
         validity_url: &CONFIG.validity_url,
     }).await;

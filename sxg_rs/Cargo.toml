@@ -6,7 +6,12 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+js_signer = []
+rust_signer = []
+
 [dependencies]
+async-trait = "0.1.50"
 base64 = "0.13.0"
 der-parser = { version = "5.1.0", features = ["bigint", "serialize"] }
 futures = { version = "0.3.14", features = ["executor"] }

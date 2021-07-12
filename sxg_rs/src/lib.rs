@@ -49,7 +49,7 @@ pub struct CreateSignedExchangeParams<'a> {
     pub now: std::time::SystemTime,
     pub payload_body: &'a [u8],
     pub payload_headers: headers::Headers,
-    pub signer: signature::Signer<'a>,
+    pub signer: Box<dyn signature::Signer>,
     pub status_code: u16,
     pub validity_url: &'a str,
 }
