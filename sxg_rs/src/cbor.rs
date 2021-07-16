@@ -49,9 +49,9 @@ impl<'a> DataItem<'a> {
                     item.append_binary_to(output);
                 }
             },
-            Map(entries) => {
+            Map(fields) => {
                 let mut map = BTreeMap::<Vec<u8>, Vec<u8>>::new();
-                for (key, value) in entries {
+                for (key, value) in fields {
                     map.insert(key.serialize(), value.serialize());
                 }
                 append_integer(output, 5, map.len() as u64);

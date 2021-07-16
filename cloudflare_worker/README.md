@@ -39,7 +39,7 @@ limitations under the License.
    1. Use `parse_private_key.go` in [certs](./certs) folder to parse the private
       key.
    1. Run `wrangler secret put PRIVATE_KEY_JWK`. (Use the string
-      `PRIVATE_KEY_JWK` as is, and don't repalce it with the
+      `PRIVATE_KEY_JWK` as is, and don't replace it with the
       actual private key.)
    1. The terminal will interactively ask for the value of the secret.
       Put the private key here.

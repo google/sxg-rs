@@ -18,10 +18,10 @@ use once_cell::sync::Lazy;
 #[derive(Debug)]
 pub struct Headers(HashMap<String, String>);
 
-type Entries = Vec<(String, String)>;
+type Fields = Vec<(String, String)>;
 
 impl Headers {
-    pub fn new(data: Entries) -> Self {
+    pub fn new(data: Fields) -> Self {
         let mut headers = Headers(HashMap::new());
         for (mut k, v) in data.into_iter() {
             k.make_ascii_lowercase();
@@ -29,7 +29,7 @@ impl Headers {
         }
         headers
     }
-    pub fn forward_to_origin_server(self, forwarded_header_names: &HashSet<String>) -> Result<Entries, String> {
+    pub fn forward_to_origin_server(self, forwarded_header_names: &HashSet<String>) -> Result<Fields, String> {
         let accept = self.0.get("accept").ok_or("The request does not have accept header")?;
         validate_sxg_request_header(accept)?;
         // Set Via per https://tools.ietf.org/html/rfc7230#section-5.7.1
@@ -92,20 +92,20 @@ impl Headers {
     }
     pub fn get_signed_headers_bytes(&self, status_code: u16, mice_digest: &[u8]) -> Vec<u8> {
         use crate::cbor::DataItem;
-        let mut entries: Vec<(&str, &str)> = vec![];
+        let mut fields: Vec<(&str, &str)> = vec![];
         for (k, v) in self.0.iter() {
             if UNCACHED_HEADERS.contains(k.as_str()) || STATEFUL_HEADERS.contains(k.as_str()) {
                 continue;
             }
-            entries.push((k, v));
+            fields.push((k, v));
         }
         let status_code = status_code.to_string();
         let digest = format!("mi-sha256-03={}", ::base64::encode(&mice_digest));
-        entries.push((":status", &status_code));
-        entries.push(("content-encoding", "mi-sha256-03"));
-        entries.push(("digest", &digest));
+        fields.push((":status", &status_code));
+        fields.push(("content-encoding", "mi-sha256-03"));
+        fields.push(("digest", &digest));
         let cbor_data = DataItem::Map(
-            entries.iter().map(|(key, value)| {
+            fields.iter().map(|(key, value)| {
                 (DataItem::ByteString(key.as_bytes()), DataItem::ByteString(value.as_bytes()))
             }).collect()
         );

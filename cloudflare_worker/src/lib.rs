@@ -80,8 +80,8 @@ pub fn create_request_headers(requestor_headers: JsValue) -> Result<JsValue, JsV
     let requestor_headers = ::sxg_rs::headers::Headers::new(requestor_headers.into_serde().unwrap());
     let result = requestor_headers.forward_to_origin_server(&CONFIG.forward_request_headers);
     match result {
-        Ok(entries) => {
-            Ok(JsValue::from_serde(&entries).unwrap())
+        Ok(fields) => {
+            Ok(JsValue::from_serde(&fields).unwrap())
         },
         Err(err) => {
             Err(JsValue::from_str(&err))
