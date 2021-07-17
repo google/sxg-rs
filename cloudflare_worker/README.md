@@ -16,6 +16,10 @@ limitations under the License.
 
 ## Setup
 
+1. Get an SXG-compatible certificate
+   [steps](../../credentials/README.md#get-an-sxg_compatible-certificate),
+   and copy `cert.pem` and `issuer.pem` into `./certs/` folder.
+
 1. Install [Rust](https://www.rust-lang.org/tools/install).
 1. Install [@cloudflare/wrangler](https://github.com/cloudflare/wrangler).
 1. Create a `wrangler.toml` from the template `wrangler.example.toml`.
@@ -31,18 +35,19 @@ limitations under the License.
       [cloudflare worker subdomain](https://developers.cloudflare.com/workers/get-started/guide#1-sign-up-for-a-workers-account)
       into `worker_host`.
 
-1. Add your certificate and keys to [certs](./certs) folder.
 1. Run `cargo test` to check errors in `config.yml` and `certs/*`.
 1. Put your private key as a
    [secret](https://developers.cloudflare.com/workers/cli-wrangler/commands#secret)
    to cloudflare worker.
-   1. Use `parse_private_key.go` in [certs](./certs) folder to parse the private
-      key.
+   1. Parse your private key to JWK format.
+      ```bash
+      go run ../credentials/parse_private_key.go <../credentials/privkey.pem
+      ```
    1. Run `wrangler secret put PRIVATE_KEY_JWK`. (Use the string
       `PRIVATE_KEY_JWK` as is, and don't replace it with the
       actual private key.)
    1. The terminal will interactively ask for the value of the secret.
-      Put the private key here.
+      Put the private key in JWK format here.
 
 1. `wrangler publish`
 

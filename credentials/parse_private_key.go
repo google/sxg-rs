@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
+	"os"
 )
 
 func printKey(key *ecdsa.PrivateKey) {
@@ -20,11 +21,12 @@ func printKey(key *ecdsa.PrivateKey) {
 		"y": y,
 		"d": d,
 	})
-	fmt.Println(string(jwk))
+	fmt.Printf("Private key in JWK format:\n%s\n", jwk)
+	fmt.Printf("Private key in base64 format:\n%s\n", d)
 }
 
 func main() {
-	text, _ := ioutil.ReadFile("privkey.pem")
+	text, _ := ioutil.ReadAll(os.Stdin)
 	for len(text) > 0 {
 		var block *pem.Block
 		block, text = pem.Decode(text)

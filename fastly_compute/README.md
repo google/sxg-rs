@@ -16,6 +16,10 @@ limitations under the License.
 
 ## Setup
 
+1. Get an SXG-compatible certificate
+   [steps](../../credentials/README.md#get-an-sxg_compatible-certificate),
+   and copy `cert.pem` and `issuer.pem` into `./certs/` folder.
+
 1. Install [Rust](https://www.rust-lang.org/tools/install).
 
 1. Install [Fastly CLI](https://github.com/fastly/cli).
@@ -31,15 +35,25 @@ limitations under the License.
    <!--TODO: Use CLI to add domains and backends-->
    1. Add a domain to the service.
       This domain will be the final entrypoint of the SXG service.
-      Put it to `config.yaml` as `worker_host`.
+      Put it to `config.yaml` as `worker_host` (see `config.example.yaml`).
 
    1. Add your original server, which serves your HTML website,
       as a backend to the service.
-      Put it to `config.yaml` as `html_host`.
+      Put it to `config.yaml` as `html_host` (see `config.example.yaml`).
       Edit the backend and change its name from `Host 1` to `Origin HTML server`.
 
    1. Add `ocsp.digicert.com` as a backend to the service.
       Edit the backend and change its name from `Host 1` to `OCSP server`,
       and change the port from `TLS 443` to `Non-TLS 80`.
+
+   1. For private key
+      1. Parse your private key to base64 format.
+         ```bash
+         go run ../credentials/parse_private_key.go <../credentials/privkey.pem
+         ```
+      1. Put the base64 string to `config.yaml` as `private_key_base64`
+         (see `config.example.yaml`).
+
+1. Run `cargo test` to check errors in `config.yml` and `certs/*`.
 
 1. Run `fastly compute publish`.
