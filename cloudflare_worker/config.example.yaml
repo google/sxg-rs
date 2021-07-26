@@ -13,11 +13,13 @@
 # limitations under the License.
 
 ---
+cert_url_basename: "cert"
 forward_request_headers:
   - "cf-ipcountry"
   - "user-agent"
 html_host: my_domain.com
 reject_stateful_headers: false
+reserved_path: ".sxg"
 respond_debug_info: false
+validity_url_basename: "validity"
 worker_host: sxg.my_worker_subdomain.workers.dev
-

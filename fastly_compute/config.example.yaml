@@ -20,7 +20,7 @@ forward_request_headers:
 html_host: my_domain.com
 private_key_base64: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 reject_stateful_headers: true
-reserved_path: "/.sxg/"
+reserved_path: ".sxg"
 respond_debug_info: true
 validity_url_basename: "validity"
 worker_host: my_sxg_worker_subdomain.edgecompute.app

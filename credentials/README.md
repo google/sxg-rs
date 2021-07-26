@@ -55,7 +55,7 @@ You have two options to get an SXG-compatible certificate.
      -extfile <(echo -e "1.3.6.1.4.1.11129.2.1.22 = ASN1:NULL\nsubjectAltName=DNS:example.org")
    ```
 
-1. Create a dummy issuer file.
+1. Create a placeholder issuer file.
 
    ```bash
    cp cert.pem issuer.pem

@@ -17,14 +17,20 @@ limitations under the License.
 ## Setup
 
 1. Get an SXG-compatible certificate
-   [steps](../../credentials/README.md#get-an-sxg_compatible-certificate),
-   and copy `cert.pem` and `issuer.pem` into `./certs/` folder.
+   using [these steps](../../credentials/README.md#get-an-sxg_compatible-certificate).
 
 1. Install [Rust](https://www.rust-lang.org/tools/install).
 
 1. Install [Fastly CLI](https://github.com/fastly/cli).
 
 1. Create a `config.yaml` from the template `config.example.yaml`.
+
+   1. For private key
+      1. Parse your private key to base64 format.
+         ```bash
+         go run ../credentials/parse_private_key.go <../credentials/privkey.pem
+         ```
+      1. Put the base64 string to `config.yaml` as `private_key_base64`.
 
 1. Create a `fastly.toml` from the template `fastly.example.toml`.
 
@@ -46,14 +52,16 @@ limitations under the License.
       Edit the backend and change its name from `Host 1` to `OCSP server`,
       and change the port from `TLS 443` to `Non-TLS 80`.
 
-   1. For private key
-      1. Parse your private key to base64 format.
-         ```bash
-         go run ../credentials/parse_private_key.go <../credentials/privkey.pem
-         ```
-      1. Put the base64 string to `config.yaml` as `private_key_base64`
-         (see `config.example.yaml`).
-
-1. Run `cargo test` to check errors in `config.yml` and `certs/*`.
+1. Run `cargo test` to check errors in `config.yml`.
 
 1. Run `fastly compute publish`.
+
+## Maintenance
+
+The certificates need to be renewed every 90 days.
+
+1. Follow the steps in digicert
+   [doc](https://docs.digicert.com/manage-certificates/renew-ssltls-certificate/) to renew the certificate.
+1. Overwrite the new-issued `cert.pem` and `issuer.pem` into the folder
+   `REPO_ROOT/credentials/`.
+1. Run `fastly compute publish` to restart the worker.

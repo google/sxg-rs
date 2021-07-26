@@ -18,7 +18,7 @@ use once_cell::sync::Lazy;
 #[derive(Debug)]
 pub struct Headers(HashMap<String, String>);
 
-type Fields = Vec<(String, String)>;
+pub type Fields = Vec<(String, String)>;
 
 impl Headers {
     pub fn new(data: Fields) -> Self {

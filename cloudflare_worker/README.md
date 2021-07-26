@@ -17,8 +17,7 @@ limitations under the License.
 ## Setup
 
 1. Get an SXG-compatible certificate
-   [steps](../../credentials/README.md#get-an-sxg_compatible-certificate),
-   and copy `cert.pem` and `issuer.pem` into `./certs/` folder.
+   using [these steps](../../credentials/README.md#get-an-sxg_compatible-certificate).
 
 1. Install [Rust](https://www.rust-lang.org/tools/install).
 1. Install [@cloudflare/wrangler](https://github.com/cloudflare/wrangler).
@@ -35,7 +34,7 @@ limitations under the License.
       [cloudflare worker subdomain](https://developers.cloudflare.com/workers/get-started/guide#1-sign-up-for-a-workers-account)
       into `worker_host`.
 
-1. Run `cargo test` to check errors in `config.yml` and `certs/*`.
+1. Run `cargo test` to check errors in `config.yml`.
 1. Put your private key as a
    [secret](https://developers.cloudflare.com/workers/cli-wrangler/commands#secret)
    to cloudflare worker.
@@ -51,3 +50,12 @@ limitations under the License.
 
 1. `wrangler publish`
 
+## Maintenance
+
+The certificates need to be renewed every 90 days.
+
+1. Follow the steps in digicert
+   [doc](https://docs.digicert.com/manage-certificates/renew-ssltls-certificate/) to renew the certificate.
+1. Overwrite the new-issued `cert.pem` and `issuer.pem` into the folder
+   `REPO_ROOT/credentials/`.
+1. Run `wrangler publish` to restart the worker.

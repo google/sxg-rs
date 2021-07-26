@@ -12,21 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod config;
 mod utils;
 
 use js_sys::{Function, Uint8Array};
-use serde::Serialize;
+use once_cell::sync::Lazy;
 use wasm_bindgen::prelude::*;
 
-use config::{ASSET, CONFIG};
-
-#[derive(Serialize)]
-struct HttpResponse {
-    body: Vec<u8>,
-    headers: Vec<(&'static str, &'static str)>,
-    status: u16,
-}
+pub static WORKER: Lazy<::sxg_rs::SxgWorker> = Lazy::new(|| {
+    ::sxg_rs::SxgWorker::new(
+        include_str!("../config.yaml"),
+        include_str!("../../credentials/cert.pem"),
+        include_str!("../../credentials/issuer.pem"),
+    )
+});
 
 #[wasm_bindgen(js_name=init)]
 pub fn init() {
@@ -40,45 +38,29 @@ pub fn get_last_error_message() -> JsValue {
 
 #[wasm_bindgen(js_name=createOcspRequest)]
 pub fn create_ocsp_request() -> Uint8Array {
-    let request = ::sxg_rs::ocsp::create_ocsp_request(&ASSET.cert_der, &ASSET.issuer_der);
-    Uint8Array::from(request.as_slice())
+    let request = WORKER.create_ocsp_request();
+    Uint8Array::from(request)
 }
 
 #[wasm_bindgen(js_name=servePresetContent)]
-pub fn serve_preset_content(url: &str, ocsp_base64: &str) -> JsValue {
-    let response = if url == CONFIG.cert_url {
-        let ocsp_der = ::base64::decode(ocsp_base64).unwrap();
-        HttpResponse {
-            body: ::sxg_rs::create_cert_cbor(&ASSET.cert_der, &ASSET.issuer_der, &ocsp_der),
-            headers: vec![
-                ("content-type", "application/cert-chain+cbor"),
-            ],
-            status: 200,
-        }
-
-    } else if url == CONFIG.validity_url {
-        HttpResponse {
-            body: ::sxg_rs::create_validity(),
-            headers: vec![
-                ("content-type", "application/cbor"),
-            ],
-            status: 200,
-        }
+pub fn serve_preset_content(req_path: &str, ocsp_base64: &str) -> JsValue {
+    let ocsp_der = ::base64::decode(ocsp_base64).unwrap();
+    if let Some(preset_content) = WORKER.serve_preset_content(req_path, &ocsp_der) {
+        JsValue::from_serde(&preset_content).unwrap()
     } else {
-        return JsValue::UNDEFINED;
-    };
-    JsValue::from_serde(&response).unwrap()
+        JsValue::UNDEFINED
+    }
 }
 
 #[wasm_bindgen(js_name=shouldRespondDebugInfo)]
 pub fn should_respond_debug_info() -> bool {
-    CONFIG.respond_debug_info
+    WORKER.config.respond_debug_info
 }
 
 #[wasm_bindgen(js_name=createRequestHeaders)]
 pub fn create_request_headers(requestor_headers: JsValue) -> Result<JsValue, JsValue> {
-    let requestor_headers = ::sxg_rs::headers::Headers::new(requestor_headers.into_serde().unwrap());
-    let result = requestor_headers.forward_to_origin_server(&CONFIG.forward_request_headers);
+    let fields = requestor_headers.into_serde().unwrap();
+    let result = WORKER.transform_request_headers(fields);
     match result {
         Ok(fields) => {
             Ok(JsValue::from_serde(&fields).unwrap())
@@ -90,9 +72,9 @@ pub fn create_request_headers(requestor_headers: JsValue) -> Result<JsValue, JsV
 }
 
 #[wasm_bindgen(js_name=validatePayloadHeaders)]
-pub fn validate_payload_headers(headers: JsValue) -> Result<(), JsValue> {
-    let headers = ::sxg_rs::headers::Headers::new(headers.into_serde().unwrap());
-    let result = headers.validate_as_sxg_payload(CONFIG.reject_stateful_headers);
+pub fn validate_payload_headers(fields: JsValue) -> Result<(), JsValue> {
+    let fields = fields.into_serde().unwrap();
+    let result = WORKER.validate_payload_headers(fields);
     result.map_err(|err| JsValue::from_str(&err))
 }
 
@@ -107,24 +89,23 @@ pub async fn create_signed_exchange(
 ) -> Result<JsValue, JsValue> {
     let payload_headers = ::sxg_rs::headers::Headers::new(payload_headers.into_serde().unwrap());
     let signer = Box::new(::sxg_rs::signature::js_signer::JsSigner::new(signer));
-    let sxg_body = ::sxg_rs::create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
-        cert_url: &CONFIG.cert_url,
-        cert_der: &ASSET.cert_der,
+    let sxg = WORKER.create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
         fallback_url: &fallback_url,
         now: std::time::UNIX_EPOCH + std::time::Duration::from_secs(now_in_seconds as u64),
         payload_body: &payload_body,
         payload_headers,
         signer,
         status_code,
-        validity_url: &CONFIG.validity_url,
     }).await;
-    let sxg = HttpResponse {
-        body: sxg_body,
-        headers: vec![
-          ("content-type", "application/signed-exchange;v=b3"),
-          ("x-content-type-options", "nosniff"),
-        ],
-        status: 200,
-    };
     Ok(JsValue::from_serde(&sxg).unwrap())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn it_works() {
+        &*WORKER;
+        assert_eq!(WORKER.config.private_key_base64, "");
+    }
 }

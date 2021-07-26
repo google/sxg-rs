@@ -164,7 +164,7 @@ async function handleRequest(request) {
   let fallback = null;
   try {
     const ocsp = await getOcsp();
-    const presetContent = servePresetContent(request.url, ocsp);
+    const presetContent = servePresetContent((new URL(request.url)).pathname, ocsp);
     if (presetContent) {
       return responseFromWasm(presetContent);
     }
