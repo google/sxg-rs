@@ -124,9 +124,8 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
 }
 
 fn handle_request(req: Request) -> Result<Response, String> {
-    let path = req.get_path();
     let ocsp_der = fetch_ocsp_from_digicert()?;
-    if let Some(preset_content) = WORKER.serve_preset_content(path, &ocsp_der) {
+    if let Some(preset_content) = WORKER.serve_preset_content(req.get_url_str(), &ocsp_der) {
         Ok(transform_response(preset_content))
     } else {
         let fallback_url = get_fallback_url(&req);

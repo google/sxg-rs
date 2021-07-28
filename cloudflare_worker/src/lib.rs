@@ -43,9 +43,9 @@ pub fn create_ocsp_request() -> Uint8Array {
 }
 
 #[wasm_bindgen(js_name=servePresetContent)]
-pub fn serve_preset_content(req_path: &str, ocsp_base64: &str) -> JsValue {
+pub fn serve_preset_content(req_url: &str, ocsp_base64: &str) -> JsValue {
     let ocsp_der = ::base64::decode(ocsp_base64).unwrap();
-    if let Some(preset_content) = WORKER.serve_preset_content(req_path, &ocsp_der) {
+    if let Some(preset_content) = WORKER.serve_preset_content(req_url, &ocsp_der) {
         JsValue::from_serde(&preset_content).unwrap()
     } else {
         JsValue::UNDEFINED

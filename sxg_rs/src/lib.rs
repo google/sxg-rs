@@ -104,26 +104,21 @@ impl SxgWorker {
         let validity = cbor::DataItem::Map(vec![]);
         validity.serialize()
     }
-    pub fn serve_preset_content(&self, req_path: &str, ocsp_der: &[u8]) -> Option<HttpResponse> {
-        let basename = req_path.strip_prefix(&self.config.reserved_path)?;
-        if basename == self.config.cert_url_basename {
+    pub fn serve_preset_content(&self, req_url: &str, ocsp_der: &[u8]) -> Option<HttpResponse> {
+        if req_url == self.config.cert_url {
             Some(HttpResponse {
                 body: self.create_cert_cbor(ocsp_der),
                 headers: vec![("content-type", "application/cert-chain+cbor")],
                 status: 200,
             })
-        } else if basename == self.config.validity_url_basename {
+        } else if req_url == self.config.validity_url {
             Some(HttpResponse {
                 body: self.create_validity(),
                 headers: vec![("content-type", "application/cbor")],
                 status: 200,
             })
         } else {
-            Some(HttpResponse {
-                body: format!("Unknown path {}", req_path).into_bytes(),
-                headers: vec![("content-type", "text/plain")],
-                status: 404,
-            })
+            None
         }
     }
     pub fn transform_request_headers(&self, fields: HeaderFields) -> Result<HeaderFields, String> {
