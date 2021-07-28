@@ -1,0 +1,24 @@
+{
+  "private": true,
+  "name": "cloudflare_worker",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "rollup -c rollup.config.js",
+    "test": "karma start --single-run"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@cloudflare/workers-types": "^2.2.2",
+    "@rollup/plugin-typescript": "^8.2.1",
+    "@types/jasmine": "^3.7.7",
+    "glob": "^7.1.7",
+    "jasmine-core": "^3.8.0",
+    "karma": "^6.3.4",
+    "karma-chrome-launcher": "^3.1.0",
+    "karma-jasmine": "^4.0.1",
+    "rollup": "^2.52.4",
+    "tslib": "^2.3.0",
+    "typescript": "^4.3.5"
+  }
+}
