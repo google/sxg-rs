@@ -56,6 +56,12 @@ limitations under the License.
 
 1. Run `fastly compute publish`.
 
+1. SXGs produced by this worker expire after 7 days. If you need any to expire
+   sooner in the Google SXG Cache, set an unsigned outer `Cache-Control` header as
+   desired. For instance, [control caching in
+   Fastly](https://docs.fastly.com/en/guides/controlling-caching) through
+   custom VCL or a fallback TTL.
+
 ## Maintenance
 
 The certificates need to be renewed every 90 days.
