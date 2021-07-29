@@ -62,7 +62,8 @@ out of signing, set the `Cache-Control` header to include `private` or
 
 LCP can be further improved by instructing Google Search to prefetch
 render-critical subresources for the page. To do so, add a `Link: rel=preload`
-header and a matching `Link: rel=allowed-alt-sxg` header, as in [this
+header and a matching `Link: rel=allowed-alt-sxg` header in the upstream server
+(the `html_host`), as in [this
 example](https://github.com/WICG/webpackage/blob/main/explainers/signed-exchange-subresource-substitution.md#:~:text=a%20preload%20header%20and%20an%20allowed-alt-sxg%20header).
 To compute the `header-integrity` for each subresource, run:
 
@@ -70,3 +71,6 @@ To compute the `header-integrity` for each subresource, run:
 $ go install github.com/WICG/webpackage/go/signedexchange/cmd/dump-signedexchange@latest
 $ dump-signedexchange -uri $URL -headerIntegrity
 ```
+
+To ensure the `header-integrity` remains stable, eliminate frequently changing
+headers from the upstream response such as `Date`.
