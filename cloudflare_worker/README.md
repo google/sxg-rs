@@ -50,6 +50,12 @@ limitations under the License.
 
 1. `wrangler publish`
 
+1. SXGs produced by this worker expire after 7 days. If you need any to expire
+   sooner in the Google SXG Cache, set an unsigned outer `Cache-Control` header
+   as desired. For instance, use [Cloudflare Page
+   Rules](https://support.cloudflare.com/hc/en-us/articles/218411427-Understanding-and-Configuring-Cloudflare-Page-Rules-Page-Rules-Tutorial-)
+   to set a custom Browser Cache TTL.
+
 ## Maintenance
 
 The certificates need to be renewed every 90 days.
