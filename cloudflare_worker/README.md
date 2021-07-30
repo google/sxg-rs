@@ -56,7 +56,7 @@ limitations under the License.
    1. The terminal will interactively ask for the value of the secret.
       Put the private key in JWK format here.
 
-1. Run `publish.sh` to build and deploy the worker online.
+1. Run `./publish.sh` to build and deploy the worker online.
 
 ## Maintenance
 
