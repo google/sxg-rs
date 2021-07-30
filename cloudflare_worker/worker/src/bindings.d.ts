@@ -20,3 +20,4 @@ declare global {
   const PRIVATE_KEY_JWK: string
   const OCSP: KVNamespace
 }
+
