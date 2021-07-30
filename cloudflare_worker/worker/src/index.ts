@@ -14,17 +14,22 @@
  * limitations under the License.
  */
 
-addEventListener('fetch', event => {
+import {
+  signer,
+} from './signer';
+import {
+  arrayBufferToBase64,
+} from './utils';
+import {
+  WasmResponse,
+  wasmFunctionsPromise,
+} from './wasmFunctions';
+
+addEventListener('fetch', (event) => {
   event.respondWith(handleRequest(event.request))
 })
 
-const wasmFunctionsPromise = (async function initWasmFunctions() {
-  await wasm_bindgen(wasm);
-  wasm_bindgen.init();
-  return wasm_bindgen;
-})();
-
-function responseFromWasm(data) {
+function responseFromWasm(data: WasmResponse) {
   return new Response(
     new Uint8Array(data.body),
     {
@@ -38,11 +43,14 @@ function responseFromWasm(data) {
  * Consumes the input stream, and returns an byte array containing the data in
  * the input stream. If the input stream contains more bytes than `maxSize`,
  * returns null.
- * @param {ReadableStream} inputStream
+ * @param {ReadableStream | null} inputStream
  * @param {number} maxSize
  * @returns {Promise<Uint8Array | null>}
  */
-async function readIntoArray(inputStream, maxSize) {
+async function readIntoArray(inputStream: ReadableStream | null, maxSize: number) {
+  if (inputStream === null) {
+    return new Uint8Array([]);
+  }
   const reader = inputStream.getReader();
   const received = new Uint8Array(maxSize);
   let receivedSize = 0;
@@ -66,23 +74,17 @@ async function readIntoArray(inputStream, maxSize) {
   }
 }
 
-function teeResponse(response) {
+function teeResponse(response: Response) {
   const {
     body,
     headers,
     status,
   } = response;
-  const [body1, body2] = response.body.tee();
+  const [body1, body2] = body?.tee() ?? [null, null];
   return [
       new Response(body1, { headers, status }),
       new Response(body2, { headers, status }),
-  ];
-}
-
-function arrayBufferToBase64(buffer) {
-  const data = Array.from(new Uint8Array(buffer));
-  const s = data.map(x => String.fromCharCode(x)).join('');
-  return btoa(s);
+  ] as const;
 }
 
 // Fetches latest OCSP from digicert, and writes it into key-value store.
@@ -119,7 +121,7 @@ const fetchOcspFromDigicert = (() => {
     );
     return ocspBase64;
   }
-  let singletonTask = null;
+  let singletonTask: Promise<string> | null = null;
   return async function() {
     if (singletonTask !== null) {
       return await singletonTask;
@@ -154,7 +156,7 @@ async function getOcsp() {
   }
 }
 
-async function handleRequest(request) {
+async function handleRequest(request: Request) {
   const {
     createRequestHeaders,
     getLastErrorMessage,
@@ -215,7 +217,7 @@ async function handleRequest(request) {
   }
 }
 
-async function generateSxgResponse(request, payload) {
+async function generateSxgResponse(request: Request, payload: Response) {
   const {
     createSignedExchange,
     validatePayloadHeaders,
@@ -239,34 +241,5 @@ async function generateSxgResponse(request, payload) {
     Math.round(Date.now() / 1000 - 60 * 60 * 12),
     signer,
   );
-  return new responseFromWasm(sxg);
-}
-
-const privateKeyPromise = (async function initPrivateKey() {
-    if (!PRIVATE_KEY_JWK) {
-      throw `The wrangler secret PRIVATE_KEY_JWK is not set.`;
-    }
-    return await crypto.subtle.importKey(
-        "jwk",
-        JSON.parse(PRIVATE_KEY_JWK),
-        {
-          name: "ECDSA",
-          namedCurve: 'P-256',
-        },
-        /*extractable=*/false,
-        ['sign'],
-    );
-})();
-
-async function signer(message) {
-  const privateKey = await privateKeyPromise;
-  const signature = await crypto.subtle.sign(
-      {
-        name: "ECDSA",
-        hash: 'SHA-256',
-      },
-      privateKey,
-      message,
-  );
-  return new Uint8Array(signature);
+  return responseFromWasm(sxg);
 }

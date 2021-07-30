@@ -21,6 +21,14 @@ limitations under the License.
 
 1. Install [Rust](https://www.rust-lang.org/tools/install).
 1. Install [@cloudflare/wrangler](https://github.com/cloudflare/wrangler).
+
+1. Clone this repo and cd into the current folder.
+   ```bash
+   git clone https://github.com/google/sxg-rs.git
+   cd sxg-rs/cloudflare_worker/
+   ```
+   All following steps in this `README.md` should be done in this folder.
+
 1. Create a `wrangler.toml` from the template `wrangler.example.toml`.
    1. Put your Cloudflare account ID.
    1. Put your `zone_id` and `routes` as described
@@ -48,7 +56,7 @@ limitations under the License.
    1. The terminal will interactively ask for the value of the secret.
       Put the private key in JWK format here.
 
-1. `wrangler publish`
+1. Run `./publish.sh` to build and deploy the worker online.
 
 1. SXGs produced by this worker expire after 7 days. If you need any to expire
    sooner in the Google SXG Cache, set an unsigned outer `Cache-Control` header
