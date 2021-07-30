@@ -23,6 +23,13 @@ limitations under the License.
 
 1. Install [Fastly CLI](https://github.com/fastly/cli).
 
+1. Clone this repo and cd into the current folder.
+   ```bash
+   git clone https://github.com/google/sxg-rs.git
+   cd sxg-rs/fastly_compute/
+   ```
+   All following steps in this `README.md` should be done in this folder.
+
 1. Create a `config.yaml` from the template `config.example.yaml`.
 
    1. For private key
