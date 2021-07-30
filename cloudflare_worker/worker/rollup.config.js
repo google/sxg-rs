@@ -24,7 +24,7 @@ export default [
     input: 'src/index.ts',
     output: {
       dir: 'dist',
-      format: 'cjs'
+      format: 'iife',  // immediately invoked function expression
     },
     plugins: [
       typescript(),
@@ -34,7 +34,7 @@ export default [
     input,
     output: {
       dir: 'dist',
-      format: 'cjs'
+      format: 'iife',  // immediately invoked function expression
     },
     plugins: [
       typescript(),
