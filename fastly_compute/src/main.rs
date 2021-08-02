@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+mod fetcher;
+
 use fastly::{Error, Request, Response, http::{StatusCode, Url}, mime::Mime};
 use futures::executor::block_on;
 use once_cell::sync::Lazy;
 use sxg_rs::headers::Headers;
+use fetcher::FastlyFetcher;
 
 pub static WORKER: Lazy<::sxg_rs::SxgWorker> = Lazy::new(|| {
     ::sxg_rs::SxgWorker::new(
@@ -24,16 +27,6 @@ pub static WORKER: Lazy<::sxg_rs::SxgWorker> = Lazy::new(|| {
         include_str!("../../credentials/issuer.pem"),
     )
 });
-
-fn transform_response(input: sxg_rs::HttpResponse) -> Response {
-    let mut output = Response::new();
-    output.set_status(input.status);
-    for (name, value) in input.headers {
-        output.append_header(name, value)
-    }
-    output.set_body(input.body);
-    output
-}
 
 fn binary_response(status_code: StatusCode, content_type: Mime, body: &[u8]) -> Response {
     let mut response = Response::new();
@@ -89,22 +82,6 @@ fn fetch_from_html_server(url: &Url, req_headers: Vec<(String, String)>) -> Resu
     })
 }
 
-// TODO: store OCSP in database
-fn fetch_ocsp_from_digicert() -> Result<Vec<u8>, String> {
-    let req_body = WORKER.create_ocsp_request();
-    let mut req = Request::new("POST", "http://ocsp.digicert.com");
-    static CONTENT_TYPE: Lazy<Mime> = Lazy::new(|| {
-        "application/ocsp-request".parse().unwrap()
-    });
-    req.set_content_type(CONTENT_TYPE.clone());
-    req.set_body_bytes(&req_body);
-    let rsp = req.send("OCSP server").map_err(|err| {
-        format!(r#"Fetching OCSP leads to error "{}""#, err)
-    })?;
-    let rsp_body = rsp.into_body_bytes();
-    Ok(rsp_body)
-}
-
 fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Response, String> {
     let private_key_der = base64::decode(&WORKER.config.private_key_base64).unwrap();
     let signer = Box::new(::sxg_rs::signature::rust_signer::RustSigner::new(&private_key_der));
@@ -120,13 +97,16 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
         fallback_url: fallback_url.as_str(),
     });
     let sxg = block_on(sxg);
-    Ok(transform_response(sxg))
+    Ok(fetcher::from_http_response(sxg))
 }
 
 fn handle_request(req: Request) -> Result<Response, String> {
-    let ocsp_der = fetch_ocsp_from_digicert()?;
+    let fetcher = Box::new(FastlyFetcher::new("OCSP server"));
+    // TODO: store OCSP in database
+    let ocsp_der = WORKER.fetch_ocsp_from_digicert(fetcher);
+    let ocsp_der = block_on(ocsp_der);
     if let Some(preset_content) = WORKER.serve_preset_content(req.get_url_str(), &ocsp_der) {
-        Ok(transform_response(preset_content))
+        Ok(fetcher::from_http_response(preset_content))
     } else {
         let fallback_url = get_fallback_url(&req);
         let req_headers = get_req_header_fields(&req)?;

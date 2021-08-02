@@ -36,10 +36,11 @@ pub fn get_last_error_message() -> JsValue {
     utils::get_last_error_message()
 }
 
-#[wasm_bindgen(js_name=createOcspRequest)]
-pub fn create_ocsp_request() -> Uint8Array {
-    let request = WORKER.create_ocsp_request();
-    Uint8Array::from(request)
+#[wasm_bindgen(js_name=fetchOcspFromDigicert)]
+pub async fn fetch_ocsp_from_digicert(fetcher: Function) -> Uint8Array {
+    let fetcher = Box::new(sxg_rs::fetcher::js_fetcher::JsFetcher::new(fetcher));
+    let request = WORKER.fetch_ocsp_from_digicert(fetcher).await;
+    Uint8Array::from(request.as_slice())
 }
 
 #[wasm_bindgen(js_name=servePresetContent)]

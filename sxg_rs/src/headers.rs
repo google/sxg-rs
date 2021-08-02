@@ -14,14 +14,13 @@
 
 use std::collections::{HashMap, HashSet};
 use once_cell::sync::Lazy;
+use crate::http::HeaderFields;
 
 #[derive(Debug)]
 pub struct Headers(HashMap<String, String>);
 
-pub type Fields = Vec<(String, String)>;
-
 impl Headers {
-    pub fn new(data: Fields) -> Self {
+    pub fn new(data: HeaderFields) -> Self {
         let mut headers = Headers(HashMap::new());
         for (mut k, v) in data.into_iter() {
             k.make_ascii_lowercase();
@@ -29,7 +28,7 @@ impl Headers {
         }
         headers
     }
-    pub fn forward_to_origin_server(self, forwarded_header_names: &HashSet<String>) -> Result<Fields, String> {
+    pub fn forward_to_origin_server(self, forwarded_header_names: &HashSet<String>) -> Result<HeaderFields, String> {
         let accept = self.0.get("accept").ok_or("The request does not have accept header")?;
         validate_sxg_request_header(accept)?;
         // Set Via per https://tools.ietf.org/html/rfc7230#section-5.7.1

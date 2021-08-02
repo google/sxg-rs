@@ -14,7 +14,9 @@
 
 mod cbor;
 pub mod config;
+pub mod fetcher;
 pub mod headers;
+pub mod http;
 mod http_parser;
 mod mice;
 mod ocsp;
@@ -23,16 +25,9 @@ mod structured_header;
 mod sxg;
 mod utils;
 
-use serde::Serialize;
 use config::Config;
-use headers::{Fields as HeaderFields, Headers};
-
-#[derive(Serialize)]
-pub struct HttpResponse {
-    pub body: Vec<u8>,
-    pub headers: Vec<(&'static str, &'static str)>,
-    pub status: u16,
-}
+use headers::Headers;
+use http::{HeaderFields, HttpResponse};
 
 pub struct SxgWorker {
     pub config: Config,
@@ -61,9 +56,6 @@ impl SxgWorker {
             ]),
         ]);
         cert_cbor.serialize()
-    }
-    pub fn create_ocsp_request(&self) -> &[u8] {
-        &self.config.ocsp_request
     }
     pub async fn create_signed_exchange<'a>(&self, params: CreateSignedExchangeParams<'a>) -> HttpResponse {
         let CreateSignedExchangeParams {
@@ -94,8 +86,8 @@ impl SxgWorker {
         HttpResponse {
             body: sxg_body,
             headers: vec![
-                ("content-type", "application/signed-exchange;v=b3"),
-                ("x-content-type-options", "nosniff"),
+                (String::from("content-type"), String::from("application/signed-exchange;v=b3")),
+                (String::from("x-content-type-options"), String::from("nosniff")),
             ],
             status: 200,
         }
@@ -104,17 +96,20 @@ impl SxgWorker {
         let validity = cbor::DataItem::Map(vec![]);
         validity.serialize()
     }
+    pub async fn fetch_ocsp_from_digicert(&self, fetcher: Box<dyn fetcher::Fetcher>) -> Vec<u8> {
+        ocsp::fetch_from_digicert(&self.config.cert_der, &self.config.issuer_der, fetcher).await
+    }
     pub fn serve_preset_content(&self, req_url: &str, ocsp_der: &[u8]) -> Option<HttpResponse> {
         if req_url == self.config.cert_url {
             Some(HttpResponse {
                 body: self.create_cert_cbor(ocsp_der),
-                headers: vec![("content-type", "application/cert-chain+cbor")],
+                headers: vec![(String::from("content-type"), String::from("application/cert-chain+cbor"))],
                 status: 200,
             })
         } else if req_url == self.config.validity_url {
             Some(HttpResponse {
                 body: self.create_validity(),
-                headers: vec![("content-type", "application/cbor")],
+                headers: vec![(String::from("content-type"), String::from("application/cbor"))],
                 status: 200,
             })
         } else {

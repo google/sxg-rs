@@ -41,7 +41,6 @@ pub struct Config {
     pub cert_der: Vec<u8>,
     pub cert_url: String,
     pub issuer_der: Vec<u8>,
-    pub ocsp_request: Vec<u8>,
     pub validity_url: String,
 }
 
@@ -58,7 +57,6 @@ impl Config {
         let input: ConfigInput = serde_yaml::from_str(input_yaml).unwrap();
         let cert_der = get_der(cert_pem, "CERTIFICATE");
         let issuer_der = get_der(issuer_pem, "CERTIFICATE");
-        let ocsp_request = crate::ocsp::create_ocsp_request(&cert_der, &issuer_der);
         let cert_url = create_url(&input.worker_host, &input.reserved_path, &input.cert_url_basename);
         let validity_url = create_url(&input.html_host, &input.reserved_path, &input.validity_url_basename);
         Config {
@@ -66,7 +64,6 @@ impl Config {
             cert_url,
             input,
             issuer_der,
-            ocsp_request,
             validity_url,
         }
     }
@@ -99,4 +96,3 @@ mod tests {
         assert_eq!(create_url("foo.com", "/.sxg/", "/cert"), "https://foo.com/.sxg/cert");
     }
 }
-
