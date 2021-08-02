@@ -20,7 +20,7 @@ declare var wasm_bindgen: any;
 type HeaderFields = Array<[string, string]>;
 
 export interface WasmRequest {
-  body: Uint8Array,
+  body: number[],
   headers: HeaderFields,
   method: 'Get' | 'Post',
   url: string,
