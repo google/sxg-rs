@@ -17,12 +17,17 @@ use fastly::{
     Request as FastlyRequest,
     Response as FastlyResponse,
 };
-use sxg_rs::http::{
-    HttpRequest,
-    HttpResponse,
-    Method,
+use sxg_rs::{
+    fetcher::Fetcher,
+    http::{
+        HttpRequest,
+        HttpResponse,
+        Method,
+    },
 };
 
+/// A [`Fetcher`] implemented by
+/// [Fastly backend](https://developer.fastly.com/reference/api/services/backend/).
 pub struct FastlyFetcher {
     backend_name: &'static str,
 }
@@ -36,7 +41,7 @@ impl FastlyFetcher {
 }
 
 #[async_trait(?Send)]
-impl sxg_rs::fetcher::Fetcher for FastlyFetcher {
+impl Fetcher for FastlyFetcher {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse, String> {
         let request = from_http_request(request);
         let response: FastlyResponse = request.send(self.backend_name).map_err(|err| {

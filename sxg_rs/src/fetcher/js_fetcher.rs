@@ -17,9 +17,19 @@ use wasm_bindgen::JsValue;
 use crate::http::{HttpRequest, HttpResponse};
 use super::Fetcher;
 
+/// A [`Fetcher`] implemented by JavaScript.
 pub struct JsFetcher(JsFunction);
 
 impl JsFetcher {
+    /// Construct a new `JsFetcher` with a given JavaScript function,
+    /// which takes a [`HttpRequest`] and returns a
+    /// [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)
+    /// of [`HttpResponse`].
+    /// ```typescript
+    /// function js_function(req: HttpRequest): Promise<HttpResponse> {...}
+    /// ```
+    /// # Panics
+    /// Panics if `js_function` throws an error.
     pub fn new(js_function: JsFunction) -> Self {
         JsFetcher(js_function)
     }
