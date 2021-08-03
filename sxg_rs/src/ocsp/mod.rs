@@ -26,9 +26,11 @@ use der_parser::{
     oid::Oid,
 };
 
+use crate::fetcher::{Fetcher};
+use crate::http::{HttpRequest, Method};
 use crate::utils::get_sha;
 
-pub fn create_ocsp_request(cert_der: &[u8], issuer_der: &[u8]) -> Vec<u8> {
+fn create_ocsp_request(cert_der: &[u8], issuer_der: &[u8]) -> Vec<u8> {
     let cert = x509_parser::parse_x509_certificate(&cert_der).unwrap().1;
     let issuer = x509_parser::parse_x509_certificate(&issuer_der).unwrap().1;
     let issuer_name = issuer.tbs_certificate.subject.as_raw();
@@ -87,4 +89,15 @@ fn signature_algorithm() -> BerObject<'static> {
         BerObject::from_obj(BerObjectContent::OID(Oid::from(&[2, 16, 840, 1, 101, 3, 4, 2, 1]).unwrap())),
         BerObject::from_obj(BerObjectContent::Null),
     ])
+}
+
+pub async fn fetch_from_digicert<'a>(cert_der: &'a [u8], issuer_der: &'a [u8], fetcher: Box<dyn Fetcher>) -> Vec<u8> {
+    let req = HttpRequest {
+        body: create_ocsp_request(cert_der, issuer_der),
+        headers: vec![(String::from("content-type"), String::from("application/ocsp-request"))],
+        method: Method::Post,
+        url: String::from("http://ocsp.digicert.com"),
+    };
+    let rsp = fetcher.fetch(req).await.unwrap();
+    rsp.body
 }

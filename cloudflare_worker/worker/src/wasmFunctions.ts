@@ -19,14 +19,20 @@ declare var wasm_bindgen: any;
 
 type HeaderFields = Array<[string, string]>;
 
+export interface WasmRequest {
+  body: number[],
+  headers: HeaderFields,
+  method: 'Get' | 'Post',
+  url: string,
+}
+
 export interface WasmResponse {
-  body: Uint8Array;
+  body: number[];
   headers: HeaderFields;
   status: number;
 }
 
 interface WasmFunctions {
-  createOcspRequest(): Uint8Array;
   createRequestHeaders(fields: HeaderFields): HeaderFields;
   createSignedExchange(
     fallbackUrl: string,
@@ -36,6 +42,7 @@ interface WasmFunctions {
     nowInSeconds: number,
     signer: (input: Uint8Array) => Promise<Uint8Array>,
   ): WasmResponse,
+  fetchOcspFromDigicert(fetcher: (request: WasmRequest) => Promise<WasmResponse>): Uint8Array,
   getLastErrorMessage(): string;
   servePresetContent(url: string, ocsp: Uint8Array): WasmResponse;
   shouldRespondDebugInfo(): boolean;

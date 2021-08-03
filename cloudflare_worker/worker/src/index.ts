@@ -23,6 +23,7 @@ import {
 import {
   WasmResponse,
   wasmFunctionsPromise,
+  WasmRequest,
 } from './wasmFunctions';
 
 addEventListener('fetch', (event) => {
@@ -95,17 +96,9 @@ const fetchOcspFromDigicert = (() => {
   // The un-throttled implementation to fetch OCSP
   async function fetchOcspFromDigicertImpl() {
     const {
-      createOcspRequest,
+      fetchOcspFromDigicert: wasmFetchOcspFromDigicert,
     } = await wasmFunctionsPromise;
-    const ocspRequest = createOcspRequest();
-    const ocspResponse = await fetch('http://ocsp.digicert.com', {
-      method: 'POST',
-      body: ocspRequest,
-      headers: {
-        'content-type': 'application/ocsp-request',
-      },
-    });
-    const ocspDer = await ocspResponse.arrayBuffer();
+    const ocspDer = await wasmFetchOcspFromDigicert(fetcher);
     const ocspBase64 = arrayBufferToBase64(ocspDer);
     const now = Date.now() / 1000;
     OCSP.put(
@@ -242,4 +235,21 @@ async function generateSxgResponse(request: Request, payload: Response) {
     signer,
   );
   return responseFromWasm(sxg);
+}
+
+async function fetcher(request: WasmRequest): Promise<WasmResponse> {
+  const response = await fetch(
+    request.url,
+    {
+      body: new Uint8Array(request.body),
+      headers: request.headers,
+      method: request.method,
+    },
+  );
+  const responseBody = await response.arrayBuffer();
+  return {
+    body: Array.from(new Uint8Array(responseBody)),
+    headers: [],
+    status: response.status,
+  };
 }

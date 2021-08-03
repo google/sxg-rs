@@ -23,6 +23,7 @@ publish = false
 debug = false
 
 [dependencies]
+async-trait = "0.1.50"
 base64 = "0.13.0"
 fastly = "^0.7.3"
 futures = { version = "0.3.14", features = ["executor"] }
