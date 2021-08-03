@@ -21,7 +21,7 @@ use super::Fetcher;
 pub struct JsFetcher(JsFunction);
 
 impl JsFetcher {
-    /// Construct a new `JsFetcher` with a given JavaScript function,
+    /// Constructs a new `JsFetcher` with a given JavaScript function,
     /// which takes a [`HttpRequest`] and returns a
     /// [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)
     /// of [`HttpResponse`].

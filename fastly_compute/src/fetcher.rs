@@ -33,7 +33,7 @@ pub struct FastlyFetcher {
 }
 
 impl FastlyFetcher {
-    /// Construct a new `FastlyFetcher` from the backend name.
+    /// Constructs a new `FastlyFetcher` from the backend name.
     /// This function does not create the backend in Fastly;
     /// the Fastly backend need to be created via Fastly API
     /// before calling this function.
