@@ -21,19 +21,6 @@ certificate chain `cert.pem + issuer.pem` and private key `privkey.pem`.
 You can not use a normal HTTPS certificate,
 because SXG requires the certificate to have a
 [CanSignHttpExchanges extension](https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#cross-origin-cert-req).
-You have two options to get an SXG-compatible certificate.
-
-### Option 1: Get from CA (Certificate Authority)
-
-1. Follow the
-   [doc](https://docs.digicert.com/manage-certificates/certificate-profile-options/get-your-signed-http-exchange-certificate/)
-   in Digicert.
-
-1. From the files issued by DigiCert,
-   rename `DigiCertCA.crt` as `issuer.pem`,
-   and rename `your_domain.crt` as `cert.pem`.
-
-### Option 2: Generate a self-signed certificate
 
 1. Generate prime256v1 ecdsa private key.
 
@@ -48,6 +35,13 @@ You have two options to get an SXG-compatible certificate.
     -subj '/CN=example.org/O=Test/C=US'
    ```
 
+At this point, you have two options:
+
+### Option 1: Development certificate
+
+When developing or testing, you can create your own SXG certificate. It will
+not work in production.
+
 1. Self-sign the certificate with "CanSignHttpExchanges" extension.
 
    ```bash
@@ -61,8 +55,8 @@ You have two options to get an SXG-compatible certificate.
    cp cert.pem issuer.pem
    ```
 
-1. (Optional) to let chrome ignore certificate errors of the self-signed
-   certificate.
+1. (Optional) To test the worker after it is installed, tell Chrome to ignore
+   certificate errors of the self-signed certificate.
 
    1. Genenerate `SHA-256` of the certificate.
 
@@ -72,19 +66,28 @@ You have two options to get an SXG-compatible certificate.
           openssl dgst -sha256 -binary |\
           base64 >cert_sha256.txt
       ```
-   1. Launch Chrome
+   1. Launch Chrome with these flags:
       ```bash
       google-chrome --guest \
         --ignore-certificate-errors-spki-list=`cat cert_sha256.txt`
       ```
 
-## Utility script
+### Option 2: Production certificate
 
-### Parser for private key
+For use in production, a SXG certificate must be obtained from a [Certificate
+Authority](https://github.com/google/webpackager/wiki/Certificate-Authorities).
 
-[parse_private_key.go](./parse_private_key.go) reads PEM from stdin,
-and prints the parsed value.
+1. Follow the [DigiCert
+   doc](https://docs.digicert.com/manage-certificates/certificate-profile-options/get-your-signed-http-exchange-certificate/).
+   Note:
+   1. Accounts should be created via the [SXG account signup
+      form](https://www.digicert.com/account/ietf/http-signed-exchange-account.php#create-account).
+      For existing accounts, you will need to reach out to DigiCert support to
+      enable the CanSignHttpExchanges option.
+   1. If setting the CAA DNS record using Cloudflare, add a trailing period
+      after `com`, so the value for CA domain name is: `digicert.com.;
+      cansignhttpexchanges=yes`.
 
-```bash
-go run parse_private_key.go <privkey.pem
-```
+1. From the files issued by DigiCert, rename `DigiCertCA.crt` as `issuer.pem`,
+   and rename `your_domain.crt` as `cert.pem`. Place them in this `credentials/`
+   directory.

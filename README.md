@@ -31,17 +31,18 @@ of the [Core Web Vitals](https://web.dev/vitals/).
 ## Verify and monitor
 
 This code was released in July 2021 and thus hasn't yet had a lot of real-world
-testing. Please
+testing. After installing, please
 [verify](https://developers.google.com/search/docs/advanced/experience/signed-exchange#verify-sxg-setup)
 and
 [monitor](https://developers.google.com/search/docs/advanced/experience/signed-exchange#monitor-and-debug-sxg)
-the results after installation.
+the results.
 
 ### Preview in Chrome
 
-During development, you may choose to use a self-signed certificate. To preview the results in the browser:
+To preview the results in the browser:
 
- - Set Chrome flags to [allow the certificate](https://github.com/google/webpackager/tree/main/cmd/webpkgserver#testing-with-self-signed--invalid-certificates).
+ - In development, set Chrome flags to [allow the
+   certificate](https://github.com/google/webpackager/tree/main/cmd/webpkgserver#testing-with-self-signed--invalid-certificates).
  - Use an extension such as
    [ModHeader](https://chrome.google.com/webstore/detail/modheader/idgpnmonknjnojddfkpgkljpfnnfcklj)
    to set the `Accept` header to
@@ -56,14 +57,14 @@ several users (until SXG expiration). Follow [these
 instructions](https://developers.google.com/search/docs/advanced/experience/signed-exchange#additional-requirements-for-google-search)
 to ensure all signed pages are compatible with such reuse. To opt some pages
 out of signing, set the `Cache-Control` header to include `private` or
-`no-store`.
+`no-store` in the upstream server.
 
 ## Preload subresources
 
 LCP can be further improved by instructing Google Search to prefetch
 render-critical subresources for the page. To do so, add a `Link: rel=preload`
-header and a matching `Link: rel=allowed-alt-sxg` header in the upstream server
-(the `html_host`), as in [this
+header and a matching `Link: rel=allowed-alt-sxg` header in the upstream
+server, as in [this
 example](https://github.com/WICG/webpackage/blob/main/explainers/signed-exchange-subresource-substitution.md#:~:text=a%20preload%20header%20and%20an%20allowed-alt-sxg%20header).
 To compute the `header-integrity` for each subresource, run:
 

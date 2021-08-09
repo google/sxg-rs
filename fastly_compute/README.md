@@ -17,7 +17,7 @@ limitations under the License.
 ## Setup
 
 1. Get an SXG-compatible certificate
-   using [these steps](../../credentials/README.md#get-an-sxg_compatible-certificate).
+   using [these steps](../credentials/README.md#get-an-sxg_compatible-certificate).
 
 1. Install [Rust](https://www.rust-lang.org/tools/install).
 
@@ -68,6 +68,8 @@ limitations under the License.
    desired. For instance, [control caching in
    Fastly](https://docs.fastly.com/en/guides/controlling-caching) through
    custom VCL or a fallback TTL.
+
+1. Read on for [next steps](../README.md).
 
 ## Maintenance
 

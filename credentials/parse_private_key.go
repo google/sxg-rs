@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 )
@@ -40,13 +41,24 @@ func printKey(key *ecdsa.PrivateKey) {
 }
 
 func main() {
-	text, _ := ioutil.ReadAll(os.Stdin)
+	text, err := ioutil.ReadAll(io.LimitReader(os.Stdin, 4194304))
+	if err != nil {
+		panic("Error reading input: " + err.Error())
+	}
 	for len(text) > 0 {
 		var block *pem.Block
 		block, text = pem.Decode(text)
+		if block == nil {
+			break
+		}
 		key, _ := x509.ParseECPrivateKey(block.Bytes)
 		if key != nil {
-			printKey(key);
+			printKey(key)
+			return
 		}
 	}
+	fmt.Println("No matching private key was found. The PEM file should include the lines:")
+	fmt.Println("-----BEGIN EC PRIVATE KEY-----")
+	fmt.Println("and")
+	fmt.Println("-----END EC PRIVATE KEY-----")
 }
