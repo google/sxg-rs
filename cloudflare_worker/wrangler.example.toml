@@ -14,13 +14,15 @@
 
 name = "sxg"
 type = "rust"
-account_id = "XXXXXX"
 workers_dev = true
+
+zone_id = "XXXXX"
+account_id = "XXXXXX"
 routes = [
   "my_domain.com/*",
 ]
 kv_namespaces = [
-  # Please use the command "wrangler kv:namespace create OCSP" to create the id of kv namespace
+  # Please use the command "wrangler kv:namespace create OCSP" to create the id of kv namespace.
+  # The binding must be "OCSP".
   { binding = "OCSP", id = "XXXXXX" },
 ]
-zone_id = "XXXXX"
