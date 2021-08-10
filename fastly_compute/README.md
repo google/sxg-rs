@@ -63,11 +63,12 @@ limitations under the License.
 
 1. Run `fastly compute publish`.
 
-1. SXGs produced by this worker expire after 7 days. If you need any to expire
-   sooner in the Google SXG Cache, set an unsigned outer `Cache-Control` header as
-   desired. For instance, [control caching in
-   Fastly](https://docs.fastly.com/en/guides/controlling-caching) through
-   custom VCL or a fallback TTL.
+1. The Google SXG Cache tries to [update SXGs
+   often](https://developers.google.com/search/docs/advanced/experience/signed-exchange#:~:text=Regardless%20of%20the,the%20SXG%20response.),
+   but may reuse them for up to 7 days. To ensure they expire sooner, [control
+   caching in Fastly](https://docs.fastly.com/en/guides/controlling-caching)
+   through custom VCL or a fallback TTL. This creates an unsigned outer
+   `Cache-Control` header on top of the SXG.
 
 1. Read on for [next steps](../README.md).
 
