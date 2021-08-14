@@ -64,10 +64,12 @@ impl Headers {
             if reject_stateful_headers && STATEFUL_HEADERS.contains(k.as_str()) {
                 return Err(format!(r#"A stateful header "{}" is found."#, k));
             }
-            if k == "cache-control" {
-                // https://github.com/google/webpackager/blob/master/docs/cache_requirements.md#user-content-google-sxg-cache
-                if v.contains("no-cache") || v.contains("private") {
-                    return Err(format!(r#"The cache-control header is "{}"."#, v));
+            if CACHE_CONTROL_HEADERS.contains(k.as_str()) {
+                // `private` and `no-store` are disallowed by
+                // https://github.com/google/webpackager/blob/master/docs/cache_requirements.md#user-content-google-sxg-cache,
+                // while the other two are signals that the document is not usually cached and reused.
+                if v.contains("private") || v.contains("no-store") || v.contains("no-cache") || v.contains("max-age=0") {
+                    return Err(format!(r#"The {} header is "{}"."#, k, v));
                 }
             }
         }
@@ -153,6 +155,18 @@ static STATEFUL_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     ].into_iter().collect()
 });
 
+static CACHE_CONTROL_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    vec![
+        // https://datatracker.ietf.org/doc/html/rfc7234#section-5.2
+        "cache-control",
+        // https://developers.cloudflare.com/cache/about/cdn-cache-control
+        "cdn-cache-control",
+        "cloudflare-cdn-cache-control",
+        // https://developer.fastly.com/reference/http-headers/Surrogate-Control/
+        "surrogate-control",
+    ].into_iter().collect()
+});
+
 // Checks whether accept header of a http request, return an Err when the input
 // string does not have an `application/signed-exchange;v=b3` with the highest
 // `q` value.
@@ -219,5 +233,29 @@ mod tests {
     #[test]
     fn v_is_not_b3() {
         assert!(validate_sxg_request_header("application/signed-exchange;v=b2").is_err());
+    }
+    fn headers(pairs: Vec<(&str, &str)>) -> Headers {
+        Headers::new(pairs.into_iter().map(|(k,v)| (k.to_string(), v.to_string())).collect())
+    }
+    #[test]
+    fn response_headers_minimum_valid() {
+        assert!(headers(vec![("content-type", "text/html")]).validate_as_sxg_payload(true).is_ok());
+    }
+    #[test]
+    fn response_headers_caching() {
+        assert!(headers(vec![("content-type", "text/html"), ("cache-control", "max-age=1")]).validate_as_sxg_payload(true).is_ok());
+        assert!(headers(vec![("content-type", "text/html"), ("cache-control", "private")]).validate_as_sxg_payload(true).is_err());
+        assert!(headers(vec![("content-type", "text/html"), ("cdn-cache-control", "no-store")]).validate_as_sxg_payload(true).is_err());
+        assert!(headers(vec![("content-type", "text/html"), ("cloudflare-cdn-cache-control", "no-cache")]).validate_as_sxg_payload(true).is_err());
+        assert!(headers(vec![("content-type", "text/html"), ("surrogate-control", "max-age=0")]).validate_as_sxg_payload(true).is_err());
+    }
+    #[test]
+    fn response_headers_stateful() {
+        assert!(headers(vec![("content-type", "text/html"), ("clear-site-data", r#""*""#)]).validate_as_sxg_payload(true).is_err());
+    }
+    #[test]
+    fn response_headers_size() {
+        assert!(headers(vec![("content-type", "text/html"), ("content-length", "8000000")]).validate_as_sxg_payload(true).is_ok());
+        assert!(headers(vec![("content-type", "text/html"), ("content-length", "8000001")]).validate_as_sxg_payload(true).is_err());
     }
 }
