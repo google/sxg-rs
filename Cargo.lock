@@ -933,6 +933,7 @@ dependencies = [
  "serde",
  "serde_yaml",
  "sha2",
+ "url",
  "wasm-bindgen",
  "wasm-bindgen-futures 0.4.23",
  "x509-parser",

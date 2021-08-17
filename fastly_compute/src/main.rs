@@ -17,7 +17,10 @@ mod fetcher;
 use fastly::{Error, Request, Response, http::{StatusCode, Url}, mime::Mime};
 use futures::executor::block_on;
 use once_cell::sync::Lazy;
-use sxg_rs::headers::Headers;
+use sxg_rs::{
+    headers::Headers,
+    PresetContent,
+};
 use fetcher::FastlyFetcher;
 
 pub static WORKER: Lazy<::sxg_rs::SxgWorker> = Lazy::new(|| {
@@ -105,17 +108,30 @@ fn handle_request(req: Request) -> Result<Response, String> {
     // TODO: store OCSP in database
     let ocsp_der = WORKER.fetch_ocsp_from_digicert(fetcher);
     let ocsp_der = block_on(ocsp_der);
-    if let Some(preset_content) = WORKER.serve_preset_content(req.get_url_str(), &ocsp_der) {
-        Ok(fetcher::from_http_response(preset_content))
-    } else {
-        let fallback_url = get_fallback_url(&req);
-        let req_headers = get_req_header_fields(&req)?;
-        let sxg_payload = fetch_from_html_server(
-            &fallback_url,
-            req_headers.forward_to_origin_server(&WORKER.config.forward_request_headers)?,
-        )?;
-        generate_sxg_response(&fallback_url, sxg_payload)
-    }
+    let fallback_url: Url;
+    let sxg_payload;
+    match WORKER.serve_preset_content(req.get_url_str(), &ocsp_der) {
+        Some(PresetContent::Direct(response)) => {
+            return Ok(fetcher::from_http_response(response))
+        },
+        Some(PresetContent::ToBeSigned {
+            url,
+            payload,
+            ..
+        }) => {
+            fallback_url = Url::parse(&url).map_err(|e| e.to_string())?;
+            sxg_payload = fetcher::from_http_response(payload);
+        },
+        None => {
+            fallback_url = get_fallback_url(&req);
+            let req_headers = get_req_header_fields(&req)?;
+            sxg_payload = fetch_from_html_server(
+                &fallback_url,
+                req_headers.forward_to_origin_server(&WORKER.config.forward_request_headers)?,
+            )?;
+        }
+    };
+    generate_sxg_response(&fallback_url, sxg_payload)
 }
 
 #[fastly::main]

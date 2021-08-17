@@ -28,9 +28,21 @@ mod utils;
 use config::Config;
 use headers::Headers;
 use http::{HeaderFields, HttpResponse};
+use serde::Serialize;
 
 pub struct SxgWorker {
     pub config: Config,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all="camelCase", tag="kind")]
+pub enum PresetContent {
+    Direct(HttpResponse),
+    ToBeSigned {
+        url: String,
+        payload: HttpResponse,
+        fallback: HttpResponse,
+    }
 }
 
 impl SxgWorker {
@@ -99,21 +111,67 @@ impl SxgWorker {
     pub async fn fetch_ocsp_from_digicert(&self, fetcher: Box<dyn fetcher::Fetcher>) -> Vec<u8> {
         ocsp::fetch_from_digicert(&self.config.cert_der, &self.config.issuer_der, fetcher).await
     }
-    pub fn serve_preset_content(&self, req_url: &str, ocsp_der: &[u8]) -> Option<HttpResponse> {
-        if req_url == self.config.cert_url {
-            Some(HttpResponse {
+    pub fn serve_preset_content(&self, req_url: &str, ocsp_der: &[u8]) -> Option<PresetContent> {
+        let req_url = url::Url::parse(req_url).ok()?;
+        let path: Vec<_> = req_url.path_segments()?.collect();
+        let basename = if path.len() == 2 && path[0] == self.config.reserved_path.trim_matches('/') {
+            path[1]
+        } else {
+            return None;
+        };
+        if basename == self.config.cert_url_basename {
+            Some(PresetContent::Direct(HttpResponse {
                 body: self.create_cert_cbor(ocsp_der),
                 headers: vec![(String::from("content-type"), String::from("application/cert-chain+cbor"))],
                 status: 200,
-            })
-        } else if req_url == self.config.validity_url {
-            Some(HttpResponse {
+            }))
+        } else if basename == self.config.validity_url_basename {
+            Some(PresetContent::Direct(HttpResponse {
                 body: self.create_validity(),
                 headers: vec![(String::from("content-type"), String::from("application/cbor"))],
                 status: 200,
+            }))
+        } else if basename == "test.html" {
+            Some(PresetContent::Direct(HttpResponse {
+                headers: vec![(String::from("content-type"), String::from("text/html"))],
+                status: 200,
+                body: include_bytes!("./static/test.html").to_vec(),
+            }))
+        } else if basename == "prefetch.html" {
+            Some(PresetContent::Direct(HttpResponse {
+                headers: vec![(String::from("content-type"), String::from("text/html"))],
+                status: 200,
+                body: include_bytes!("./static/prefetch.html").to_vec(),
+            }))
+        } else if basename == "fallback.html" {
+            Some(PresetContent::Direct(HttpResponse {
+                headers: vec![(String::from("content-type"), String::from("text/html"))],
+                status: 200,
+                body: include_bytes!("./static/fallback.html").to_vec(),
+            }))
+        } else if basename == "test.sxg" {
+            let mut fallback_url = req_url;
+            fallback_url.set_host(Some(&self.config.html_host)).ok()?;
+            fallback_url.set_path(&fallback_url.path().replace("test.sxg", "fallback.html"));
+            Some(PresetContent::ToBeSigned {
+                url: fallback_url.to_string(),
+                payload: HttpResponse {
+                    headers: vec![(String::from("content-type"), String::from("text/html"))],
+                    status: 200,
+                    body: include_bytes!("./static/success.html").to_vec(),
+                },
+                fallback: HttpResponse {
+                    headers: vec![(String::from("content-type"), String::from("text/html"))],
+                    status: 200,
+                    body: include_bytes!("./static/fallback.html").to_vec(),
+                },
             })
         } else {
-            None
+            Some(PresetContent::Direct(HttpResponse {
+                headers: vec![(String::from("content-type"), String::from("text/plain"))],
+                status: 404,
+                body: format!("Unknown path {}", req_url).into_bytes(),
+            }))
         }
     }
     pub fn transform_request_headers(&self, fields: HeaderFields) -> Result<HeaderFields, String> {

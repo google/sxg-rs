@@ -1,0 +1,40 @@
+<!--
+Copyright 2021 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<!--
+This `prefetch.html` fetches an SXG and navigates to it. After the navigation,
+the `window.location` will be changed to `fallback.html`.
+To reload this page, care must be taken to reload from `prefetch.html`,
+rather than from `fallback.html`.
+If the user clicks browser's `reload` button after the navigation, the browser
+will reload `fallback.html`, and it will result in a error.
+-->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<p>Loading SXG test page in 2 seconds</p>
+<script>
+  const sxgUrl = `./test.sxg?q=${Math.random()}`;
+  const link = document.createElement('link');
+  // This `prefetch` attribute triggers Chrome to prefer SXG content-type.
+  link.setAttribute('rel', 'prefetch')
+  link.setAttribute('href', sxgUrl);
+  document.head.append(link);
+  // Wait a long time so that SXG is likely to have been fully loaded.
+  // However, if the Chrome network is throttled to `slow 3G`,
+  // 2000 milliseconds will be not enough, and fails to navigate.
+  setTimeout(() => {
+    window.location = sxgUrl;
+  }, 2000);
+</script>
