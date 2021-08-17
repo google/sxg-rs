@@ -35,7 +35,7 @@ pub struct SxgWorker {
 }
 
 #[derive(Serialize)]
-#[serde(rename_all="camelCase")]
+#[serde(rename_all="camelCase", tag="kind")]
 pub enum PresetContent {
     Direct(HttpResponse),
     ToBeSigned {

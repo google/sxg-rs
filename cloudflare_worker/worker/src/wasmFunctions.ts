@@ -32,14 +32,11 @@ export interface WasmResponse {
   status: number;
 }
 
-export type PresetContent = {
-  direct: WasmResponse,
-} | {
-  toBeSigned: {
-    url: string,
-    payload: WasmResponse,
-    fallback: WasmResponse,
-  }
+export type PresetContent = ({ kind: 'direct' } & WasmResponse) | {
+  kind: 'toBeSigned',
+  url: string,
+  payload: WasmResponse,
+  fallback: WasmResponse,
 }
 
 interface WasmFunctions {

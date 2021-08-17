@@ -163,12 +163,12 @@ async function handleRequest(request: Request) {
     let sxgPayload: Response;
     const presetContent = servePresetContent(request.url, ocsp);
     if (presetContent) {
-      if ('direct' in presetContent) {
-        return responseFromWasm(presetContent.direct);
+      if (presetContent.kind === 'direct') {
+        return responseFromWasm(presetContent);
       } else {
-        fallbackUrl = presetContent.toBeSigned.url;
-        fallback = responseFromWasm(presetContent.toBeSigned.fallback);
-        sxgPayload = responseFromWasm(presetContent.toBeSigned.payload);
+        fallbackUrl = presetContent.url;
+        fallback = responseFromWasm(presetContent.fallback);
+        sxgPayload = responseFromWasm(presetContent.payload);
         // Although we are not sending any request to HTML_HOST,
         // we still need to check the validity of the request header.
         // For example, if the header does not contain
