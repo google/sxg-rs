@@ -63,6 +63,9 @@ limitations under the License.
 
 1. Run `fastly compute publish`.
 
+1. To check whether the worker generates a valid SXG,
+   use Chrome browser to open `https://${WORKER_HOST}/.sxg/test.html`.
+
 1. The Google SXG Cache tries to [update SXGs
    often](https://developers.google.com/search/docs/advanced/experience/signed-exchange#:~:text=Regardless%20of%20the,the%20SXG%20response.),
    but may reuse them for up to 7 days. To ensure they expire sooner, [control

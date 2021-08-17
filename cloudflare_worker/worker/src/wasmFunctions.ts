@@ -32,6 +32,16 @@ export interface WasmResponse {
   status: number;
 }
 
+export type PresetContent = {
+  direct: WasmResponse,
+} | {
+  toBeSigned: {
+    url: string,
+    payload: WasmResponse,
+    fallback: WasmResponse,
+  }
+}
+
 interface WasmFunctions {
   createRequestHeaders(fields: HeaderFields): HeaderFields;
   createSignedExchange(
@@ -44,7 +54,7 @@ interface WasmFunctions {
   ): WasmResponse,
   fetchOcspFromDigicert(fetcher: (request: WasmRequest) => Promise<WasmResponse>): Uint8Array,
   getLastErrorMessage(): string;
-  servePresetContent(url: string, ocsp: Uint8Array): WasmResponse;
+  servePresetContent(url: string, ocsp: Uint8Array): PresetContent | undefined;
   shouldRespondDebugInfo(): boolean;
   validatePayloadHeaders(fields: HeaderFields): void,
 }

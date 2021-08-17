@@ -156,22 +156,36 @@ async function handleRequest(request: Request) {
     servePresetContent,
     shouldRespondDebugInfo,
   } = await wasmFunctionsPromise;
-  let fallback = null;
+  let fallbackUrl: string;
+  let fallback: Response | undefined;
   try {
     const ocsp = await getOcsp();
+    let sxgPayload: Response;
     const presetContent = servePresetContent(request.url, ocsp);
     if (presetContent) {
-      return responseFromWasm(presetContent);
-    }
-    const requestHeaders = createRequestHeaders(Array.from(request.headers));
-    let sxgPayload;
-    [sxgPayload, fallback] = teeResponse(await fetch(
-      request.url,
-      {
-        headers: requestHeaders,
+      if ('direct' in presetContent) {
+        return responseFromWasm(presetContent.direct);
+      } else {
+        fallbackUrl = presetContent.toBeSigned.url;
+        fallback = responseFromWasm(presetContent.toBeSigned.fallback);
+        sxgPayload = responseFromWasm(presetContent.toBeSigned.payload);
+        // Although we are not sending any request to HTML_HOST,
+        // we still need to check the validity of the request header.
+        // For example, if the header does not contain
+        // `Accept: signed-exchange;v=b3`, we will throw an error.
+        createRequestHeaders(Array.from(request.headers));
       }
-    ));
-    return await generateSxgResponse(request, sxgPayload);
+    } else {
+      fallbackUrl = request.url;
+      const requestHeaders = createRequestHeaders(Array.from(request.headers));
+      [sxgPayload, fallback] = teeResponse(await fetch(
+        fallbackUrl,
+        {
+          headers: requestHeaders,
+        }
+      ));
+    }
+    return await generateSxgResponse(fallbackUrl, sxgPayload);
   } catch (e) {
     if (shouldRespondDebugInfo()) {
       let message;
@@ -210,7 +224,7 @@ async function handleRequest(request: Request) {
   }
 }
 
-async function generateSxgResponse(request: Request, payload: Response) {
+async function generateSxgResponse(fallbackUrl: string, payload: Response) {
   const {
     createSignedExchange,
     validatePayloadHeaders,
@@ -227,7 +241,7 @@ async function generateSxgResponse(request: Request, payload: Response) {
     throw `The size of payload exceeds the limit ${PAYLOAD_SIZE_LIMIT}`;
   }
   const sxg = await createSignedExchange(
-    request.url,
+    fallbackUrl,
     payloadStatusCode,
     payloadHeaders,
     new Uint8Array(payloadBody),

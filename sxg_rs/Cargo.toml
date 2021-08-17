@@ -37,6 +37,7 @@ pem = "0.8.3"
 serde = { version = "1.0.125", features = ["derive"] }
 serde_yaml = "0.8.17"
 sha2 = "0.9.3"
+url = "2.2.2"
 wasm-bindgen = { version = "0.2.73", features = ["serde-serialize"] }
 wasm-bindgen-futures = "0.4.23"
 x509-parser = "0.9.2"
