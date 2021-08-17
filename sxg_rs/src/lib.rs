@@ -135,13 +135,13 @@ impl SxgWorker {
             Some(PresetContent::Direct(HttpResponse {
                 headers: vec![(String::from("content-type"), String::from("text/html"))],
                 status: 200,
-                body: include_bytes!("static/entrypoint.html").to_vec(),
+                body: include_bytes!("./static/test.html").to_vec(),
             }))
         } else if basename == "prefetch.html" {
             Some(PresetContent::Direct(HttpResponse {
                 headers: vec![(String::from("content-type"), String::from("text/html"))],
                 status: 200,
-                body: include_bytes!("static/prefetch.html").to_vec(),
+                body: include_bytes!("./static/prefetch.html").to_vec(),
             }))
         } else if basename == "fallback.html" {
             Some(PresetContent::Direct(HttpResponse {
@@ -149,10 +149,10 @@ impl SxgWorker {
                 status: 200,
                 body: include_bytes!("./static/fallback.html").to_vec(),
             }))
-        } else if basename == "success.sxg" {
+        } else if basename == "test.sxg" {
             let mut fallback_url = req_url;
             fallback_url.set_host(Some(&self.config.html_host)).ok()?;
-            fallback_url.set_path(&fallback_url.path().replace("success.sxg", "fallback.html"));
+            fallback_url.set_path(&fallback_url.path().replace("test.sxg", "fallback.html"));
             Some(PresetContent::ToBeSigned {
                 url: fallback_url.to_string(),
                 payload: HttpResponse {
