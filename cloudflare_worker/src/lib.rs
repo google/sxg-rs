@@ -15,21 +15,25 @@
 mod utils;
 
 use js_sys::{Function, Uint8Array};
-use once_cell::sync::Lazy;
+use once_cell::sync::OnceCell;
+use sxg_rs::SxgWorker;
 use sxg_rs::http::HttpResponse;
 use wasm_bindgen::prelude::*;
 
-pub static WORKER: Lazy<::sxg_rs::SxgWorker> = Lazy::new(|| {
-    ::sxg_rs::SxgWorker::new(
-        include_str!("../config.yaml"),
-        include_str!("../../credentials/cert.pem"),
-        include_str!("../../credentials/issuer.pem"),
-    )
-});
+static WORKER: OnceCell<SxgWorker> = OnceCell::new();
+
+fn get_worker() -> Result<&'static SxgWorker, JsValue> {
+    WORKER.get().ok_or_else(|| {
+        JsValue::from_str("Please call the init function before all other functions.")
+    })
+}
 
 #[wasm_bindgen(js_name=init)]
-pub fn init() {
+pub fn init(config_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<(), JsValue> {
     utils::init();
+    WORKER.set(SxgWorker::new(config_yaml, cert_pem, issuer_pem)).map_err(|_| {
+        JsValue::from_str("The init functional has already been called")
+    })
 }
 
 #[wasm_bindgen(js_name=getLastErrorMessage)]
@@ -38,31 +42,31 @@ pub fn get_last_error_message() -> JsValue {
 }
 
 #[wasm_bindgen(js_name=fetchOcspFromDigicert)]
-pub async fn fetch_ocsp_from_digicert(fetcher: Function) -> Uint8Array {
+pub async fn fetch_ocsp_from_digicert(fetcher: Function) -> Result<Uint8Array, JsValue> {
     let fetcher = Box::new(sxg_rs::fetcher::js_fetcher::JsFetcher::new(fetcher));
-    let request = WORKER.fetch_ocsp_from_digicert(fetcher).await;
-    Uint8Array::from(request.as_slice())
+    let request = get_worker()?.fetch_ocsp_from_digicert(fetcher).await;
+    Ok(Uint8Array::from(request.as_slice()))
 }
 
 #[wasm_bindgen(js_name=servePresetContent)]
-pub fn serve_preset_content(req_url: &str, ocsp_base64: &str) -> JsValue {
+pub fn serve_preset_content(req_url: &str, ocsp_base64: &str) -> Result<JsValue, JsValue> {
     let ocsp_der = ::base64::decode(ocsp_base64).unwrap();
-    if let Some(preset_content) = WORKER.serve_preset_content(req_url, &ocsp_der) {
-        JsValue::from_serde(&preset_content).unwrap()
+    if let Some(preset_content) = get_worker()?.serve_preset_content(req_url, &ocsp_der) {
+        Ok(JsValue::from_serde(&preset_content).unwrap())
     } else {
-        JsValue::UNDEFINED
+        Ok(JsValue::UNDEFINED)
     }
 }
 
 #[wasm_bindgen(js_name=shouldRespondDebugInfo)]
-pub fn should_respond_debug_info() -> bool {
-    WORKER.config.respond_debug_info
+pub fn should_respond_debug_info() -> Result<bool, JsValue> {
+    Ok(get_worker()?.config.respond_debug_info)
 }
 
 #[wasm_bindgen(js_name=createRequestHeaders)]
 pub fn create_request_headers(requestor_headers: JsValue) -> Result<JsValue, JsValue> {
     let fields = requestor_headers.into_serde().unwrap();
-    let result = WORKER.transform_request_headers(fields);
+    let result = get_worker()?.transform_request_headers(fields);
     match result {
         Ok(fields) => {
             Ok(JsValue::from_serde(&fields).unwrap())
@@ -76,7 +80,7 @@ pub fn create_request_headers(requestor_headers: JsValue) -> Result<JsValue, JsV
 #[wasm_bindgen(js_name=validatePayloadHeaders)]
 pub fn validate_payload_headers(fields: JsValue) -> Result<(), JsValue> {
     let fields = fields.into_serde().unwrap();
-    let result = WORKER.validate_payload_headers(fields);
+    let result = get_worker()?.validate_payload_headers(fields);
     result.map_err(|err| JsValue::from_str(&err))
 }
 
@@ -89,9 +93,9 @@ pub async fn create_signed_exchange(
     now_in_seconds: u32,
     signer: Function,
 ) -> Result<JsValue, JsValue> {
-    let payload_headers = ::sxg_rs::headers::Headers::new(payload_headers.into_serde().unwrap(), &WORKER.config.strip_response_headers);
+    let payload_headers = ::sxg_rs::headers::Headers::new(payload_headers.into_serde().unwrap(), &get_worker()?.config.strip_response_headers);
     let signer = Box::new(::sxg_rs::signature::js_signer::JsSigner::new(signer));
-    let sxg: HttpResponse = WORKER.create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
+    let sxg: HttpResponse = get_worker()?.create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
         fallback_url: &fallback_url,
         now: std::time::UNIX_EPOCH + std::time::Duration::from_secs(now_in_seconds as u64),
         payload_body: &payload_body,
@@ -107,7 +111,11 @@ mod tests {
     use super::*;
     #[test]
     fn it_works() {
-        &*WORKER;
-        assert_eq!(WORKER.config.private_key_base64, "");
+        init(
+            include_str!("../config.yaml"),
+            include_str!("../../credentials/cert.pem"),
+            include_str!("../../credentials/issuer.pem"),
+        ).unwrap();
+        assert_eq!(get_worker().unwrap().config.private_key_base64, "");
     }
 }
