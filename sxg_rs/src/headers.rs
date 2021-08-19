@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use once_cell::sync::Lazy;
 use crate::http::HeaderFields;
 
 #[derive(Debug)]
 pub struct Headers(HashMap<String, String>);
+
+// A default mobile user agent, for when the upstream request doesn't include one.
+const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36";
 
 impl Headers {
     pub fn new(data: HeaderFields) -> Self {
@@ -29,14 +32,21 @@ impl Headers {
         headers
     }
     pub fn forward_to_origin_server(self, forwarded_header_names: &HashSet<String>) -> Result<HeaderFields, String> {
+        if self.0.contains_key("authorization") {
+            // We should not sign personalized content, but we cannot anonymize this request per
+            // https://datatracker.ietf.org/doc/html/rfc7235#section-4.2:
+            // "A proxy forwarding a request MUST NOT modify any Authorization fields in that request."
+            return Err("The request contains an Authorization header.".to_string());
+        }
         let accept = self.0.get("accept").ok_or("The request does not have accept header")?;
-        validate_sxg_request_header(accept)?;
+        validate_accept_header(accept)?;
         // Set Via per https://tools.ietf.org/html/rfc7230#section-5.7.1
         let mut via = format!("sxgrs");
         if let Some(upstream_via) = self.0.get("via") {
             via = format!("{}, {}", upstream_via, via);
         }
-        let mut new_headers: HashMap<String, String> = self.0.into_iter().filter_map(|(k, v)| {
+        // new_headers is ordered to make testing easier.
+        let mut new_headers: BTreeMap<String, String> = self.0.into_iter().filter_map(|(k, v)| {
             let v = if forwarded_header_names.contains(&k) {
                 v
             } else if k == "via" {
@@ -46,8 +56,6 @@ impl Headers {
             };
             Some((k, v))
         }).collect();
-        // The default user agent to send when issuing fetches. Should look like a mobile device.
-        const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36";
         let default_values = vec![
             ("user-agent", USER_AGENT),
             ("via", &via),
@@ -170,7 +178,7 @@ static CACHE_CONTROL_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 // Checks whether accept header of a http request, return an Err when the input
 // string does not have an `application/signed-exchange;v=b3` with the highest
 // `q` value.
-fn validate_sxg_request_header(accept: &str) -> Result<(), String> {
+fn validate_accept_header(accept: &str) -> Result<(), String> {
     let accept = accept.trim();
     let accept = crate::http_parser::parse_accept_header(accept)?;
     if accept.len() == 0 {
@@ -206,37 +214,66 @@ fn validate_sxg_request_header(accept: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Debug;
     use super::*;
+
+    fn header_fields(pairs: Vec<(&str, &str)>) -> HeaderFields {
+        pairs.into_iter().map(|(k,v)| (k.to_string(), v.to_string())).collect()
+    }
+    fn headers(pairs: Vec<(&str, &str)>) -> Headers {
+        Headers::new(header_fields(pairs))
+    }
+    fn assert_contains<T, U: 'static>(result: Result<T, U>, value: T) where T: Debug + PartialEq, U: Debug + Send {
+      assert!(result.is_ok(), result.unwrap_err());
+      assert_eq!(result.unwrap(), value);
+    }
+    fn assert_contains_err<T: 'static, U>(result: Result<T, U>, err: U) where T: Debug + Send, U: Debug + PartialEq {
+      assert!(result.is_err(), result.unwrap());
+      assert_eq!(result.unwrap_err(), err);
+    }
+
+    // === forward_to_origin_server ===
     #[test]
-    fn it_works() {
-        assert!(validate_sxg_request_header("application/signed-exchange;v=b3").is_ok());
-        assert!(validate_sxg_request_header("application/signed-exchange;v=b3;q=0.9,*/*;q=0.8").is_ok());
-        assert!(validate_sxg_request_header("").is_err());
-        assert!(validate_sxg_request_header("text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9").is_err());
+    fn basic_request_headers() {
+      assert_contains(headers(vec![("accept", "application/signed-exchange;v=b3")]).forward_to_origin_server(&HashSet::new()),
+                      header_fields(vec![("user-agent", USER_AGENT), ("via", "sxgrs")]));
+    }
+    #[test]
+    fn authenticated_request_headers() {
+      assert_contains_err(headers(vec![("accept", "application/signed-exchange;v=b3"), ("authorization", "x")]).forward_to_origin_server(&HashSet::new()),
+                          "The request contains an Authorization header.".to_string());
+    }
+
+    // === validate_accept_header ===
+    #[test]
+    fn basic_accept_header() {
+        assert!(validate_accept_header("application/signed-exchange;v=b3").is_ok());
+        assert!(validate_accept_header("application/signed-exchange;v=b3;q=0.9,*/*;q=0.8").is_ok());
+        assert!(validate_accept_header("").is_err());
+        assert!(validate_accept_header("text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9").is_err());
     }
     #[test]
     fn optional_whitespaces() {
-        assert!(validate_sxg_request_header("  application/signed-exchange  ;  v=b3  ;  q=0.9  ,  */*  ;  q=0.8  ").is_ok());
+        assert!(validate_accept_header("  application/signed-exchange  ;  v=b3  ;  q=0.9  ,  */*  ;  q=0.8  ").is_ok());
     }
     #[test]
     fn uppercase_q_and_v() {
-        assert!(validate_sxg_request_header("text/html;q=0.5,application/signed-exchange;V=b3;Q=0.6").is_ok());
+        assert!(validate_accept_header("text/html;q=0.5,application/signed-exchange;V=b3;Q=0.6").is_ok());
     }
     #[test]
     fn default_q() {
-        assert!(validate_sxg_request_header("text/html;q=0.5,application/signed-exchange;v=b3").is_ok());
+        assert!(validate_accept_header("text/html;q=0.5,application/signed-exchange;v=b3").is_ok());
     }
     #[test]
     fn missing_v() {
-        assert!(validate_sxg_request_header("application/signed-exchange").is_err());
+        assert!(validate_accept_header("application/signed-exchange").is_err());
     }
     #[test]
     fn v_is_not_b3() {
-        assert!(validate_sxg_request_header("application/signed-exchange;v=b2").is_err());
+        assert!(validate_accept_header("application/signed-exchange;v=b2").is_err());
     }
-    fn headers(pairs: Vec<(&str, &str)>) -> Headers {
-        Headers::new(pairs.into_iter().map(|(k,v)| (k.to_string(), v.to_string())).collect())
-    }
+
+    // === validate_as_sxg_payload ===
     #[test]
     fn response_headers_minimum_valid() {
         assert!(headers(vec![("content-type", "text/html")]).validate_as_sxg_payload(true).is_ok());
