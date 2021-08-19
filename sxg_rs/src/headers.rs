@@ -214,7 +214,6 @@ fn validate_accept_header(accept: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::Debug;
     use std::iter::FromIterator;
     use super::*;
 
@@ -224,25 +223,17 @@ mod tests {
     fn headers(pairs: Vec<(&str, &str)>) -> Headers {
         Headers::new(header_fields(pairs))
     }
-    fn assert_contains<T, U: 'static>(result: Result<T, U>, value: T) where T: Debug + PartialEq, U: Debug + Send {
-      assert!(result.is_ok(), result.unwrap_err());
-      assert_eq!(result.unwrap(), value);
-    }
-    fn assert_contains_err<T: 'static, U>(result: Result<T, U>, err: U) where T: Debug + Send, U: Debug + PartialEq {
-      assert!(result.is_err(), result.unwrap());
-      assert_eq!(result.unwrap_err(), err);
-    }
 
     // === forward_to_origin_server ===
     #[test]
     fn basic_request_headers() {
-      assert_contains(headers(vec![("accept", "application/signed-exchange;v=b3")]).forward_to_origin_server(&HashSet::new()).map(|v| v.into_iter().collect()),
-                      header_fields::<HashMap<String, String>>(vec![("user-agent", USER_AGENT), ("via", "sxgrs")]));
+      assert_eq!(headers(vec![("accept", "application/signed-exchange;v=b3")]).forward_to_origin_server(&HashSet::new()).unwrap().into_iter().collect::<HashMap<String, String>>(),
+                 header_fields(vec![("user-agent", USER_AGENT), ("via", "sxgrs")]));
     }
     #[test]
     fn authenticated_request_headers() {
-      assert_contains_err(headers(vec![("accept", "application/signed-exchange;v=b3"), ("authorization", "x")]).forward_to_origin_server(&HashSet::new()),
-                          "The request contains an Authorization header.".to_string());
+      assert_eq!(headers(vec![("accept", "application/signed-exchange;v=b3"), ("authorization", "x")]).forward_to_origin_server(&HashSet::new()).unwrap_err(),
+                 "The request contains an Authorization header.".to_string());
     }
 
     // === validate_accept_header ===
