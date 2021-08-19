@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use once_cell::sync::Lazy;
 use crate::http::HeaderFields;
 
@@ -46,7 +46,7 @@ impl Headers {
             via = format!("{}, {}", upstream_via, via);
         }
         // new_headers is ordered to make testing easier.
-        let mut new_headers: BTreeMap<String, String> = self.0.into_iter().filter_map(|(k, v)| {
+        let mut new_headers: HashMap<String, String> = self.0.into_iter().filter_map(|(k, v)| {
             let v = if forwarded_header_names.contains(&k) {
                 v
             } else if k == "via" {
@@ -215,9 +215,10 @@ fn validate_accept_header(accept: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
+    use std::iter::FromIterator;
     use super::*;
 
-    fn header_fields(pairs: Vec<(&str, &str)>) -> HeaderFields {
+    fn header_fields<T: FromIterator<(String, String)>>(pairs: Vec<(&str, &str)>) -> T {
         pairs.into_iter().map(|(k,v)| (k.to_string(), v.to_string())).collect()
     }
     fn headers(pairs: Vec<(&str, &str)>) -> Headers {
@@ -235,8 +236,8 @@ mod tests {
     // === forward_to_origin_server ===
     #[test]
     fn basic_request_headers() {
-      assert_contains(headers(vec![("accept", "application/signed-exchange;v=b3")]).forward_to_origin_server(&HashSet::new()),
-                      header_fields(vec![("user-agent", USER_AGENT), ("via", "sxgrs")]));
+      assert_contains(headers(vec![("accept", "application/signed-exchange;v=b3")]).forward_to_origin_server(&HashSet::new()).map(|v| v.into_iter().collect()),
+                      header_fields::<HashMap<String, String>>(vec![("user-agent", USER_AGENT), ("via", "sxgrs")]));
     }
     #[test]
     fn authenticated_request_headers() {
