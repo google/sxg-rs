@@ -59,7 +59,7 @@ fn get_req_header_fields(req: &Request) -> Result<Headers, String> {
             fields.push((name.as_str().to_string(), value.to_string()))
         }
     }
-    Ok(Headers::new(fields))
+    Ok(Headers::new(fields, &WORKER.config.strip_request_headers))
 }
 
 fn get_rsp_header_fields(rsp: &Response) -> Result<Headers, String> {
@@ -72,7 +72,7 @@ fn get_rsp_header_fields(rsp: &Response) -> Result<Headers, String> {
             fields.push((name.as_str().to_string(), value.to_string()))
         }
     }
-    Ok(Headers::new(fields))
+    Ok(Headers::new(fields, &WORKER.config.strip_response_headers))
 }
 
 fn fetch_from_html_server(url: &Url, req_headers: Vec<(String, String)>) -> Result<Response, String> {
@@ -89,7 +89,7 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
     let private_key_der = base64::decode(&WORKER.config.private_key_base64).unwrap();
     let signer = Box::new(::sxg_rs::signature::rust_signer::RustSigner::new(&private_key_der));
     let payload_headers = get_rsp_header_fields(&payload)?;
-    payload_headers.validate_as_sxg_payload(WORKER.config.reject_stateful_headers)?;
+    payload_headers.validate_as_sxg_payload()?;
     let payload_body = payload.into_body_bytes();
     let sxg = WORKER.create_signed_exchange(sxg_rs::CreateSignedExchangeParams {
         now: std::time::SystemTime::now(),

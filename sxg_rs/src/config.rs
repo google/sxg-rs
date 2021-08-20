@@ -27,7 +27,8 @@ pub struct ConfigInput {
     // TODO: check if Fastly edge dictionary is ok to store private key.
     #[serde(default)]
     pub private_key_base64: String,
-    pub reject_stateful_headers: bool,
+    pub strip_request_headers: HashSet<String>,
+    pub strip_response_headers: HashSet<String>,
     pub reserved_path: String,
     pub respond_debug_info: bool,
     pub validity_url_basename: String,
@@ -52,6 +53,10 @@ impl std::ops::Deref for Config {
     }
 }
 
+fn lowercase_all(names: HashSet<String>) -> HashSet<String> {
+    names.into_iter().map(|h| h.to_ascii_lowercase()).collect()
+}
+
 impl Config {
     pub fn new(input_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Self {
         let input: ConfigInput = serde_yaml::from_str(input_yaml).unwrap();
@@ -62,7 +67,12 @@ impl Config {
         Config {
             cert_der,
             cert_url,
-            input,
+            input: ConfigInput {
+                forward_request_headers: lowercase_all(input.forward_request_headers),
+                strip_request_headers: lowercase_all(input.strip_request_headers),
+                strip_response_headers: lowercase_all(input.strip_response_headers),
+                ..input
+            },
             issuer_der,
             validity_url,
         }
@@ -94,5 +104,44 @@ mod tests {
         assert_eq!(create_url("foo.com", ".sxg/", "cert"), "https://foo.com/.sxg/cert");
         assert_eq!(create_url("foo.com", "/.sxg/", "cert"), "https://foo.com/.sxg/cert");
         assert_eq!(create_url("foo.com", "/.sxg/", "/cert"), "https://foo.com/.sxg/cert");
+    }
+    #[test]
+    fn lowercases_header_names() {
+        let yaml = r#"
+cert_url_basename: "cert"
+forward_request_headers:
+  - "cf-IPCOUNTRY"
+  - "USER-agent"
+html_host: my_domain.com
+strip_request_headers: ["Forwarded"]
+strip_response_headers: ["Set-Cookie", "STRICT-TRANSPORT-SECURITY"]
+reserved_path: ".sxg"
+respond_debug_info: false
+validity_url_basename: "validity"
+worker_host: sxg.my_worker_subdomain.workers.dev
+        "#;
+        // Generated with:
+        //   KEY=`mktemp` && CSR=`mktemp` &&
+        //   openssl ecparam -out "$KEY" -name prime256v1 -genkey &&
+        //   openssl req -new -sha256 -key "$KEY" -out "$CSR" -subj '/CN=example.org/O=Test/C=US' &&
+        //   openssl x509 -req -days 90 -in "$CSR" -signkey "$KEY" -out - -extfile <(echo -e "1.3.6.1.4.1.11129.2.1.22 = ASN1:NULL\nsubjectAltName=DNS:example.org") &&
+        //   rm "$KEY" "$CSR"
+        let cert_pem = "
+-----BEGIN CERTIFICATE-----
+MIIBkTCCATigAwIBAgIUL/D6t/l3OrSRCI0KlCP7zH1U5/swCgYIKoZIzj0EAwIw
+MjEUMBIGA1UEAwwLZXhhbXBsZS5vcmcxDTALBgNVBAoMBFRlc3QxCzAJBgNVBAYT
+AlVTMB4XDTIxMDgyMDAwMTc1MFoXDTIxMTExODAwMTc1MFowMjEUMBIGA1UEAwwL
+ZXhhbXBsZS5vcmcxDTALBgNVBAoMBFRlc3QxCzAJBgNVBAYTAlVTMFkwEwYHKoZI
+zj0CAQYIKoZIzj0DAQcDQgAE3jibTycCk9tifTFg6CyiUirdSlblqLoofEC7B0I4
+IO9A52fwDYjZfwGSdu/6ji0MQ1+19Ovr3d9DvXSa7pN1j6MsMCowEAYKKwYBBAHW
+eQIBFgQCBQAwFgYDVR0RBA8wDYILZXhhbXBsZS5vcmcwCgYIKoZIzj0EAwIDRwAw
+RAIgdTuJ4IXs6LeXQ15TxIsRtfma4F8ypUk0bpBLLbVPbyACIFYul0BjPa2qVd/l
+SFfkmh8Fc2QXpbbaK5AQfnQpkDHV
+-----END CERTIFICATE-----
+        ";
+        let config = Config::new(yaml, cert_pem, cert_pem);
+        assert_eq!(config.forward_request_headers, ["cf-ipcountry", "user-agent"].iter().map(|s| s.to_string()).collect());
+        assert_eq!(config.strip_request_headers, ["forwarded"].iter().map(|s| s.to_string()).collect());
+        assert_eq!(config.strip_response_headers, ["set-cookie", "strict-transport-security"].iter().map(|s| s.to_string()).collect());
     }
 }

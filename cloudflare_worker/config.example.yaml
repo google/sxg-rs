@@ -18,7 +18,8 @@ forward_request_headers:
   - "cf-ipcountry"
   - "user-agent"
 html_host: my_domain.com
-reject_stateful_headers: false
+strip_request_headers: []
+strip_response_headers: ["set-cookie", "strict-transport-security"]
 reserved_path: ".sxg"
 respond_debug_info: false
 validity_url_basename: "validity"
