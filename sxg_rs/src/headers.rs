@@ -121,12 +121,12 @@ impl Headers {
         );
         cbor_data.serialize()
     }
+    // Connection-specific headers per
+    // https://datatracker.ietf.org/doc/html/rfc7230#section-6.1.
+    // These headers should be removed before signing per
+    // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#section-4.1-2.1.
     fn connection_headers(&self) -> HashSet<String> {
-        // Connection-specific headers per
-        // https://datatracker.ietf.org/doc/html/rfc7230#section-6.1.
         // OWS is defined at https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.3.
-        // These headers should be removed before signing per
-        // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#section-4.1-2.1.
         const OWS: &[char] = &[' ', '\t'];
         match self.0.get("connection") {
             None => HashSet::new(),
