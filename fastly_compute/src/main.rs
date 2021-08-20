@@ -99,7 +99,7 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
         status_code: 200,
         fallback_url: fallback_url.as_str(),
     });
-    let sxg = block_on(sxg);
+    let sxg = block_on(sxg)?;
     Ok(fetcher::from_http_response(sxg))
 }
 

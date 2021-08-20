@@ -69,7 +69,7 @@ impl SxgWorker {
         ]);
         cert_cbor.serialize()
     }
-    pub async fn create_signed_exchange<'a>(&self, params: CreateSignedExchangeParams<'a>) -> HttpResponse {
+    pub async fn create_signed_exchange<'a>(&self, params: CreateSignedExchangeParams<'a>) -> Result<HttpResponse, String> {
         let CreateSignedExchangeParams {
             fallback_url,
             now,
@@ -94,15 +94,15 @@ impl SxgWorker {
             signer,
             validity_url: &self.config.validity_url,
         }).await;
-        let sxg_body = sxg::build(fallback_url, &signature.serialize(), &signed_headers, &payload_body);
-        HttpResponse {
+        let sxg_body = sxg::build(fallback_url, &signature.serialize(), &signed_headers, &payload_body)?;
+        Ok(HttpResponse {
             body: sxg_body,
             headers: vec![
                 (String::from("content-type"), String::from("application/signed-exchange;v=b3")),
                 (String::from("x-content-type-options"), String::from("nosniff")),
             ],
             status: 200,
-        }
+        })
     }
     pub fn create_validity(&self) -> Vec<u8> {
         let validity = cbor::DataItem::Map(vec![]);
