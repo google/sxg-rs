@@ -175,12 +175,12 @@ impl SxgWorker {
         }
     }
     pub fn transform_request_headers(&self, fields: HeaderFields) -> Result<HeaderFields, String> {
-        let headers = Headers::new(fields);
+        let headers = Headers::new(fields, &self.config.strip_request_headers);
         headers.forward_to_origin_server(&self.config.forward_request_headers)
     }
     pub fn validate_payload_headers(&self, fields: HeaderFields) -> Result<(), String> {
-        let headers = Headers::new(fields);
-        headers.validate_as_sxg_payload(self.config.reject_stateful_headers)
+        let headers = Headers::new(fields, &self.config.strip_response_headers);
+        headers.validate_as_sxg_payload()
     }
 }
 

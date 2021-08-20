@@ -88,7 +88,7 @@ pub async fn create_signed_exchange(
     now_in_seconds: u32,
     signer: Function,
 ) -> Result<JsValue, JsValue> {
-    let payload_headers = ::sxg_rs::headers::Headers::new(payload_headers.into_serde().unwrap());
+    let payload_headers = ::sxg_rs::headers::Headers::new(payload_headers.into_serde().unwrap(), &WORKER.config.strip_response_headers);
     let signer = Box::new(::sxg_rs::signature::js_signer::JsSigner::new(signer));
     let sxg = WORKER.create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
         fallback_url: &fallback_url,

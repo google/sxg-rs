@@ -23,11 +23,13 @@ pub struct Headers(HashMap<String, String>);
 const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36";
 
 impl Headers {
-    pub fn new(data: HeaderFields) -> Self {
+    pub fn new(data: HeaderFields, strip_headers: &HashSet<String>) -> Self {
         let mut headers = Headers(HashMap::new());
-        for (mut k, v) in data.into_iter() {
+        for (mut k, v) in data {
             k.make_ascii_lowercase();
-            headers.0.insert(k, v);
+            if !strip_headers.contains(&k) {
+                headers.0.insert(k, v);
+            }
         }
         headers
     }
@@ -67,9 +69,9 @@ impl Headers {
         }
         Ok(new_headers.into_iter().collect())
     }
-    pub fn validate_as_sxg_payload(&self, reject_stateful_headers: bool) -> Result<(), String> {
+    pub fn validate_as_sxg_payload(&self) -> Result<(), String> {
         for (k, v) in self.0.iter() {
-            if reject_stateful_headers && STATEFUL_HEADERS.contains(k.as_str()) {
+            if STATEFUL_HEADERS.contains(k.as_str()) {
                 return Err(format!(r#"A stateful header "{}" is found."#, k));
             }
             if CACHE_CONTROL_HEADERS.contains(k.as_str()) {
@@ -214,6 +216,7 @@ fn validate_accept_header(accept: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use std::iter::FromIterator;
     use super::*;
 
@@ -221,7 +224,14 @@ mod tests {
         pairs.into_iter().map(|(k,v)| (k.to_string(), v.to_string())).collect()
     }
     fn headers(pairs: Vec<(&str, &str)>) -> Headers {
-        Headers::new(header_fields(pairs))
+        Headers::new(header_fields(pairs), &HashSet::new())
+    }
+
+    // === new ===
+    #[test]
+    fn new_strips_headers() {
+        assert_eq!(Headers::new(header_fields(vec![("accept", "*/*"), ("forwarded", "for=192.168.7.1")]), &vec!["forwarded".to_string()].into_iter().collect()).0,
+                   header_fields(vec![("accept", "*/*")]));
     }
 
     // === forward_to_origin_server ===
@@ -268,23 +278,23 @@ mod tests {
     // === validate_as_sxg_payload ===
     #[test]
     fn response_headers_minimum_valid() {
-        assert!(headers(vec![("content-type", "text/html")]).validate_as_sxg_payload(true).is_ok());
+        assert!(headers(vec![("content-type", "text/html")]).validate_as_sxg_payload().is_ok());
     }
     #[test]
     fn response_headers_caching() {
-        assert!(headers(vec![("content-type", "text/html"), ("cache-control", "max-age=1")]).validate_as_sxg_payload(true).is_ok());
-        assert!(headers(vec![("content-type", "text/html"), ("cache-control", "private")]).validate_as_sxg_payload(true).is_err());
-        assert!(headers(vec![("content-type", "text/html"), ("cdn-cache-control", "no-store")]).validate_as_sxg_payload(true).is_err());
-        assert!(headers(vec![("content-type", "text/html"), ("cloudflare-cdn-cache-control", "no-cache")]).validate_as_sxg_payload(true).is_err());
-        assert!(headers(vec![("content-type", "text/html"), ("surrogate-control", "max-age=0")]).validate_as_sxg_payload(true).is_err());
+        assert!(headers(vec![("content-type", "text/html"), ("cache-control", "max-age=1")]).validate_as_sxg_payload().is_ok());
+        assert!(headers(vec![("content-type", "text/html"), ("cache-control", "private")]).validate_as_sxg_payload().is_err());
+        assert!(headers(vec![("content-type", "text/html"), ("cdn-cache-control", "no-store")]).validate_as_sxg_payload().is_err());
+        assert!(headers(vec![("content-type", "text/html"), ("cloudflare-cdn-cache-control", "no-cache")]).validate_as_sxg_payload().is_err());
+        assert!(headers(vec![("content-type", "text/html"), ("surrogate-control", "max-age=0")]).validate_as_sxg_payload().is_err());
     }
     #[test]
     fn response_headers_stateful() {
-        assert!(headers(vec![("content-type", "text/html"), ("clear-site-data", r#""*""#)]).validate_as_sxg_payload(true).is_err());
+        assert!(headers(vec![("content-type", "text/html"), ("clear-site-data", r#""*""#)]).validate_as_sxg_payload().is_err());
     }
     #[test]
     fn response_headers_size() {
-        assert!(headers(vec![("content-type", "text/html"), ("content-length", "8000000")]).validate_as_sxg_payload(true).is_ok());
-        assert!(headers(vec![("content-type", "text/html"), ("content-length", "8000001")]).validate_as_sxg_payload(true).is_err());
+        assert!(headers(vec![("content-type", "text/html"), ("content-length", "8000000")]).validate_as_sxg_payload().is_ok());
+        assert!(headers(vec![("content-type", "text/html"), ("content-length", "8000001")]).validate_as_sxg_payload().is_err());
     }
 }
