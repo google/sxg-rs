@@ -101,9 +101,10 @@ impl Headers {
     }
     pub fn get_signed_headers_bytes(&self, status_code: u16, mice_digest: &[u8]) -> Vec<u8> {
         use crate::cbor::DataItem;
+        let connection = self.connection_headers();
         let mut fields: Vec<(&str, &str)> = vec![];
         for (k, v) in self.0.iter() {
-            if UNCACHED_HEADERS.contains(k.as_str()) || STATEFUL_HEADERS.contains(k.as_str()) {
+            if UNCACHED_HEADERS.contains(k.as_str()) || STATEFUL_HEADERS.contains(k.as_str()) || connection.contains(k) {
                 continue;
             }
             fields.push((k, v));
@@ -119,6 +120,18 @@ impl Headers {
             }).collect()
         );
         cbor_data.serialize()
+    }
+    fn connection_headers(&self) -> HashSet<String> {
+        // Connection-specific headers per
+        // https://datatracker.ietf.org/doc/html/rfc7230#section-6.1.
+        // OWS is defined at https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.3.
+        // These headers should be removed before signing per
+        // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#section-4.1-2.1.
+        const OWS: &[char] = &[' ', '\t'];
+        match self.0.get("connection") {
+            None => HashSet::new(),
+            Some(connection) => connection.split(',').map(|w| w.trim_matches(OWS).to_ascii_lowercase()).collect()
+        }
     }
 }
 
@@ -286,5 +299,15 @@ mod tests {
     fn response_headers_size() {
         assert!(headers(vec![("content-type", "text/html"), ("content-length", "8000000")]).validate_as_sxg_payload(true).is_ok());
         assert!(headers(vec![("content-type", "text/html"), ("content-length", "8000001")]).validate_as_sxg_payload(true).is_err());
+    }
+
+    // === connection_headers ===
+    #[test]
+    fn no_connection_headers() {
+        assert_eq!(headers(vec![]).connection_headers(), HashSet::new());
+    }
+    #[test]
+    fn some_connection_headers() {
+        assert_eq!(headers(vec![("connection", " close\t,  transfer-ENCODING ")]).connection_headers(), vec!["close", "transfer-encoding"].into_iter().map(|s| s.into()).collect());
     }
 }
