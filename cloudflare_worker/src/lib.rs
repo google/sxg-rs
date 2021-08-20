@@ -16,6 +16,7 @@ mod utils;
 
 use js_sys::{Function, Uint8Array};
 use once_cell::sync::Lazy;
+use sxg_rs::http::HttpResponse;
 use wasm_bindgen::prelude::*;
 
 pub static WORKER: Lazy<::sxg_rs::SxgWorker> = Lazy::new(|| {
@@ -90,14 +91,14 @@ pub async fn create_signed_exchange(
 ) -> Result<JsValue, JsValue> {
     let payload_headers = ::sxg_rs::headers::Headers::new(payload_headers.into_serde().unwrap(), &WORKER.config.strip_response_headers);
     let signer = Box::new(::sxg_rs::signature::js_signer::JsSigner::new(signer));
-    let sxg = WORKER.create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
+    let sxg: HttpResponse = WORKER.create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
         fallback_url: &fallback_url,
         now: std::time::UNIX_EPOCH + std::time::Duration::from_secs(now_in_seconds as u64),
         payload_body: &payload_body,
         payload_headers,
         signer,
         status_code,
-    }).await;
+    }).await.map_err(|err| JsValue::from_str(&err))?;
     Ok(JsValue::from_serde(&sxg).unwrap())
 }
 

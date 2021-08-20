@@ -13,8 +13,15 @@
 // limitations under the License.
 
 // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#application-signed-exchange
-pub fn build(fallback_url: &str, signature: &[u8], signed_headers: &[u8], payload_body: &[u8]) -> Vec<u8> {
-    [
+pub fn build(fallback_url: &str, signature: &[u8], signed_headers: &[u8], payload_body: &[u8]) -> Result<Vec<u8>, String> {
+    // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#name-application-signed-exchange
+    if signature.len() > 16384 {
+        return Err("sigLength is larger than 16384".into())
+    }
+    if signed_headers.len() > 524288 {
+        return Err("headerLength is larger than 524288".into())
+    }
+    Ok([
         "sxg1-b3\0".as_bytes(),
         &(fallback_url.len() as u16).to_be_bytes(),
         fallback_url.as_bytes(),
@@ -23,6 +30,6 @@ pub fn build(fallback_url: &str, signature: &[u8], signed_headers: &[u8], payloa
         signature,
         signed_headers,
         payload_body,
-    ].concat()
+    ].concat())
 }
 

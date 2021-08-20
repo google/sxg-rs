@@ -19,7 +19,8 @@ limitations under the License.
 1. Get an SXG-compatible certificate
    using [these steps](../credentials/README.md#get-an-sxg_compatible-certificate).
 
-1. Install [Rust](https://www.rust-lang.org/tools/install).
+1. Install [Rust](https://www.rust-lang.org/tools/install) using
+   [rustup](https://rustup.rs/)
 
 1. Install [Fastly CLI](https://github.com/fastly/cli).
 
