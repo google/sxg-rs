@@ -354,10 +354,12 @@ mod tests {
         assert_eq!(headers(vec![("cache-control", "max-age=100")]).signature_duration().unwrap_err(), "Validity duration is too short.");
         assert_eq!(headers(vec![("cache-control", "max-age=100, s-maxage=3600")]).signature_duration().unwrap(), Duration::from_secs(3600));
         assert_eq!(headers(vec![("cache-control", "max-age=3600, s-maxage=100")]).signature_duration().unwrap_err(), "Validity duration is too short.");
+        assert_eq!(headers(vec![("cache-control", "max, max-age=3600")]).signature_duration().unwrap(), Duration::from_secs(3600));
     }
     #[test]
     fn signature_duration_parse_error() {
         assert_eq!(headers(vec![("cache-control", "max-age=fish")]).signature_duration().unwrap(), SEVEN_DAYS);
         assert_eq!(headers(vec![("cache-control", "doesn't even parse")]).signature_duration().unwrap(), SEVEN_DAYS);
+        assert_eq!(headers(vec![("cache-control", "max=, max-age=3600")]).signature_duration().unwrap(), SEVEN_DAYS);
     }
 }
