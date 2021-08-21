@@ -82,12 +82,11 @@ impl SxgWorker {
         // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#section-3.5-7.9.1
         let (mice_digest, payload_body) = crate::mice::calculate(payload_body, 16384);
         let signed_headers = payload_headers.get_signed_headers_bytes(status_code, &mice_digest);
-        const SIX_DAYS: std::time::Duration = std::time::Duration::from_secs(60 * 60 * 24 * 6);
         let signature = signature::Signature::new(signature::SignatureParams {
             cert_url: &self.config.cert_url,
             cert_sha256: utils::get_sha(&self.config.cert_der),
             date: now,
-            expires: now + SIX_DAYS,
+            expires: now + payload_headers.signature_duration()?,
             headers: &signed_headers,
             id: "sig",
             request_url: fallback_url,

@@ -14,6 +14,7 @@
 
 mod accept;
 mod base;
+mod cache_control;
 mod media_type;
 
 use nom::{
@@ -24,6 +25,7 @@ use nom::{
     separated_pair,
 };
 use base::ows;
+use std::time::Duration;
 
 fn format_nom_err(err: nom::Err<nom::error::Error<&str>>) -> String {
     format!("{}", err)
@@ -47,3 +49,8 @@ pub fn parse_accept_header(input: &str) -> Result<Vec<accept::Accept>, String> {
     parse_vec(input, accept::accept)
 }
 
+// Returns the freshness lifetime for a shared cache.
+pub fn parse_cache_control_header(input: &str) -> Result<Duration, String> {
+    let directives = parse_vec(input, cache_control::directive)?;
+    cache_control::freshness_lifetime(directives).ok_or("Freshness lifetime is implicit".into())
+}

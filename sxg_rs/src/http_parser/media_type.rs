@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use nom::{
-    alt,
     character::complete::char as char1,
     many0,
     map,
@@ -24,7 +23,7 @@ use nom::{
 };
 use super::base::{
     ows,
-    quoted_string,
+    parameter_value,
     token,
 };
 
@@ -59,14 +58,6 @@ pub struct Parameter<'a> {
     pub name: &'a str,
     pub value: String,
 }
-
-named!(
-    parameter_value(&str) -> String,
-    alt!(
-        token => {|s: &str| s.to_string()} |
-        quoted_string => {|s| s}
-    )
-);
 
 // https://tools.ietf.org/html/rfc7231#section-3.1.1.1
 // `parameter` is defined as

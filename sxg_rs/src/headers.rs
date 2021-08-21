@@ -15,12 +15,17 @@
 use std::collections::{HashMap, HashSet};
 use once_cell::sync::Lazy;
 use crate::http::HeaderFields;
+use std::cmp::min;
+use std::time::Duration;
 
 #[derive(Debug)]
 pub struct Headers(HashMap<String, String>);
 
 // A default mobile user agent, for when the upstream request doesn't include one.
 const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36";
+
+// Maximum signature duration per https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#section-3.5-7.3.
+const SEVEN_DAYS: Duration = Duration::from_secs(60 * 60 * 24 * 7);
 
 impl Headers {
     pub fn new(data: HeaderFields, strip_headers: &HashSet<String>) -> Self {
@@ -134,6 +139,23 @@ impl Headers {
             None => HashSet::new(),
             Some(connection) => connection.split(',').map(|w| w.trim_matches(OWS).to_ascii_lowercase()).collect()
         }
+    }
+    // How long the signature should last, or error if the response shouldn't be signed.
+    pub fn signature_duration(&self) -> Result<Duration, String> {
+        // Default to 7 days unless a cache-control directive lowers it.
+        if let Some(value) = self.0.get("cache-control") {
+            if let Ok(duration) = crate::http_parser::parse_cache_control_header(value) {
+                // https://github.com/google/webpackager/blob/main/docs/cache_requirements.md
+                const MIN_DURATION: Duration = Duration::from_secs(120);
+                return if duration >= MIN_DURATION {
+                    Ok(min(SEVEN_DAYS, duration))
+                } else {
+                    Err("Validity duration is too short.".into())
+                }
+
+            }
+        }
+        Ok(SEVEN_DAYS)
     }
 }
 
@@ -319,5 +341,23 @@ mod tests {
     #[test]
     fn some_connection_headers() {
         assert_eq!(headers(vec![("connection", " close\t,  transfer-ENCODING ")]).connection_headers(), vec!["close", "transfer-encoding"].into_iter().map(|s| s.into()).collect());
+    }
+
+    // === signature_duration ===
+    #[test]
+    fn signature_duration_implicit() {
+        assert_eq!(headers(vec![]).signature_duration().unwrap(), SEVEN_DAYS);
+    }
+    #[test]
+    fn signature_duration_explicit() {
+        assert_eq!(headers(vec![("cache-control", "max-age=3600")]).signature_duration().unwrap(), Duration::from_secs(3600));
+        assert_eq!(headers(vec![("cache-control", "max-age=100")]).signature_duration().unwrap_err(), "Validity duration is too short.");
+        assert_eq!(headers(vec![("cache-control", "max-age=100, s-maxage=3600")]).signature_duration().unwrap(), Duration::from_secs(3600));
+        assert_eq!(headers(vec![("cache-control", "max-age=3600, s-maxage=100")]).signature_duration().unwrap_err(), "Validity duration is too short.");
+    }
+    #[test]
+    fn signature_duration_parse_error() {
+        assert_eq!(headers(vec![("cache-control", "max-age=fish")]).signature_duration().unwrap(), SEVEN_DAYS);
+        assert_eq!(headers(vec![("cache-control", "doesn't even parse")]).signature_duration().unwrap(), SEVEN_DAYS);
     }
 }

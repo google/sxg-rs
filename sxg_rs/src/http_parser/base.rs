@@ -114,6 +114,14 @@ fn char_if(predicate: fn (c: char) -> bool) -> impl Fn(&str) -> IResult<&str, ch
     }
 }
 
+named!(
+    pub parameter_value(&str) -> String,
+    alt!(
+        token => {|s: &str| s.to_string()} |
+        quoted_string => {|s| s}
+    )
+);
+
 #[cfg(test)]
 mod tests {
     use super::*;
