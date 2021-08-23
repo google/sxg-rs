@@ -72,13 +72,7 @@ pub fn freshness_lifetime(directives: Vec<Directive>) -> Option<Duration> {
             Directive::Other => (),
         };
     }
-    if let Some(duration) = s_maxage {
-        Some(duration)
-    } else if let Some(duration) = max_age {
-        Some(duration)
-    } else {
-        None
-    }
+    s_maxage.or(max_age)
 }
 
 #[cfg(test)]
