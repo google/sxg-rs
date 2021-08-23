@@ -106,16 +106,3 @@ pub async fn create_signed_exchange(
     Ok(JsValue::from_serde(&sxg).unwrap())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn it_works() {
-        init(
-            include_str!("../config.yaml"),
-            include_str!("../../credentials/cert.pem"),
-            include_str!("../../credentials/issuer.pem"),
-        ).unwrap();
-        assert_eq!(get_worker().unwrap().config.private_key_base64, "");
-    }
-}
