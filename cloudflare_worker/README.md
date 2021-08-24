@@ -32,7 +32,6 @@ limitations under the License.
 1. Run `cargo run -p config-generator` and follow the command line prompt.
    This command will creates a `wrangler.toml` that can be modified futher if desired.
 
-   F.A.Q in this command
    - To find Cloudflare **account ID** and **zone ID**,
      see [this screenshot](https://forum.aapanel.com/d/3914-how-to-get-zone-id-of-cloudflare).
    - To find Cloudflare **worker domain**,

@@ -149,6 +149,7 @@ fn main() -> Result<(), std::io::Error> {
     wrangler_config.vars.cert_pem = cert_pem;
     wrangler_config.vars.issuer_pem = issuer_pem;
     let user = get_global_uesr();
+    // TODO: Remove interactive part, and allow user to create a file for these values.
     wrangler_config.account_id = Input::new()
         .with_prompt("What's your Cloudflare account ID?")
         .with_initial_text(wrangler_config.account_id)
