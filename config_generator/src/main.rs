@@ -195,9 +195,6 @@ fn main() -> Result<(), std::io::Error> {
             toml::to_string_pretty(&wrangler_config).unwrap()
         ),
     )?;
-    println!("Successfully write config to {}", CONFIG_FILE);
+    println!("Successfully wrote config to {}", CONFIG_FILE);
     Ok(())
 }
-
-/*
-*/
