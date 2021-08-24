@@ -58,6 +58,6 @@ interface WasmFunctions {
 
 export const wasmFunctionsPromise = (async function initWasmFunctions() {
   await wasm_bindgen(wasm);
-  wasm_bindgen.init();
+  wasm_bindgen.init(SXG_CONFIG, CERT_PEM, ISSUER_PEM);
   return wasm_bindgen as WasmFunctions;
 })();

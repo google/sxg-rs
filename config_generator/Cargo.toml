@@ -12,15 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
----
-cert_url_basename: "cert"
-forward_request_headers:
-  - "cf-ipcountry"
-  - "user-agent"
-html_host: my_domain.com
-strip_request_headers: []
-strip_response_headers: ["set-cookie", "strict-transport-security"]
-reserved_path: ".sxg"
-respond_debug_info: false
-validity_url_basename: "validity"
-worker_host: sxg.my_worker_subdomain.workers.dev
+[package]
+name = "config-generator"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cloudflare = "0.8.6"
+console = "0.14.1"
+dialoguer = "0.8.0"
+pem = "0.8.3"
+serde = { version = "1.0.125", features = ["derive"] }
+serde_json = "1.0.66"
+serde_yaml = "0.8.17"
+sxg_rs = { path = "../sxg_rs" }
+toml = "0.5.8"
+url = "2.2.2"
+wrangler = "1.19.0"

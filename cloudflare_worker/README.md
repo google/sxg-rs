@@ -29,24 +29,15 @@ limitations under the License.
    ```
    All following steps in this `README.md` should be done in this folder.
 
-1. Create a `wrangler.toml` from the template `wrangler.example.toml`.
-   1. Set `zone_id` and `account_id` from the values [pictured
-      here](https://forum.aapanel.com/d/3914-how-to-get-zone-id-of-cloudflare).
-   1. Change the domain in `routes` from `my_domain.com` to your domain.
-      ([Details
-      here.](https://developers.cloudflare.com/workers/get-started/guide#optional-configure-for-deploying-to-a-registered-domain))
-   1. Use the command `wrangler kv:namespace create OCSP` to create the id of
-      [KV namespace](https://developers.cloudflare.com/workers/runtime-apis/kv),
-      and put it into the `id` field in `kv_namespaces`. (If already created,
-      use the command `wrangler kv:namespace list` to get the id.)
-1. Create a `config.yaml` from the template `config.example.yaml`.
-   1. Put your domain as `html_host`.
-   1. In `worker_host`, replace `my_worker_subdomain` with the value from the
-      Manage Workers page [available from
-      here](https://dash.cloudflare.com/workers/overview). ([Details
-      here.](https://developers.cloudflare.com/workers/get-started/guide#1-sign-up-for-a-workers-account))
+1. Run `cargo run -p config-generator` and follow the command line prompt.
+   This command will creates a `wrangler.toml` that can be modified futher if desired.
 
-1. Run `cargo test` to check errors in `config.yml`.
+   - To find Cloudflare **account ID** and **zone ID**,
+     see [this screenshot](https://forum.aapanel.com/d/3914-how-to-get-zone-id-of-cloudflare).
+   - To find Cloudflare **worker domain**,
+     visit the Manage Workers page from [the dashboard](https://dash.cloudflare.com/workers/overview).
+     ([Details here](https://developers.cloudflare.com/workers/get-started/guide#1-sign-up-for-a-workers-account)).
+
 1. Put your private key as a
    [secret](https://developers.cloudflare.com/workers/cli-wrangler/commands#secret)
    to cloudflare worker.
@@ -83,6 +74,7 @@ The certificates need to be renewed every 90 days.
    doc](https://docs.digicert.com/manage-certificates/renew-ssltls-certificate/) to renew the certificate.
 1. Overwrite the new-issued `cert.pem` and `issuer.pem` into the folder
    `REPO_ROOT/credentials/`.
+1. Run `cargo run -p config-generator`.
 1. Run `./publish.sh` to restart the worker.
 
 ## Uninstall
