@@ -51,11 +51,11 @@ pub async fn fetch_ocsp_from_digicert(fetcher: Function) -> Result<Uint8Array, J
 #[wasm_bindgen(js_name=servePresetContent)]
 pub fn serve_preset_content(req_url: &str, ocsp_base64: &str) -> Result<JsValue, JsValue> {
     let ocsp_der = ::base64::decode(ocsp_base64).unwrap();
-    if let Some(preset_content) = get_worker()?.serve_preset_content(req_url, &ocsp_der) {
-        Ok(JsValue::from_serde(&preset_content).unwrap())
-    } else {
-        Ok(JsValue::UNDEFINED)
-    }
+    Ok(get_worker()?
+        .serve_preset_content(req_url, &ocsp_der)
+        .map_or(JsValue::UNDEFINED, |preset_content| {
+            JsValue::from_serde(&preset_content).unwrap()
+        }))
 }
 
 #[wasm_bindgen(js_name=shouldRespondDebugInfo)]

@@ -24,7 +24,6 @@ id = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
 
 [vars]
 SXG_CONFIG = '''
----
 cert_url_basename: cert
 forward_request_headers:
   - user-agent

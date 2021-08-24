@@ -30,19 +30,14 @@ limitations under the License.
    All following steps in this `README.md` should be done in this folder.
 
 1. Run `cargo run -p config-generator` and follow the command line prompt.
+   This command will creates a `wrangler.toml` that can be modified futher if desired.
 
    F.A.Q in this command
-
-   - Where to find Cloudflare account ID and zone ID?
-
-      Refer to [screenshot here](https://forum.aapanel.com/d/3914-how-to-get-zone-id-of-cloudflare).
-
-   - Where to find the domain of Cloudflare worker?
-
-      It is available in the
-      Manage Workers page [available from
-      here](https://dash.cloudflare.com/workers/overview). ([Details
-      here.](https://developers.cloudflare.com/workers/get-started/guide#1-sign-up-for-a-workers-account))
+   - To find Cloudflare **account ID** and **zone ID**,
+     see [this screenshot](https://forum.aapanel.com/d/3914-how-to-get-zone-id-of-cloudflare).
+   - To find Cloudflare **worker domain**,
+     visit the Manage Workers page from [the dashboard](https://dash.cloudflare.com/workers/overview).
+     ([Details here](https://developers.cloudflare.com/workers/get-started/guide#1-sign-up-for-a-workers-account)).
 
 1. Put your private key as a
    [secret](https://developers.cloudflare.com/workers/cli-wrangler/commands#secret)

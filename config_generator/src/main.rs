@@ -47,7 +47,13 @@ struct WranglerConfig {
 fn goto_repository_root() -> Result<(), std::io::Error> {
     let exe_path = std::env::current_exe()?;
     assert!(exe_path.ends_with("target/debug/config-generator"));
-    let repo_root = exe_path.parent().unwrap().parent().unwrap().parent().unwrap();
+    let repo_root = exe_path
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
     std::env::set_current_dir(repo_root)?;
     Ok(())
 }
@@ -73,15 +79,8 @@ fn get_ocsp_kv_id(user: &GlobalUser, account_id: &str) -> String {
     let client = wrangler::http::cf_v4_client(&user).unwrap();
     let target: wrangler::settings::toml::Target = Default::default();
     let namespaces = wrangler::kv::namespace::list(&client, &target).unwrap();
-    let exsiting_id = namespaces.into_iter().find_map(|namespace| {
-        if namespace.title == "sxg-OCSP" {
-            Some(namespace.id)
-        } else {
-            None
-        }
-    });
-    if let Some(id) = exsiting_id {
-        return id;
+    if let Some(namespace) = namespaces.into_iter().find(|n| n.title == "sxg-OCSP") {
+        return namespace.id;
     }
     let namespace = wrangler::kv::namespace::create(&client, account_id, "OCSP")
         .unwrap()
@@ -100,14 +99,41 @@ fn read_certificate_pem_file(path: &str) -> Result<String, String> {
     }
 }
 
+// Read and parse both `cert.pem` and `issuer.pem`.
+// Panics on error.
+fn read_certificates() -> (String, String) {
+    let cert = read_certificate_pem_file("credentials/cert.pem");
+    let issuer = read_certificate_pem_file("credentials/issuer.pem");
+    if cert.is_ok() && issuer.is_ok() {
+        println!("Successfully read certificates");
+        return (cert.unwrap(), issuer.unwrap());
+    }
+    if let Err(msg) = cert {
+        println!("{}", msg);
+    }
+    if let Err(msg) = issuer {
+        println!("{}", msg);
+    }
+    println!(
+        r#"Failed to load SXG certificates.
+What you need to do:
+  1. Generate SXG certificates according to the link
+     https://github.com/google/sxg-rs/blob/main/credentials/README.md
+  2. Copy the "cert.pem" and "issuer.pem" to the "credentials" folder.
+  3. Re-run "cargo run -p config-generator"."#
+    );
+    std::process::exit(1);
+}
+
 const CONFIG_FILE: &'static str = "cloudflare_worker/wrangler.toml";
+// TODO: Remove the example toml, and use Rust code to set the default value of WranglerConfig.
 const CONFIG_EXAMPLE_FILE: &'static str = "cloudflare_worker/wrangler.example.toml";
 
 // Read and parse `wrangler.toml`.
 // `wrangler.example.toml` will be read if `wrangler.toml` does not exist.
 // This function panics if `wrangler.toml` contains syntax error,
 // even when a valid `wrangler.example.toml` exists.
-fn read_exsiting_config() -> (WranglerConfig, SxgConfig) {
+fn read_existing_config() -> (WranglerConfig, SxgConfig) {
     let wrangler_config = std::fs::read_to_string(CONFIG_FILE)
         .or_else(|_| std::fs::read_to_string(CONFIG_EXAMPLE_FILE))
         .unwrap();
@@ -118,32 +144,10 @@ fn read_exsiting_config() -> (WranglerConfig, SxgConfig) {
 
 fn main() -> Result<(), std::io::Error> {
     goto_repository_root()?;
-    let (mut wrangler_config, mut sxg_config) = read_exsiting_config();
-    loop {
-        let cert = read_certificate_pem_file("credentials/cert.pem");
-        let issuer = read_certificate_pem_file("credentials/issuer.pem");
-        if cert.is_ok() && issuer.is_ok() {
-            println!("Succesffuly read certificates");
-            wrangler_config.vars.cert_pem = cert.unwrap();
-            wrangler_config.vars.issuer_pem = issuer.unwrap();
-            break;
-        }
-        if let Err(msg) = cert {
-            println!("{}", msg);
-        }
-        if let Err(msg) = issuer {
-            println!("{}", msg);
-        }
-        println!(
-            "To generate certificates, please refer to\n\
-            \thttps://github.com/google/sxg-rs/blob/main/credentials/README.md"
-        );
-        Input::<String>::new()
-            .with_prompt("Press ENTER key after you generate the certificates")
-            .allow_empty(true)
-            .interact_text()
-            .unwrap();
-    }
+    let (cert_pem, issuer_pem) = read_certificates();
+    let (mut wrangler_config, mut sxg_config) = read_existing_config();
+    wrangler_config.vars.cert_pem = cert_pem;
+    wrangler_config.vars.issuer_pem = issuer_pem;
     let user = get_global_uesr();
     wrangler_config.account_id = Input::new()
         .with_prompt("What's your Cloudflare account ID?")
@@ -173,7 +177,6 @@ fn main() -> Result<(), std::io::Error> {
         })
         .interact_text()
         .unwrap();
-    // TODO: Allow user to customize routes
     wrangler_config.routes = vec![format!("{}/*", sxg_config.html_host)];
     let ocsp_kv_id = get_ocsp_kv_id(&user, &wrangler_config.account_id);
     wrangler_config.kv_namespaces = vec![ConfigKvNamespace {
@@ -184,8 +187,17 @@ fn main() -> Result<(), std::io::Error> {
     wrangler_config.vars.sxg_config = serde_yaml::to_string(&sxg_config).unwrap();
     std::fs::write(
         CONFIG_FILE,
-        toml::to_string_pretty(&wrangler_config).unwrap(),
+        format!(
+            "# This file is generated by command \"cargo run -p config-generator\".\n\
+            # Feel free to customize your config by directly modifying this file.\n\
+            # Please note that comments you add won't be preserved at the next time you run \"cargo run -p config-generator\".\n\
+            {}",
+            toml::to_string_pretty(&wrangler_config).unwrap()
+        ),
     )?;
-    println!("Succesfully write config to {}", CONFIG_FILE);
+    println!("Successfully write config to {}", CONFIG_FILE);
     Ok(())
 }
+
+/*
+*/
