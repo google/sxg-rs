@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 // a file (like `config.yaml`) to provide this config input.
 #[derive(Deserialize, Serialize)]
 pub struct ConfigInput {
-    pub cert_url_basename: String,
+    pub cert_url_dirname: String,
     pub forward_request_headers: HashSet<String>,
     pub html_host: String,
     // This field is only needed by Fastly, because Cloudflare uses secret
@@ -27,12 +27,11 @@ pub struct ConfigInput {
     // TODO: check if Fastly edge dictionary is ok to store private key.
     #[serde(default)]
     pub private_key_base64: String,
-    pub strip_request_headers: HashSet<String>,
-    pub strip_response_headers: HashSet<String>,
     pub reserved_path: String,
     pub respond_debug_info: bool,
-    pub validity_url_basename: String,
-    pub worker_host: String,
+    pub strip_request_headers: HashSet<String>,
+    pub strip_response_headers: HashSet<String>,
+    pub validity_url_dirname: String,
 }
 
 // This contains not only source-of-truth ConfigInput, but also a few more
@@ -40,9 +39,8 @@ pub struct ConfigInput {
 pub struct Config {
     input: ConfigInput,
     pub cert_der: Vec<u8>,
-    pub cert_url: String,
+    pub cert_sha256: Vec<u8>,
     pub issuer_der: Vec<u8>,
-    pub validity_url: String,
 }
 
 impl std::ops::Deref for Config {
@@ -62,21 +60,28 @@ impl Config {
         let input: ConfigInput = serde_yaml::from_str(input_yaml).unwrap();
         let cert_der = get_der(cert_pem, "CERTIFICATE");
         let issuer_der = get_der(issuer_pem, "CERTIFICATE");
-        let cert_url = create_url(&input.worker_host, &input.reserved_path, &input.cert_url_basename);
-        let validity_url = create_url(&input.html_host, &input.reserved_path, &input.validity_url_basename);
+        let cert_url_dirname = to_url_prefix(&input.cert_url_dirname);
+        let reserved_path = to_url_prefix(&input.reserved_path);
+        let validity_url_dirname = to_url_prefix(&input.validity_url_dirname);
         Config {
+            cert_sha256: crate::utils::get_sha(&cert_der),
             cert_der,
-            cert_url,
             input: ConfigInput {
+                cert_url_dirname,
                 forward_request_headers: lowercase_all(input.forward_request_headers),
+                reserved_path,
                 strip_request_headers: lowercase_all(input.strip_request_headers),
                 strip_response_headers: lowercase_all(input.strip_response_headers),
+                validity_url_dirname,
                 ..input
             },
             issuer_der,
-            validity_url,
         }
     }
+}
+
+fn to_url_prefix(dirname: &str) -> String {
+    format!("/{}/", dirname.trim_matches('/'))
 }
 
 fn get_der(pem_text: &str, expected_tag: &str) -> Vec<u8> {
@@ -88,60 +93,30 @@ fn get_der(pem_text: &str, expected_tag: &str) -> Vec<u8> {
     panic!("The PEM file does not contains the expected block");
 }
 
-fn create_url(host: &str, reserved_path: &str, basename: &str) -> String {
-    let reserved_path = reserved_path.trim_matches('/');
-    let basename = basename.trim_start_matches('/');
-    format!("https://{}/{}/{}", host, reserved_path, basename)
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::utils::tests::SELF_SIGNED_CERT_PEM;
     use super::*;
     #[test]
-    fn test_create_url() {
-        assert_eq!(create_url("foo.com", ".sxg", "cert"), "https://foo.com/.sxg/cert");
-        assert_eq!(create_url("foo.com", "/.sxg", "cert"), "https://foo.com/.sxg/cert");
-        assert_eq!(create_url("foo.com", ".sxg/", "cert"), "https://foo.com/.sxg/cert");
-        assert_eq!(create_url("foo.com", "/.sxg/", "cert"), "https://foo.com/.sxg/cert");
-        assert_eq!(create_url("foo.com", "/.sxg/", "/cert"), "https://foo.com/.sxg/cert");
-    }
-    #[test]
-    fn lowercases_header_names() {
+    fn processes_input() {
         let yaml = r#"
-cert_url_basename: "cert"
+cert_url_dirname: ".well-known/sxg-certs/"
 forward_request_headers:
   - "cf-IPCOUNTRY"
   - "USER-agent"
 html_host: my_domain.com
-strip_request_headers: ["Forwarded"]
-strip_response_headers: ["Set-Cookie", "STRICT-TRANSPORT-SECURITY"]
 reserved_path: ".sxg"
 respond_debug_info: false
-validity_url_basename: "validity"
-worker_host: sxg.my_worker_subdomain.workers.dev
+strip_request_headers: ["Forwarded"]
+strip_response_headers: ["Set-Cookie", "STRICT-TRANSPORT-SECURITY"]
+validity_url_dirname: "//.well-known/sxg-validity"
         "#;
-        // Generated with:
-        //   KEY=`mktemp` && CSR=`mktemp` &&
-        //   openssl ecparam -out "$KEY" -name prime256v1 -genkey &&
-        //   openssl req -new -sha256 -key "$KEY" -out "$CSR" -subj '/CN=example.org/O=Test/C=US' &&
-        //   openssl x509 -req -days 90 -in "$CSR" -signkey "$KEY" -out - -extfile <(echo -e "1.3.6.1.4.1.11129.2.1.22 = ASN1:NULL\nsubjectAltName=DNS:example.org") &&
-        //   rm "$KEY" "$CSR"
-        let cert_pem = "
------BEGIN CERTIFICATE-----
-MIIBkTCCATigAwIBAgIUL/D6t/l3OrSRCI0KlCP7zH1U5/swCgYIKoZIzj0EAwIw
-MjEUMBIGA1UEAwwLZXhhbXBsZS5vcmcxDTALBgNVBAoMBFRlc3QxCzAJBgNVBAYT
-AlVTMB4XDTIxMDgyMDAwMTc1MFoXDTIxMTExODAwMTc1MFowMjEUMBIGA1UEAwwL
-ZXhhbXBsZS5vcmcxDTALBgNVBAoMBFRlc3QxCzAJBgNVBAYTAlVTMFkwEwYHKoZI
-zj0CAQYIKoZIzj0DAQcDQgAE3jibTycCk9tifTFg6CyiUirdSlblqLoofEC7B0I4
-IO9A52fwDYjZfwGSdu/6ji0MQ1+19Ovr3d9DvXSa7pN1j6MsMCowEAYKKwYBBAHW
-eQIBFgQCBQAwFgYDVR0RBA8wDYILZXhhbXBsZS5vcmcwCgYIKoZIzj0EAwIDRwAw
-RAIgdTuJ4IXs6LeXQ15TxIsRtfma4F8ypUk0bpBLLbVPbyACIFYul0BjPa2qVd/l
-SFfkmh8Fc2QXpbbaK5AQfnQpkDHV
------END CERTIFICATE-----
-        ";
-        let config = Config::new(yaml, cert_pem, cert_pem);
+        let config = Config::new(yaml, SELF_SIGNED_CERT_PEM, SELF_SIGNED_CERT_PEM);
+        assert_eq!(config.cert_url_dirname, "/.well-known/sxg-certs/");
         assert_eq!(config.forward_request_headers, ["cf-ipcountry", "user-agent"].iter().map(|s| s.to_string()).collect());
         assert_eq!(config.strip_request_headers, ["forwarded"].iter().map(|s| s.to_string()).collect());
         assert_eq!(config.strip_response_headers, ["set-cookie", "strict-transport-security"].iter().map(|s| s.to_string()).collect());
+        assert_eq!(config.reserved_path, "/.sxg/");
+        assert_eq!(config.validity_url_dirname, "/.well-known/sxg-validity/");
     }
 }

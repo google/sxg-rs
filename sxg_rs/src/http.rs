@@ -22,7 +22,7 @@ pub struct HttpRequest {
     pub url: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct HttpResponse {
     pub body: Vec<u8>,
     pub headers: HeaderFields,

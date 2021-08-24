@@ -13,15 +13,14 @@
 # limitations under the License.
 
 ---
-cert_url_basename: "cert"
+cert_url_dirname: ".well-known/sxg-certs"
 forward_request_headers:
   - "cf-ipcountry"
   - "user-agent"
 html_host: my_domain.com
 private_key_base64: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-strip_request_headers: []
-strip_response_headers: ["set-cookie", "strict-transport-security"]
 reserved_path: ".sxg"
 respond_debug_info: true
-validity_url_basename: "validity"
-worker_host: my_sxg_worker_subdomain.edgecompute.app
+strip_request_headers: []
+strip_response_headers: ["set-cookie", "strict-transport-security"]
+validity_url_dirname: ".well-known/sxg-validity"

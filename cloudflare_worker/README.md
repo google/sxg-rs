@@ -34,9 +34,6 @@ limitations under the License.
 
    - To find Cloudflare **account ID** and **zone ID**,
      see [this screenshot](https://forum.aapanel.com/d/3914-how-to-get-zone-id-of-cloudflare).
-   - To find Cloudflare **worker domain**,
-     visit the Manage Workers page from [the dashboard](https://dash.cloudflare.com/workers/overview).
-     ([Details here](https://developers.cloudflare.com/workers/get-started/guide#1-sign-up-for-a-workers-account)).
 
 1. Put your private key as a
    [secret](https://developers.cloudflare.com/workers/cli-wrangler/commands#secret)
