@@ -45,7 +45,7 @@ impl Headers {
             // "A proxy forwarding a request MUST NOT modify any Authorization fields in that request."
             return Err("The request contains an Authorization header.".to_string());
         }
-        let accept = self.0.get("accept").ok_or("The request does not have accept header")?;
+        let accept = self.0.get("accept").ok_or("The request does not have an Accept header")?;
         validate_accept_header(accept)?;
         // Set Via per https://tools.ietf.org/html/rfc7230#section-5.7.1
         let mut via = format!("sxgrs");
@@ -212,16 +212,15 @@ static CACHE_CONTROL_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     ].into_iter().collect()
 });
 
-// Checks whether accept header of a http request, return an Err when the input
-// string does not have an `application/signed-exchange;v=b3` with the highest
-// `q` value.
+// Checks whether to serve SXG based on the Accept header of the HTTP request.
+// Returns Ok iff the input string has a `application/signed-exchange;v=b3`
+// with a `q` value of 1.
 fn validate_accept_header(accept: &str) -> Result<(), String> {
     let accept = accept.trim();
     let accept = crate::http_parser::parse_accept_header(accept)?;
     if accept.len() == 0 {
         return Err(format!("Accept header is empty"));
     }
-    let q_max = accept.iter().map(|t| t.q_millis).max().unwrap();
     let q_sxg = accept.iter().filter_map(|t| {
         if t.media_range.primary_type.eq_ignore_ascii_case("application") && t.media_range.sub_type.eq_ignore_ascii_case("signed-exchange") {
             let mut v = "";
@@ -239,11 +238,11 @@ fn validate_accept_header(accept: &str) -> Result<(), String> {
             None
         }
     }).max().unwrap_or(0);
-    const SXG: &'static str = "application/signed-exchange;v=b3";
+    const SXG: &str = "application/signed-exchange;v=b3";
     if q_sxg == 0 {
         Err(format!("The request accept header does not contain {}.", SXG))
-    } else if q_sxg < q_max {
-        Err(format!("The q value of {} is not the max in request accept header", SXG))
+    } else if q_sxg < 1000 {
+        Err(format!("The q value of {} is less than 1 in request Accept header.", SXG))
     } else {
         Ok(())
     }
@@ -285,17 +284,19 @@ mod tests {
     #[test]
     fn basic_accept_header() {
         assert!(validate_accept_header("application/signed-exchange;v=b3").is_ok());
-        assert!(validate_accept_header("application/signed-exchange;v=b3;q=0.9,*/*;q=0.8").is_ok());
+        assert!(validate_accept_header("application/signed-exchange;v=b3;q=1").is_ok());
+        assert!(validate_accept_header("application/signed-exchange;q=1;v=b3").is_err());
+        assert!(validate_accept_header("application/signed-exchange;v=b3;q=0.9,*/*;q=0.8").is_err());
         assert!(validate_accept_header("").is_err());
         assert!(validate_accept_header("text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9").is_err());
     }
     #[test]
     fn optional_whitespaces() {
-        assert!(validate_accept_header("  application/signed-exchange  ;  v=b3  ;  q=0.9  ,  */*  ;  q=0.8  ").is_ok());
+        assert!(validate_accept_header("  application/signed-exchange  ;  v=b3  ;  q=1  ,  */*  ;  q=0.8  ").is_ok());
     }
     #[test]
     fn uppercase_q_and_v() {
-        assert!(validate_accept_header("text/html;q=0.5,application/signed-exchange;V=b3;Q=0.6").is_ok());
+        assert!(validate_accept_header("text/html;q=0.5,application/signed-exchange;V=b3;Q=1").is_ok());
     }
     #[test]
     fn default_q() {
