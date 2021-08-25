@@ -45,6 +45,7 @@ interface WasmFunctions {
   createRequestHeaders(accept_filter: AcceptFilter, fields: HeaderFields): HeaderFields;
   createSignedExchange(
     fallbackUrl: string,
+    certOrigin: string,
     statusCode: number,
     payloadHeaders: HeaderFields,
     payloadBody: Uint8Array,

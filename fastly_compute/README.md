@@ -52,8 +52,9 @@ limitations under the License.
 
    1. Add your original server, which serves your HTML website,
       as a backend to the service.
-      Put it to `config.yaml` as `html_host` (see `config.example.yaml`).
-      Edit the backend and change its name from `Host 1` to `Origin HTML server`.
+      If different from the previous domain, put it to `config.yaml` as
+      `html_host` (see `config.example.yaml`). Edit the backend and change its
+      name from `Host 1` to `Origin HTML server`.
 
    1. Add `ocsp.digicert.com` as a backend to the service.
       Edit the backend and change its name from `Host 1` to `OCSP server`,

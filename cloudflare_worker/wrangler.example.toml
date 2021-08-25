@@ -28,13 +28,13 @@ binding = 'OCSP'
 id = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
 
 [vars]
+HTML_HOST = ''
 SXG_CONFIG = '''
 cert_url_dirname: ".well-known/sxg-certs"
 forward_request_headers:
   - user-agent
   - cf-ipcountry
 html_host: my_domain.com
-private_key_base64: ""
 reserved_path: ".sxg"
 respond_debug_info: false
 strip_request_headers: []

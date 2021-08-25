@@ -29,6 +29,7 @@ use config::Config;
 use headers::{AcceptFilter, Headers};
 use http::{HeaderFields, HttpResponse};
 use serde::Serialize;
+use url::Url;
 
 pub struct SxgWorker {
     pub config: Config,
@@ -72,26 +73,28 @@ impl SxgWorker {
     fn cert_basename(&self) -> String {
         base64::encode_config(&self.config.cert_sha256, base64::URL_SAFE_NO_PAD)
     }
-    fn create_url(&self, reserved_path: &str, basename: &str) -> String {
-        format!("https://{}{}{}", self.config.html_host, reserved_path, basename)
-    }
     pub async fn create_signed_exchange<'a>(&self, params: CreateSignedExchangeParams<'a>) -> Result<HttpResponse, String> {
         let CreateSignedExchangeParams {
             fallback_url,
+            cert_origin,
             now,
             payload_body,
             payload_headers,
             signer,
             status_code,
         } = params;
+        let fallback_base = Url::parse(fallback_url).map_err(|_| "Failed to parse fallback URL")?;
+        let cert_base = Url::parse(cert_origin).map_err(|_| "Failed to parse cert origin")?;
         // 16384 is the max mice record size allowed by SXG spec.
         // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#section-3.5-7.9.1
         let (mice_digest, payload_body) = crate::mice::calculate(payload_body, 16384);
         let signed_headers = payload_headers.get_signed_headers_bytes(status_code, &mice_digest);
-        let cert_url = self.create_url(&self.config.cert_url_dirname, &self.cert_basename());
-        let validity_url = self.create_url(&self.config.validity_url_dirname, "validity");
+        let cert_url = cert_base.join(&format!("{}{}", &self.config.cert_url_dirname, &self.cert_basename()))
+            .map_err(|_| "Failed to parse cert_url_dirname")?;
+        let validity_url = fallback_base.join(&format!("{}{}", &self.config.validity_url_dirname, "validity"))
+            .map_err(|_| "Failed to parse validity_url_dirname")?;
         let signature = signature::Signature::new(signature::SignatureParams {
-            cert_url: &cert_url,
+            cert_url: cert_url.as_str(),
             cert_sha256: &self.config.cert_sha256,
             date: now,
             expires: now + payload_headers.signature_duration()?,
@@ -99,7 +102,7 @@ impl SxgWorker {
             id: "sig",
             request_url: fallback_url,
             signer,
-            validity_url: &validity_url,
+            validity_url: validity_url.as_str(),
         }).await;
         let sxg_body = sxg::build(fallback_url, &signature.serialize(), &signed_headers, &payload_body)?;
         Ok(HttpResponse {
@@ -146,7 +149,6 @@ impl SxgWorker {
                 },
                 "test.sxg" => {
                     let mut fallback_url = req_url;
-                    fallback_url.set_host(Some(&self.config.html_host)).ok()?;
                     fallback_url.set_path(&fallback_url.path().replace("test.sxg", "fallback.html"));
                     Some(PresetContent::ToBeSigned {
                         url: fallback_url.to_string(),
@@ -208,6 +210,7 @@ impl SxgWorker {
 
 pub struct CreateSignedExchangeParams<'a> {
     pub fallback_url: &'a str,
+    pub cert_origin: &'a str,
     pub now: std::time::SystemTime,
     pub payload_body: &'a [u8],
     pub payload_headers: headers::Headers,

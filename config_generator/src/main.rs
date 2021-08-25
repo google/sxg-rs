@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use dialoguer::Input;
+use dialoguer::{Input, Select};
 use serde::{Deserialize, Serialize};
-use sxg_rs::config::ConfigInput as SxgConfig;
 use wrangler::settings::global_user::GlobalUser;
 use wrangler::settings::toml::ConfigKvNamespace;
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 struct WranglerVars {
+    html_host: String,
     sxg_config: String,
     #[serde(default)]
     cert_pem: String,
@@ -39,6 +39,7 @@ struct WranglerConfig {
     account_id: String,
     zone_id: String,
     routes: Vec<String>,
+    workers_dev: Option<bool>,
     kv_namespaces: Vec<ConfigKvNamespace>,
     vars: WranglerVars,
 }
@@ -133,19 +134,20 @@ const CONFIG_EXAMPLE_FILE: &'static str = "cloudflare_worker/wrangler.example.to
 // `wrangler.example.toml` will be read if `wrangler.toml` does not exist.
 // This function panics if `wrangler.toml` contains syntax error,
 // even when a valid `wrangler.example.toml` exists.
-fn read_existing_config() -> (WranglerConfig, SxgConfig, bool) {
+fn read_existing_config() -> (WranglerConfig, bool) {
     let (wrangler_config, exists) = std::fs::read_to_string(CONFIG_FILE).map (|s| (s, true))
         .or_else(|_| std::fs::read_to_string(CONFIG_EXAMPLE_FILE).map(|s| (s, false)))
         .unwrap();
     let wrangler_config: WranglerConfig = toml::from_str(&wrangler_config).unwrap();
-    let sxg_config: SxgConfig = serde_yaml::from_str(&wrangler_config.vars.sxg_config).unwrap();
-    (wrangler_config, sxg_config, exists)
+    (wrangler_config, exists)
 }
+
+// TODO: Trap ^C and show cursor.
 
 fn main() -> Result<(), std::io::Error> {
     goto_repository_root()?;
     let (cert_pem, issuer_pem) = read_certificates();
-    let (mut wrangler_config, mut sxg_config, exists) = read_existing_config();
+    let (mut wrangler_config, exists) = read_existing_config();
     wrangler_config.vars.cert_pem = cert_pem;
     wrangler_config.vars.issuer_pem = issuer_pem;
     // TODO: Remove interactive part, and allow user to create a file for these values.
@@ -159,7 +161,7 @@ fn main() -> Result<(), std::io::Error> {
             .with_prompt("What's your Cloudflare zone ID?")
             .interact_text()
             .unwrap();
-        sxg_config.html_host = Input::new()
+        let html_host = Input::new()
             .with_prompt("What's your domain registered in Cloudflare?")
             .validate_with(|s: &String| -> Result<(), url::ParseError> {
                 url::Host::parse(s)?;
@@ -167,18 +169,30 @@ fn main() -> Result<(), std::io::Error> {
             })
             .interact_text()
             .unwrap();
-        wrangler_config.routes = vec![
-            format!("{}/*", sxg_config.html_host),
-            format!("{}/.well-known/sxg-certs/*", sxg_config.html_host),
-            format!("{}/.well-known/sxg-validity/*", sxg_config.html_host),
-        ];
+        let target = Select::new()
+            .with_prompt("Where do you want to deploy the worker?")
+            .items(&vec!["On your domain (recommended; required by Google SXG Cache)",
+                         "On workers.dev (development only)"])
+            .default(0)
+            .interact()
+            .unwrap();
+        if target == 1 {
+            wrangler_config.routes = vec![];
+            wrangler_config.workers_dev = Some(true);
+            wrangler_config.vars.html_host = html_host;
+        } else {
+            wrangler_config.routes = vec![
+                format!("{}/*", html_host),
+                format!("{}/.well-known/sxg-certs/*", html_host),
+                format!("{}/.well-known/sxg-validity/*", html_host),
+            ];
+        }
         let ocsp_kv_id = get_ocsp_kv_id(&user, &wrangler_config.account_id);
         wrangler_config.kv_namespaces = vec![ConfigKvNamespace {
             binding: String::from("OCSP"),
             id: Some(ocsp_kv_id),
             preview_id: None,
         }];
-        wrangler_config.vars.sxg_config = serde_yaml::to_string(&sxg_config).unwrap();
     }
     std::fs::write(
         CONFIG_FILE,

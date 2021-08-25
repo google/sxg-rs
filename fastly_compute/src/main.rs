@@ -45,7 +45,9 @@ fn text_response(body: &str) -> Response {
 
 fn get_fallback_url(req: &Request) -> Url {
     let mut url = req.get_url().clone();
-    url.set_host(Some(&WORKER.config.html_host)).unwrap();
+    if let Some(html_host) = &WORKER.config.html_host {
+        url.set_host(Some(&html_host)).unwrap();
+    }
     url
 }
 
@@ -86,7 +88,7 @@ fn fetch_from_html_server(url: &Url, req_headers: Vec<(String, String)>) -> Resu
 }
 
 fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Response, String> {
-    let private_key_der = base64::decode(&WORKER.config.private_key_base64).unwrap();
+    let private_key_der = base64::decode(&WORKER.config.private_key_base64?).unwrap();
     let signer = Box::new(::sxg_rs::signature::rust_signer::RustSigner::new(&private_key_der));
     let payload_headers = get_rsp_header_fields(&payload)?;
     payload_headers.validate_as_sxg_payload()?;
@@ -152,7 +154,7 @@ mod tests {
     #[test]
     fn it_works() {
         &*WORKER;
-        let private_key_der = base64::decode(&WORKER.config.private_key_base64).unwrap();
+        let private_key_der = base64::decode(&WORKER.config.private_key_base64.unwrap()).unwrap();
         assert_eq!(private_key_der.len(), 32);
     }
 }

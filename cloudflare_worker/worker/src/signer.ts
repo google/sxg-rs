@@ -15,7 +15,7 @@
  */
 
 const privateKeyPromise = (async function initPrivateKey() {
-  if (!PRIVATE_KEY_JWK) {
+  if (typeof PRIVATE_KEY_JWK === 'undefined') {
     throw `The wrangler secret PRIVATE_KEY_JWK is not set.`;
   }
   return await crypto.subtle.importKey(

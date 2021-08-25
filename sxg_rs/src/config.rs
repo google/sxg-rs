@@ -21,12 +21,13 @@ use serde::{Deserialize, Serialize};
 pub struct ConfigInput {
     pub cert_url_dirname: String,
     pub forward_request_headers: BTreeSet<String>,
-    pub html_host: String,
+    // This field is only needed by Fastly, because Cloudflare uses [vars]
+    // to set this where the TypeScript wrapper can read it.
+    pub html_host: Option<String>,
     // This field is only needed by Fastly, because Cloudflare uses secret
     // env variables to store private key.
     // TODO: check if Fastly edge dictionary is ok to store private key.
-    #[serde(default)]
-    pub private_key_base64: String,
+    pub private_key_base64: Option<String>,
     pub reserved_path: String,
     pub respond_debug_info: bool,
     pub strip_request_headers: BTreeSet<String>,
@@ -114,6 +115,7 @@ validity_url_dirname: "//.well-known/sxg-validity"
         let config = Config::new(yaml, SELF_SIGNED_CERT_PEM, SELF_SIGNED_CERT_PEM);
         assert_eq!(config.cert_url_dirname, "/.well-known/sxg-certs/");
         assert_eq!(config.forward_request_headers, ["cf-ipcountry", "user-agent"].iter().map(|s| s.to_string()).collect());
+        assert_eq!(config.html_host, Some("my_domain.com".into()));
         assert_eq!(config.strip_request_headers, ["forwarded"].iter().map(|s| s.to_string()).collect());
         assert_eq!(config.strip_response_headers, ["set-cookie", "strict-transport-security"].iter().map(|s| s.to_string()).collect());
         assert_eq!(config.reserved_path, "/.sxg/");
