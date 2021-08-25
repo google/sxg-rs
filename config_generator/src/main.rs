@@ -153,17 +153,14 @@ fn main() -> Result<(), std::io::Error> {
         let user = get_global_uesr();
         wrangler_config.account_id = Input::new()
             .with_prompt("What's your Cloudflare account ID?")
-            .with_initial_text(wrangler_config.account_id)
             .interact_text()
             .unwrap();
         wrangler_config.zone_id = Input::new()
             .with_prompt("What's your Cloudflare zone ID?")
-            .with_initial_text(wrangler_config.zone_id)
             .interact_text()
             .unwrap();
         sxg_config.html_host = Input::new()
             .with_prompt("What's your domain registered in Cloudflare?")
-            .with_initial_text(sxg_config.html_host)
             .validate_with(|s: &String| -> Result<(), url::ParseError> {
                 url::Host::parse(s)?;
                 Ok(())

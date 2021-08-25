@@ -22,4 +22,4 @@ npm run build
 cp dist/index.js worker.js
 cd ..
 
-wrangler publish
+wrangler "${1-publish}"

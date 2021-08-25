@@ -73,7 +73,7 @@ impl SxgWorker {
         base64::encode_config(&self.config.cert_sha256, base64::URL_SAFE_NO_PAD)
     }
     fn create_url(&self, reserved_path: &str, basename: &str) -> String {
-        format!("https://{}/{}/{}", self.config.html_host, reserved_path, basename)
+        format!("https://{}{}{}", self.config.html_host, reserved_path, basename)
     }
     pub async fn create_signed_exchange<'a>(&self, params: CreateSignedExchangeParams<'a>) -> Result<HttpResponse, String> {
         let CreateSignedExchangeParams {
