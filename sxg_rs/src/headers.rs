@@ -301,35 +301,36 @@ mod tests {
 
     // === validate_accept_header ===
     #[test]
-    fn basic_accept_header() {
+    fn prefers_sxg() {
         assert!(validate_accept_header("application/signed-exchange;v=b3", AcceptFilter::PrefersSxg).is_ok());
         assert!(validate_accept_header("application/signed-exchange;v=b3;q=1", AcceptFilter::PrefersSxg).is_ok());
-        assert!(validate_accept_header("application/signed-exchange;q=1;v=b3", AcceptFilter::PrefersSxg).is_err());
-        assert!(validate_accept_header("application/signed-exchange;v=b3;q=0.9,*/*;q=0.8", AcceptFilter::PrefersSxg).is_err());
-        assert!(validate_accept_header("", AcceptFilter::PrefersSxg).is_err());
-        assert!(validate_accept_header("text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9", AcceptFilter::PrefersSxg).is_err());
-    }
-    #[test]
-    fn optional_whitespaces() {
         assert!(validate_accept_header("  application/signed-exchange  ;  v=b3  ;  q=1  ,  */*  ;  q=0.8  ", AcceptFilter::PrefersSxg).is_ok());
-    }
-    #[test]
-    fn uppercase_q_and_v() {
         assert!(validate_accept_header("text/html;q=0.5,application/signed-exchange;V=b3;Q=1", AcceptFilter::PrefersSxg).is_ok());
-    }
-    #[test]
-    fn default_q() {
         assert!(validate_accept_header("text/html;q=0.5,application/signed-exchange;v=b3", AcceptFilter::PrefersSxg).is_ok());
-    }
-    #[test]
-    fn missing_v() {
+
+        assert!(validate_accept_header("application/signed-exchange;v=b3;q=0.9,*/*;q=0.8", AcceptFilter::PrefersSxg).is_err());
+        assert!(validate_accept_header("text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9", AcceptFilter::PrefersSxg).is_err());
+        assert!(validate_accept_header("application/signed-exchange;q=1;v=b3", AcceptFilter::PrefersSxg).is_err());
+        assert!(validate_accept_header("", AcceptFilter::PrefersSxg).is_err());
         assert!(validate_accept_header("application/signed-exchange", AcceptFilter::PrefersSxg).is_err());
-    }
-    #[test]
-    fn v_is_not_b3() {
         assert!(validate_accept_header("application/signed-exchange;v=b2", AcceptFilter::PrefersSxg).is_err());
     }
-    // TODO: test AcceptsSxg
+    #[test]
+    fn accepts_sxg() {
+        // Same list as above, but some more are ok.
+        assert!(validate_accept_header("application/signed-exchange;v=b3", AcceptFilter::AcceptsSxg).is_ok());
+        assert!(validate_accept_header("application/signed-exchange;v=b3;q=1", AcceptFilter::AcceptsSxg).is_ok());
+        assert!(validate_accept_header("  application/signed-exchange  ;  v=b3  ;  q=1  ,  */*  ;  q=0.8  ", AcceptFilter::AcceptsSxg).is_ok());
+        assert!(validate_accept_header("text/html;q=0.5,application/signed-exchange;V=b3;Q=1", AcceptFilter::AcceptsSxg).is_ok());
+        assert!(validate_accept_header("text/html;q=0.5,application/signed-exchange;v=b3", AcceptFilter::AcceptsSxg).is_ok());
+        assert!(validate_accept_header("application/signed-exchange;v=b3;q=0.9,*/*;q=0.8", AcceptFilter::AcceptsSxg).is_ok());
+        assert!(validate_accept_header("text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9", AcceptFilter::AcceptsSxg).is_ok());
+
+        assert!(validate_accept_header("application/signed-exchange;q=1;v=b3", AcceptFilter::AcceptsSxg).is_err());
+        assert!(validate_accept_header("", AcceptFilter::AcceptsSxg).is_err());
+        assert!(validate_accept_header("application/signed-exchange", AcceptFilter::AcceptsSxg).is_err());
+        assert!(validate_accept_header("application/signed-exchange;v=b2", AcceptFilter::AcceptsSxg).is_err());
+    }
 
     // === validate_as_sxg_payload ===
     #[test]
