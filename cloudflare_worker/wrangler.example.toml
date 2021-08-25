@@ -14,10 +14,10 @@
 
 name = 'sxg'
 type = 'rust'
-account_id = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
-zone_id = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+account_id = ''
+zone_id = ''
 routes = [
-  'my_domain.com/*'
+  'my_domain.com/*',
   # If customizing the above pattern, leave these two enabled:
   'my_domain.com/.well-known/sxg-certs/*',
   'my_domain.com/.well-known/sxg-validity/*',
@@ -33,7 +33,7 @@ cert_url_dirname: ".well-known/sxg-certs"
 forward_request_headers:
   - user-agent
   - cf-ipcountry
-html_host: my_domain.com
+html_host: ""
 private_key_base64: ""
 reserved_path: ".sxg"
 respond_debug_info: false

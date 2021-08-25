@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 // This struct is source-of-truth of the sxg config. The user need to create
@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Serialize)]
 pub struct ConfigInput {
     pub cert_url_dirname: String,
-    pub forward_request_headers: HashSet<String>,
+    pub forward_request_headers: BTreeSet<String>,
     pub html_host: String,
     // This field is only needed by Fastly, because Cloudflare uses secret
     // env variables to store private key.
@@ -29,8 +29,8 @@ pub struct ConfigInput {
     pub private_key_base64: String,
     pub reserved_path: String,
     pub respond_debug_info: bool,
-    pub strip_request_headers: HashSet<String>,
-    pub strip_response_headers: HashSet<String>,
+    pub strip_request_headers: BTreeSet<String>,
+    pub strip_response_headers: BTreeSet<String>,
     pub validity_url_dirname: String,
 }
 
@@ -51,7 +51,7 @@ impl std::ops::Deref for Config {
     }
 }
 
-fn lowercase_all(names: HashSet<String>) -> HashSet<String> {
+fn lowercase_all(names: BTreeSet<String>) -> BTreeSet<String> {
     names.into_iter().map(|h| h.to_ascii_lowercase()).collect()
 }
 
