@@ -19,8 +19,8 @@ zone_id = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
 routes = [
   'my_domain.com/*'
   # If customizing the above pattern, leave these two enabled:
-  'my_domain.com/.sxg-certs/*',
-  'my_domain.com/.sxg-validity/*',
+  'my_domain.com/.well-known/sxg-certs/*',
+  'my_domain.com/.well-known/sxg-validity/*',
 ]
 
 [[kv_namespaces]]
