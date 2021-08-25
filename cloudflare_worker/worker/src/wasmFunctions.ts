@@ -19,6 +19,8 @@ declare var wasm_bindgen: any;
 
 type HeaderFields = Array<[string, string]>;
 
+export type AcceptFilter = 'PrefersSxg' | 'AcceptsSxg';
+
 export interface WasmRequest {
   body: number[],
   headers: HeaderFields,
@@ -40,7 +42,7 @@ export type PresetContent = ({ kind: 'direct' } & WasmResponse) | {
 }
 
 interface WasmFunctions {
-  createRequestHeaders(fields: HeaderFields): HeaderFields;
+  createRequestHeaders(accept_filter: AcceptFilter, fields: HeaderFields): HeaderFields;
   createSignedExchange(
     fallbackUrl: string,
     statusCode: number,

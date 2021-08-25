@@ -173,11 +173,11 @@ async function handleRequest(request: Request) {
         // we still need to check the validity of the request header.
         // For example, if the header does not contain
         // `Accept: signed-exchange;v=b3`, we will throw an error.
-        createRequestHeaders(Array.from(request.headers));
+        createRequestHeaders('AcceptsSxg', Array.from(request.headers));
       }
     } else {
       fallbackUrl = request.url;
-      const requestHeaders = createRequestHeaders(Array.from(request.headers));
+      const requestHeaders = createRequestHeaders('PrefersSxg', Array.from(request.headers));
       [sxgPayload, fallback] = teeResponse(await fetch(
         fallbackUrl,
         {

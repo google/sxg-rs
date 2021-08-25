@@ -26,7 +26,7 @@ mod sxg;
 mod utils;
 
 use config::Config;
-use headers::Headers;
+use headers::{AcceptFilter, Headers};
 use http::{HeaderFields, HttpResponse};
 use serde::Serialize;
 
@@ -173,9 +173,9 @@ impl SxgWorker {
             }))
         }
     }
-    pub fn transform_request_headers(&self, fields: HeaderFields) -> Result<HeaderFields, String> {
+    pub fn transform_request_headers(&self, fields: HeaderFields, accept_filter: AcceptFilter) -> Result<HeaderFields, String> {
         let headers = Headers::new(fields, &self.config.strip_request_headers);
-        headers.forward_to_origin_server(&self.config.forward_request_headers)
+        headers.forward_to_origin_server(accept_filter, &self.config.forward_request_headers)
     }
     pub fn validate_payload_headers(&self, fields: HeaderFields) -> Result<(), String> {
         let headers = Headers::new(fields, &self.config.strip_response_headers);
