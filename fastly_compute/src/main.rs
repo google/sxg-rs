@@ -18,7 +18,7 @@ use fastly::{Error, Request, Response, http::{StatusCode, Url}, mime::Mime};
 use futures::executor::block_on;
 use once_cell::sync::Lazy;
 use sxg_rs::{
-    headers::Headers,
+    headers::{AcceptFilter, Headers},
     PresetContent,
 };
 use fetcher::FastlyFetcher;
@@ -121,13 +121,17 @@ fn handle_request(req: Request) -> Result<Response, String> {
         }) => {
             fallback_url = Url::parse(&url).map_err(|e| e.to_string())?;
             sxg_payload = fetcher::from_http_response(payload);
+            let req_headers = get_req_header_fields(&req)?;
+            req_headers.forward_to_origin_server(AcceptFilter::AcceptsSxg,
+                                                 &WORKER.config.forward_request_headers)?;
         },
         None => {
             fallback_url = get_fallback_url(&req);
             let req_headers = get_req_header_fields(&req)?;
             sxg_payload = fetch_from_html_server(
                 &fallback_url,
-                req_headers.forward_to_origin_server(&WORKER.config.forward_request_headers)?,
+                req_headers.forward_to_origin_server(AcceptFilter::PrefersSxg,
+                                                     &WORKER.config.forward_request_headers)?,
             )?;
         }
     };

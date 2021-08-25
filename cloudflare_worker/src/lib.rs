@@ -17,6 +17,7 @@ mod utils;
 use js_sys::{Function, Uint8Array};
 use once_cell::sync::OnceCell;
 use sxg_rs::SxgWorker;
+use sxg_rs::headers::AcceptFilter;
 use sxg_rs::http::HttpResponse;
 use wasm_bindgen::prelude::*;
 
@@ -64,9 +65,10 @@ pub fn should_respond_debug_info() -> Result<bool, JsValue> {
 }
 
 #[wasm_bindgen(js_name=createRequestHeaders)]
-pub fn create_request_headers(requestor_headers: JsValue) -> Result<JsValue, JsValue> {
+pub fn create_request_headers(accept_filter: JsValue, requestor_headers: JsValue) -> Result<JsValue, JsValue> {
     let fields = requestor_headers.into_serde().unwrap();
-    let result = get_worker()?.transform_request_headers(fields);
+    let accept_filter: AcceptFilter = accept_filter.into_serde().unwrap();
+    let result = get_worker()?.transform_request_headers(fields, accept_filter);
     match result {
         Ok(fields) => {
             Ok(JsValue::from_serde(&fields).unwrap())
@@ -105,4 +107,3 @@ pub async fn create_signed_exchange(
     }).await.map_err(|err| JsValue::from_str(&err))?;
     Ok(JsValue::from_serde(&sxg).unwrap())
 }
-
