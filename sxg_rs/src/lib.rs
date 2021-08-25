@@ -92,7 +92,7 @@ impl SxgWorker {
         let validity_url = self.create_url(&self.config.validity_url_dirname, "validity");
         let signature = signature::Signature::new(signature::SignatureParams {
             cert_url: &cert_url,
-            cert_sha256: self.config.cert_sha256.clone(),
+            cert_sha256: &self.config.cert_sha256,
             date: now,
             expires: now + payload_headers.signature_duration()?,
             headers: &signed_headers,
