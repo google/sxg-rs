@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use once_cell::sync::Lazy;
 use crate::http::HeaderFields;
 use serde::Deserialize;
@@ -40,7 +40,7 @@ const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB2
 const SEVEN_DAYS: Duration = Duration::from_secs(60 * 60 * 24 * 7);
 
 impl Headers {
-    pub fn new(data: HeaderFields, strip_headers: &HashSet<String>) -> Self {
+    pub fn new(data: HeaderFields, strip_headers: &BTreeSet<String>) -> Self {
         let mut headers = Headers(HashMap::new());
         for (mut k, v) in data {
             k.make_ascii_lowercase();
@@ -50,7 +50,7 @@ impl Headers {
         }
         headers
     }
-    pub fn forward_to_origin_server(self, accept_filter: AcceptFilter, forwarded_header_names: &HashSet<String>) -> Result<HeaderFields, String> {
+    pub fn forward_to_origin_server(self, accept_filter: AcceptFilter, forwarded_header_names: &BTreeSet<String>) -> Result<HeaderFields, String> {
         if self.0.contains_key("authorization") {
             // We should not sign personalized content, but we cannot anonymize this request per
             // https://datatracker.ietf.org/doc/html/rfc7235#section-4.2:
@@ -269,7 +269,6 @@ fn validate_accept_header(accept: &str, accept_filter: AcceptFilter) -> Result<(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
     use std::iter::FromIterator;
     use super::*;
 
@@ -277,7 +276,7 @@ mod tests {
         pairs.into_iter().map(|(k,v)| (k.to_string(), v.to_string())).collect()
     }
     fn headers(pairs: Vec<(&str, &str)>) -> Headers {
-        Headers::new(header_fields(pairs), &HashSet::new())
+        Headers::new(header_fields(pairs), &BTreeSet::new())
     }
 
     // === new ===
@@ -290,12 +289,12 @@ mod tests {
     // === forward_to_origin_server ===
     #[test]
     fn basic_request_headers() {
-      assert_eq!(headers(vec![("accept", "application/signed-exchange;v=b3")]).forward_to_origin_server(AcceptFilter::PrefersSxg, &HashSet::new()).unwrap().into_iter().collect::<HashMap<String, String>>(),
+      assert_eq!(headers(vec![("accept", "application/signed-exchange;v=b3")]).forward_to_origin_server(AcceptFilter::PrefersSxg, &BTreeSet::new()).unwrap().into_iter().collect::<HashMap<String, String>>(),
                  header_fields(vec![("user-agent", USER_AGENT), ("via", "sxgrs")]));
     }
     #[test]
     fn authenticated_request_headers() {
-      assert_eq!(headers(vec![("accept", "application/signed-exchange;v=b3"), ("authorization", "x")]).forward_to_origin_server(AcceptFilter::PrefersSxg, &HashSet::new()).unwrap_err(),
+      assert_eq!(headers(vec![("accept", "application/signed-exchange;v=b3"), ("authorization", "x")]).forward_to_origin_server(AcceptFilter::PrefersSxg, &BTreeSet::new()).unwrap_err(),
                  "The request contains an Authorization header.".to_string());
     }
 

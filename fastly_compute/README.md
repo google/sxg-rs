@@ -49,7 +49,6 @@ limitations under the License.
    <!--TODO: Use CLI to add domains and backends-->
    1. Add a domain to the service.
       This domain will be the final entrypoint of the SXG service.
-      Put it to `config.yaml` as `worker_host` (see `config.example.yaml`).
 
    1. Add your original server, which serves your HTML website,
       as a backend to the service.

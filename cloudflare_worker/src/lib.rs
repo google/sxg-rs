@@ -89,6 +89,7 @@ pub fn validate_payload_headers(fields: JsValue) -> Result<(), JsValue> {
 #[wasm_bindgen(js_name=createSignedExchange)]
 pub async fn create_signed_exchange(
     fallback_url: String,
+    cert_origin: String,
     status_code: u16,
     payload_headers: JsValue,
     payload_body: Vec<u8>,
@@ -99,6 +100,7 @@ pub async fn create_signed_exchange(
     let signer = Box::new(::sxg_rs::signature::js_signer::JsSigner::new(signer));
     let sxg: HttpResponse = get_worker()?.create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
         fallback_url: &fallback_url,
+        cert_origin: &cert_origin,
         now: std::time::UNIX_EPOCH + std::time::Duration::from_secs(now_in_seconds as u64),
         payload_body: &payload_body,
         payload_headers,

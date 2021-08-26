@@ -149,6 +149,32 @@ async function getOcsp() {
   }
 }
 
+// Returns the proper fallbackUrl and certOrigin. fallbackUrl should be
+// https://my_domain.com in all environments, and certOrigin should be the
+// origin of the worker (localhost, foo.bar.workers.dev, or my_domain.com).
+//
+// The request.url for each environment is as follows:
+// wrangler dev:                           https://my_domain.com/
+// wrangler publish + workers_dev = true:  https://sxg.user.workers.dev/
+// wrangler publish + workers_dev = false: https://my_domain.com/
+//
+// So config-generator sets HTML_HOST = my_domain.com when workers_dev is true.
+//
+// For wrangler dev, add CERT_ORIGIN = 'http://localhost:8787' to [vars] in
+// wrangler.toml. Afterwards, set it to '' for production.
+//
+// For preset content, replaceHost is false because the fallback is on the
+// worker origin, not the HTML_HOST.
+function fallbackUrlAndCertOrigin(url: string, replaceHost: boolean): [string, string] {
+  let fallbackUrl = new URL(url);
+  let certOrigin = typeof CERT_ORIGIN !== 'undefined' && CERT_ORIGIN ?
+      CERT_ORIGIN : fallbackUrl.origin;
+  if (replaceHost && typeof HTML_HOST !== 'undefined' && HTML_HOST) {
+      fallbackUrl.host = HTML_HOST;
+  }
+  return [fallbackUrl.toString(), certOrigin];
+}
+
 async function handleRequest(request: Request) {
   const {
     createRequestHeaders,
@@ -156,27 +182,28 @@ async function handleRequest(request: Request) {
     servePresetContent,
     shouldRespondDebugInfo,
   } = await wasmFunctionsPromise;
-  let fallbackUrl: string;
   let fallback: Response | undefined;
   try {
     const ocsp = await getOcsp();
-    let sxgPayload: Response;
     const presetContent = servePresetContent(request.url, ocsp);
+    let fallbackUrl: string;
+    let certOrigin: string;
+    let sxgPayload: Response;
     if (presetContent) {
       if (presetContent.kind === 'direct') {
         return responseFromWasm(presetContent);
       } else {
-        fallbackUrl = presetContent.url;
+        [fallbackUrl, certOrigin] = fallbackUrlAndCertOrigin(presetContent.url, false);
         fallback = responseFromWasm(presetContent.fallback);
         sxgPayload = responseFromWasm(presetContent.payload);
-        // Although we are not sending any request to HTML_HOST,
+        // Although we are not sending any request to the backend,
         // we still need to check the validity of the request header.
         // For example, if the header does not contain
         // `Accept: signed-exchange;v=b3`, we will throw an error.
         createRequestHeaders('AcceptsSxg', Array.from(request.headers));
       }
     } else {
-      fallbackUrl = request.url;
+      [fallbackUrl, certOrigin] = fallbackUrlAndCertOrigin(request.url, true);
       const requestHeaders = createRequestHeaders('PrefersSxg', Array.from(request.headers));
       [sxgPayload, fallback] = teeResponse(await fetch(
         fallbackUrl,
@@ -185,7 +212,7 @@ async function handleRequest(request: Request) {
         }
       ));
     }
-    return await generateSxgResponse(fallbackUrl, sxgPayload);
+    return await generateSxgResponse(fallbackUrl, certOrigin, sxgPayload);
   } catch (e) {
     if (shouldRespondDebugInfo()) {
       let message;
@@ -224,7 +251,7 @@ async function handleRequest(request: Request) {
   }
 }
 
-async function generateSxgResponse(fallbackUrl: string, payload: Response) {
+async function generateSxgResponse(fallbackUrl: string, certOrigin: string, payload: Response) {
   const {
     createSignedExchange,
     validatePayloadHeaders,
@@ -242,6 +269,7 @@ async function generateSxgResponse(fallbackUrl: string, payload: Response) {
   }
   const sxg = await createSignedExchange(
     fallbackUrl,
+    certOrigin,
     payloadStatusCode,
     payloadHeaders,
     new Uint8Array(payloadBody),

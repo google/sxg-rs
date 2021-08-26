@@ -16,26 +16,30 @@ name = 'sxg'
 type = 'rust'
 account_id = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
 zone_id = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
-routes = ['my_domain.com/*']
+routes = [
+  'my_domain.com/*',
+  # If customizing the above pattern, leave these two enabled:
+  'my_domain.com/.well-known/sxg-certs/*',
+  'my_domain.com/.well-known/sxg-validity/*',
+]
 
 [[kv_namespaces]]
 binding = 'OCSP'
 id = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
 
 [vars]
+HTML_HOST = ''
 SXG_CONFIG = '''
-cert_url_basename: cert
+cert_url_dirname: ".well-known/sxg-certs"
 forward_request_headers:
   - user-agent
   - cf-ipcountry
 html_host: my_domain.com
-private_key_base64: ""
+reserved_path: ".sxg"
+respond_debug_info: false
 strip_request_headers: []
 strip_response_headers:
   - set-cookie
   - strict-transport-security
-reserved_path: ".sxg"
-respond_debug_info: false
-validity_url_basename: validity
-worker_host: sxg.my_worker_subdomain.workers.dev
+validity_url_dirname: ".well-known/sxg-validity"
 '''

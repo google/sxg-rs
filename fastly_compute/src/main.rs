@@ -45,7 +45,11 @@ fn text_response(body: &str) -> Response {
 
 fn get_fallback_url(req: &Request) -> Url {
     let mut url = req.get_url().clone();
-    url.set_host(Some(&WORKER.config.html_host)).unwrap();
+    if let Some(html_host) = &WORKER.config.html_host {
+        if !html_host.is_empty() {
+            url.set_host(Some(&html_host)).unwrap();
+        }
+    }
     url
 }
 
@@ -86,11 +90,13 @@ fn fetch_from_html_server(url: &Url, req_headers: Vec<(String, String)>) -> Resu
 }
 
 fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Response, String> {
-    let private_key_der = base64::decode(&WORKER.config.private_key_base64).unwrap();
+    let private_key_der = base64::decode(
+        &WORKER.config.private_key_base64.as_ref().ok_or("private_key_base64 is not set")?).unwrap();
     let signer = Box::new(::sxg_rs::signature::rust_signer::RustSigner::new(&private_key_der));
     let payload_headers = get_rsp_header_fields(&payload)?;
     payload_headers.validate_as_sxg_payload()?;
     let payload_body = payload.into_body_bytes();
+    let cert_origin = fallback_url.origin().ascii_serialization();
     let sxg = WORKER.create_signed_exchange(sxg_rs::CreateSignedExchangeParams {
         now: std::time::SystemTime::now(),
         payload_body: &payload_body,
@@ -98,6 +104,7 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
         signer,
         status_code: 200,
         fallback_url: fallback_url.as_str(),
+        cert_origin: &cert_origin,
     });
     let sxg = block_on(sxg)?;
     Ok(fetcher::from_http_response(sxg))
@@ -152,7 +159,8 @@ mod tests {
     #[test]
     fn it_works() {
         &*WORKER;
-        let private_key_der = base64::decode(&WORKER.config.private_key_base64).unwrap();
+        let private_key_der = base64::decode(
+            &WORKER.config.private_key_base64.as_ref().ok_or("private_key_base64 is not set").unwrap()).unwrap();
         assert_eq!(private_key_der.len(), 32);
     }
 }

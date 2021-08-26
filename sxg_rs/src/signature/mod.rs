@@ -27,7 +27,7 @@ pub trait Signer {
 
 pub struct SignatureParams<'a> {
     pub cert_url: &'a str,
-    pub cert_sha256: Vec<u8>,
+    pub cert_sha256: &'a [u8],
     pub date: std::time::SystemTime,
     pub expires: std::time::SystemTime,
     pub headers: &'a [u8],
@@ -40,7 +40,7 @@ pub struct SignatureParams<'a> {
 // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-the-signature-header
 pub struct Signature<'a> {
     cert_url: &'a str,
-    cert_sha256: Vec<u8>,
+    cert_sha256: &'a [u8],
     date: u64,
     expires: u64,
     id: &'a str,
