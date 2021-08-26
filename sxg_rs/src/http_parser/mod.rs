@@ -15,11 +15,12 @@
 mod accept;
 mod base;
 mod cache_control;
-mod media_type;
+pub mod media_type;
 
 use nom::{
     IResult,
     character::complete::char as char1,
+    combinator::complete,
     eof,
     separated_list0,
     separated_pair,
@@ -47,6 +48,12 @@ where
 
 pub fn parse_accept_header(input: &str) -> Result<Vec<accept::Accept>, String> {
     parse_vec(input, accept::accept)
+}
+
+pub fn parse_content_type_header(input: &str) -> Result<media_type::MediaType, String> {
+    complete(media_type::media_type)(input)
+        .map(|(_, output)| output)
+        .map_err(format_nom_err)
 }
 
 // Returns the freshness lifetime for a shared cache.
