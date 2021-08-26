@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use console::Term;
 use dialoguer::{Input, Select};
 use serde::{Deserialize, Serialize};
 use wrangler::settings::global_user::GlobalUser;
@@ -62,7 +63,7 @@ fn goto_repository_root() -> Result<(), std::io::Error> {
 // Get the Cloudflare user.
 // If there is no active user, the terminal will display a login link.
 // This function will wait for the login process before returning.
-fn get_global_uesr() -> GlobalUser {
+fn get_global_user() -> GlobalUser {
     println!("Checking Cloudflare login state");
     let mut user = GlobalUser::new();
     if user.is_err() {
@@ -152,7 +153,9 @@ fn main() -> Result<(), std::io::Error> {
     wrangler_config.vars.issuer_pem = issuer_pem;
     // TODO: Remove interactive part, and allow user to create a file for these values.
     if !exists {
-        let user = get_global_uesr();
+        // Show cursor again, if user hits Ctrl-C during the Select dialog.
+        ctrlc::set_handler(|| Term::stdout().show_cursor().unwrap()).ok();
+        let user = get_global_user();
         wrangler_config.account_id = Input::new()
             .with_prompt("What's your Cloudflare account ID?")
             .interact_text()
