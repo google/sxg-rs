@@ -46,7 +46,9 @@ fn text_response(body: &str) -> Response {
 fn get_fallback_url(req: &Request) -> Url {
     let mut url = req.get_url().clone();
     if let Some(html_host) = &WORKER.config.html_host {
-        url.set_host(Some(&html_host)).unwrap();
+        if !html_host.is_empty() {
+            url.set_host(Some(&html_host)).unwrap();
+        }
     }
     url
 }
