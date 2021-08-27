@@ -12,6 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::http_parser::{
+    parse_accept_header,
+    parse_cache_control_header,
+    parse_content_type_header,
+    media_type::MediaType,
+};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use once_cell::sync::Lazy;
 use crate::http::HeaderFields;
@@ -88,7 +94,7 @@ impl Headers {
     }
     pub fn validate_as_sxg_payload(&self) -> Result<(), String> {
         for (k, v) in self.0.iter() {
-            if STATEFUL_HEADERS.contains(k.as_str()) {
+            if DONT_SIGN_RESPONSE_HEADERS.contains(k.as_str()) {
                 return Err(format!(r#"A stateful header "{}" is found."#, k));
             }
             if CACHE_CONTROL_HEADERS.contains(k.as_str()) {
@@ -122,8 +128,15 @@ impl Headers {
         use crate::cbor::DataItem;
         let connection = self.connection_headers();
         let mut fields: Vec<(&str, &str)> = vec![];
+        let html = self.0.get("content-type").map_or(false, |t|
+            matches!(parse_content_type_header(t),
+                     Ok(MediaType {primary_type, sub_type, ..})
+                         if primary_type.eq_ignore_ascii_case("text") && sub_type.eq_ignore_ascii_case("html")));
         for (k, v) in self.0.iter() {
-            if UNCACHED_HEADERS.contains(k.as_str()) || STATEFUL_HEADERS.contains(k.as_str()) || connection.contains(k) {
+            if STRIP_RESPONSE_HEADERS.contains(k.as_str()) || DONT_SIGN_RESPONSE_HEADERS.contains(k.as_str()) || connection.contains(k) {
+                continue;
+            }
+            if !html && (STRIP_SUBRESOURCE_RESPONSE_HEADERS.contains(k.as_str()) || crate::id_headers::ID_HEADERS.contains(k.as_str())) {
                 continue;
             }
             fields.push((k, v));
@@ -156,7 +169,7 @@ impl Headers {
     pub fn signature_duration(&self) -> Result<Duration, String> {
         // Default to 7 days unless a cache-control directive lowers it.
         if let Some(value) = self.0.get("cache-control") {
-            if let Ok(duration) = crate::http_parser::parse_cache_control_header(value) {
+            if let Ok(duration) = parse_cache_control_header(value) {
                 // https://github.com/google/webpackager/blob/main/docs/cache_requirements.md
                 const MIN_DURATION: Duration = Duration::from_secs(120);
                 return if duration >= MIN_DURATION {
@@ -171,7 +184,8 @@ impl Headers {
     }
 }
 
-static UNCACHED_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+// These headers are always stripped before signing.
+static STRIP_RESPONSE_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     vec![
         // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-uncached-header-fields
         "connection",
@@ -190,10 +204,37 @@ static UNCACHED_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         // https://github.com/google/webpackager/blob/master/docs/cache_requirements.md
         "variant-key-04",
         "variants-04",
+
     ].into_iter().collect()
 });
 
-static STATEFUL_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+// These headers don't affect the semantics of the response inside an
+// SXG, but they vary frequently. This prevents the SXG from being used
+// as a subresource due to the header-integrity requirement:
+// https://github.com/WICG/webpackage/blob/main/explainers/signed-exchange-subresource-substitution.md.
+static STRIP_SUBRESOURCE_RESPONSE_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    vec![
+        // These headers are standard, but signed headers don't affect the
+        // browser caching behavior, because the SXG is only stored in the
+        // referring document's prefetch cache, per
+        // https://wicg.github.io/webpackage/loading.html#document-prefetched-signed-exchanges-for-navigation.
+        // The Date header could theoretically have an impact on SXG loading,
+        // according to
+        // https://wicg.github.io/webpackage/loading.html#mp-http-network-or-cache-fetch,
+        // but I don't see evidence of that in
+        // https://source.chromium.org/chromium/chromium/src/+/main:content/browser/web_package/.
+        "age",
+        "date",
+        "expires",
+        "last-modified",
+        "server-timing",
+        "via",
+        "warning",
+    ].into_iter().collect()
+});
+
+// These headers prevent signing, unless stripped by the strip_response_headers param.
+static DONT_SIGN_RESPONSE_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     vec![
         // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#stateful-headers
         "authentication-control",
@@ -229,7 +270,7 @@ static CACHE_CONTROL_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 // and either accept_filter != PrefersSxg or its `q` value is 1.
 fn validate_accept_header(accept: &str, accept_filter: AcceptFilter) -> Result<(), String> {
     let accept = accept.trim();
-    let accept = crate::http_parser::parse_accept_header(accept)?;
+    let accept = parse_accept_header(accept)?;
     if accept.len() == 0 {
         return Err(format!("Accept header is empty"));
     }
@@ -382,5 +423,14 @@ mod tests {
         assert_eq!(headers(vec![("cache-control", "max-age=fish")]).signature_duration().unwrap(), SEVEN_DAYS);
         assert_eq!(headers(vec![("cache-control", "doesn't even parse")]).signature_duration().unwrap(), SEVEN_DAYS);
         assert_eq!(headers(vec![("cache-control", "max=, max-age=3600")]).signature_duration().unwrap(), SEVEN_DAYS);
+    }
+
+    // === get_signed_headers_bytes ===
+    #[test]
+    fn strip_id_headers() {
+        assert_eq!(headers(vec![("content-type", "image/jpeg"), ("x-request-id", "abcdef123")]).get_signed_headers_bytes(200, &[]),
+                   b"\xA4FdigestMmi-sha256-03=G:statusC200Lcontent-typeJimage/jpegPcontent-encodingLmi-sha256-03");
+        assert_eq!(headers(vec![("content-type", "text/html;charset=utf-8"), ("x-request-id", "abcdef123")]).get_signed_headers_bytes(200, &[]),
+                   b"\xA5FdigestMmi-sha256-03=G:statusC200Lcontent-typeWtext/html;charset=utf-8Lx-request-idIabcdef123Pcontent-encodingLmi-sha256-03");
     }
 }
