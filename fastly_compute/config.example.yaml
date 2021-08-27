@@ -18,7 +18,7 @@ forward_request_headers:
   - "cf-ipcountry"
   - "user-agent"
 html_host: my_domain.com
-private_key_base64: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+private_key_base64: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXU="
 reserved_path: ".sxg"
 respond_debug_info: true
 strip_request_headers: []
