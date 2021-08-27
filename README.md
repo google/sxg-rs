@@ -59,6 +59,11 @@ to ensure all signed pages are compatible with such reuse. To opt some pages
 out of signing, set the `Cache-Control` header to include `private` or
 `no-store` in the upstream server.
 
+The Google SXG Cache tries to [update SXGs
+often](https://developers.google.com/search/docs/advanced/experience/signed-exchange#:~:text=Regardless%20of%20the,the%20SXG%20response.),
+but may reuse them for up to 7 days. To ensure they expire sooner, set
+`s-maxage` or `max-age` on the `Cache-Control` header on the upstream server.
+
 ## Preload subresources
 
 LCP can be further improved by instructing Google Search to prefetch
