@@ -42,10 +42,10 @@ pub fn get_last_error_message() -> JsValue {
     utils::get_last_error_message()
 }
 
-#[wasm_bindgen(js_name=fetchOcspFromDigicert)]
-pub async fn fetch_ocsp_from_digicert(fetcher: Function) -> Result<Uint8Array, JsValue> {
+#[wasm_bindgen(js_name=fetchOcspFromCa)]
+pub async fn fetch_ocsp_from_ca(fetcher: Function) -> Result<Uint8Array, JsValue> {
     let fetcher = Box::new(sxg_rs::fetcher::js_fetcher::JsFetcher::new(fetcher));
-    let request = get_worker()?.fetch_ocsp_from_digicert(fetcher).await;
+    let request = get_worker()?.fetch_ocsp_from_ca(fetcher).await;
     Ok(Uint8Array::from(request.as_slice()))
 }
 

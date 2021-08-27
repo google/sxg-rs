@@ -23,16 +23,19 @@ use der_parser::{
         BerObject,
         BerObjectContent,
     },
+    oid,
     oid::Oid,
+};
+use x509_parser::{
+    certificate::X509Certificate,
+    extensions::{GeneralName, ParsedExtension},
 };
 
 use crate::fetcher::{Fetcher};
 use crate::http::{HttpRequest, Method};
 use crate::utils::get_sha;
 
-fn create_ocsp_request(cert_der: &[u8], issuer_der: &[u8]) -> Vec<u8> {
-    let cert = x509_parser::parse_x509_certificate(&cert_der).unwrap().1;
-    let issuer = x509_parser::parse_x509_certificate(&issuer_der).unwrap().1;
+fn create_ocsp_request(cert: &X509Certificate, issuer: &X509Certificate) -> Vec<u8> {
     let issuer_name = issuer.tbs_certificate.subject.as_raw();
     let issuer_key = issuer.tbs_certificate.subject_pki.subject_public_key.data;
     let issuer_key_hash = get_sha(issuer_key);
@@ -91,13 +94,36 @@ fn signature_algorithm() -> BerObject<'static> {
     ])
 }
 
-pub async fn fetch_from_digicert<'a>(cert_der: &'a [u8], issuer_der: &'a [u8], fetcher: Box<dyn Fetcher>) -> Vec<u8> {
-    let req = HttpRequest {
-        body: create_ocsp_request(cert_der, issuer_der),
-        headers: vec![(String::from("content-type"), String::from("application/ocsp-request"))],
-        method: Method::Post,
-        url: String::from("http://ocsp.digicert.com"),
-    };
-    let rsp = fetcher.fetch(req).await.unwrap();
-    rsp.body
+// https://datatracker.ietf.org/doc/html/rfc4325#section-2
+// https://datatracker.ietf.org/doc/html/rfc3280#section-4.2.2.1
+const AIA: Oid<'static> = oid!(1.3.6.1.5.5.7.1.1);
+// https://www.iana.org/assignments/smi-numbers/smi-numbers.xhtml#smi-numbers-1.3.6.1.5.5.7.48.1
+const AIA_OCSP: Oid<'static> = oid!(1.3.6.1.5.5.7.48.1);
+
+pub async fn fetch_from_ca<'a>(cert_der: &'a [u8], issuer_der: &'a [u8], fetcher: Box<dyn Fetcher>) -> Vec<u8> {
+    let cert = x509_parser::parse_x509_certificate(&cert_der).unwrap().1;
+    let issuer = x509_parser::parse_x509_certificate(&issuer_der).unwrap().1;
+    let aia = cert.extensions().get(&AIA);
+    if aia == None {
+        // If the certificate doesn't include an AIA section, it is probably a
+        // self-signed certificate. Return a stub OCSP response.
+        return b"ocsp".to_vec();
+    }
+    match aia.unwrap().parsed_extension() {
+        ParsedExtension::AuthorityInfoAccess(aia) => {
+            let url = match aia.accessdescs.get(&AIA_OCSP).unwrap()[..] {
+                [GeneralName::URI(url), ..] => url,
+                _ => panic!("AIA OCSP responder is not of type URI"),
+            };
+            let req = HttpRequest {
+                body: create_ocsp_request(&cert, &issuer),
+                headers: vec![(String::from("content-type"), String::from("application/ocsp-request"))],
+                method: Method::Post,
+                url: url.into(),
+            };
+            let rsp = fetcher.fetch(req).await.unwrap();
+            rsp.body
+        },
+        _ => panic!("failed to parse AIA extension"),
+    }
 }

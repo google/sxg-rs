@@ -91,3 +91,14 @@ Authority](https://github.com/google/webpackager/wiki/Certificate-Authorities).
 1. From the files issued by DigiCert, rename `DigiCertCA.crt` as `issuer.pem`,
    and rename `your_domain.crt` as `cert.pem`. Place them in this `credentials/`
    directory.
+
+#### Renew certificate
+
+Production certificates need to be renewed every 90 days.
+
+1. Follow the steps in the [DigiCert
+   doc](https://docs.digicert.com/manage-certificates/renew-ssltls-certificate/)
+   to renew the certificate.
+1. From the files issued by DigiCert, rename `DigiCertCA.crt` as `issuer.pem`,
+   and rename `your_domain.crt` as `cert.pem`. Place them in this `credentials/`
+   directory.

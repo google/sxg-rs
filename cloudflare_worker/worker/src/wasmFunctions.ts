@@ -52,7 +52,7 @@ interface WasmFunctions {
     nowInSeconds: number,
     signer: (input: Uint8Array) => Promise<Uint8Array>,
   ): WasmResponse,
-  fetchOcspFromDigicert(fetcher: (request: WasmRequest) => Promise<WasmResponse>): Uint8Array,
+  fetchOcspFromCa(fetcher: (request: WasmRequest) => Promise<WasmResponse>): Uint8Array,
   getLastErrorMessage(): string;
   servePresetContent(url: string, ocsp: Uint8Array): PresetContent | undefined;
   shouldRespondDebugInfo(): boolean;
