@@ -53,14 +53,6 @@ limitations under the License.
 1. To check whether the worker generates a valid SXG,
    use Chrome browser to open `https://${WORKER_HOST}/.sxg/test.html`.
 
-1. The Google SXG Cache tries to [update SXGs
-   often](https://developers.google.com/search/docs/advanced/experience/signed-exchange#:~:text=Regardless%20of%20the,the%20SXG%20response.),
-   but may reuse them for up to 7 days. To ensure they expire sooner, use
-   [Cloudflare Page
-   Rules](https://support.cloudflare.com/hc/en-us/articles/218411427-Understanding-and-Configuring-Cloudflare-Page-Rules-Page-Rules-Tutorial-)
-   to set a custom Browser Cache TTL. This creates an unsigned outer
-   `Cache-Control` header on top of the SXG.
-
 1. Read on for [next steps](../README.md).
 
 ## Maintenance

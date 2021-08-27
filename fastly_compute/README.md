@@ -66,13 +66,6 @@ limitations under the License.
 1. To check whether the worker generates a valid SXG,
    use Chrome browser to open `https://${WORKER_HOST}/.sxg/test.html`.
 
-1. The Google SXG Cache tries to [update SXGs
-   often](https://developers.google.com/search/docs/advanced/experience/signed-exchange#:~:text=Regardless%20of%20the,the%20SXG%20response.),
-   but may reuse them for up to 7 days. To ensure they expire sooner, [control
-   caching in Fastly](https://docs.fastly.com/en/guides/controlling-caching)
-   through custom VCL or a fallback TTL. This creates an unsigned outer
-   `Cache-Control` header on top of the SXG.
-
 1. Read on for [next steps](../README.md).
 
 ## Maintenance
