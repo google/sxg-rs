@@ -73,5 +73,6 @@ $ go install github.com/WICG/webpackage/go/signedexchange/cmd/dump-signedexchang
 $ dump-signedexchange -uri $URL -headerIntegrity
 ```
 
-To ensure the `header-integrity` remains stable, eliminate frequently changing
-headers from the upstream response such as `Date`.
+Ensure that the `header-integrity` remains constant over multiple fetches. If
+it doesn't, try eliminating frequently changing headers from the upstream
+response, by adding them to the `strip_response_headers` config param.
