@@ -113,7 +113,7 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
 fn handle_request(req: Request) -> Result<Response, String> {
     let fetcher = Box::new(FastlyFetcher::new("OCSP server"));
     // TODO: store OCSP in database
-    let ocsp_der = WORKER.fetch_ocsp_from_digicert(fetcher);
+    let ocsp_der = WORKER.fetch_ocsp_from_ca(fetcher);
     let ocsp_der = block_on(ocsp_der);
     let fallback_url: Url;
     let sxg_payload;

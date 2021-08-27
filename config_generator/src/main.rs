@@ -93,6 +93,10 @@ fn get_ocsp_kv_id(user: &GlobalUser, account_id: &str) -> String {
 fn read_certificate_pem_file(path: &str) -> Result<String, String> {
     let text =
         std::fs::read_to_string(path).map_err(|_| format!(r#"Failed to read file "{}""#, path))?;
+    // Translate Windows-style line endings to Unix-style so the '\r' is
+    // not rendered in the toml. This is purely cosmetic; '\r' is deserialized
+    // faithfully from toml and pem::parse_many is able to parse either style.
+    let text = text.replace("\r\n", "\n");
     let certs = pem::parse_many(&text);
     if certs.len() == 1 && certs[0].tag == "CERTIFICATE" {
         Ok(text)

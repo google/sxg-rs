@@ -37,7 +37,9 @@ wasm-bindgen-futures = "0.4.23"
 wasm-bindgen-test = "0.2"
 
 [profile.release]
-opt-level = 3
+opt-level = 0
+# opt-level = "z"
+# lto = true
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = true

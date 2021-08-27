@@ -88,17 +88,17 @@ function teeResponse(response: Response) {
   ] as const;
 }
 
-// Fetches latest OCSP from digicert, and writes it into key-value store.
-// The outgoing traffic to digicert is throttled; when this function is called
+// Fetches latest OCSP from the CA, and writes it into key-value store.
+// The outgoing traffic to the CA is throttled; when this function is called
 // concurrently, the first fetched OCSP will be reused to be returned to all
 // callers.
-const fetchOcspFromDigicert = (() => {
+const fetchOcspFromCa = (() => {
   // The un-throttled implementation to fetch OCSP
-  async function fetchOcspFromDigicertImpl() {
+  async function fetchOcspFromCaImpl() {
     const {
-      fetchOcspFromDigicert: wasmFetchOcspFromDigicert,
+      fetchOcspFromCa: wasmFetchOcspFromCa,
     } = await wasmFunctionsPromise;
-    const ocspDer = await wasmFetchOcspFromDigicert(fetcher);
+    const ocspDer = await wasmFetchOcspFromCa(fetcher);
     const ocspBase64 = arrayBufferToBase64(ocspDer);
     const now = Date.now() / 1000;
     OCSP.put(
@@ -119,7 +119,7 @@ const fetchOcspFromDigicert = (() => {
     if (singletonTask !== null) {
       return await singletonTask;
     } else {
-      singletonTask = fetchOcspFromDigicertImpl();
+      singletonTask = fetchOcspFromCaImpl();
       const result = await singletonTask;
       singletonTask = null;
       return result;
@@ -137,15 +137,15 @@ async function getOcsp() {
     } = JSON.parse(ocspInCache);
     const now = Date.now() / 1000;
     if (now >= expirationTime) {
-      return await fetchOcspFromDigicert();
+      return await fetchOcspFromCa();
     }
     if (now >= nextFetchTime) {
       // Spawns a non-blocking task to update latest OCSP in store
-      fetchOcspFromDigicert();
+      fetchOcspFromCa();
     }
     return ocspBase64;
   } else {
-    return await fetchOcspFromDigicert();
+    return await fetchOcspFromCa();
   }
 }
 

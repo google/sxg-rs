@@ -119,8 +119,8 @@ impl SxgWorker {
         let validity = cbor::DataItem::Map(vec![]);
         validity.serialize()
     }
-    pub async fn fetch_ocsp_from_digicert(&self, fetcher: Box<dyn fetcher::Fetcher>) -> Vec<u8> {
-        ocsp::fetch_from_digicert(&self.config.cert_der, &self.config.issuer_der, fetcher).await
+    pub async fn fetch_ocsp_from_ca(&self, fetcher: Box<dyn fetcher::Fetcher>) -> Vec<u8> {
+        ocsp::fetch_from_ca(&self.config.cert_der, &self.config.issuer_der, fetcher).await
     }
     pub fn serve_preset_content(&self, req_url: &str, ocsp_der: &[u8]) -> Option<PresetContent> {
         let req_url = url::Url::parse(req_url).ok()?;
