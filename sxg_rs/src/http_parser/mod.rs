@@ -16,6 +16,7 @@ mod accept;
 mod base;
 mod cache_control;
 pub mod media_type;
+pub mod link;
 
 use nom::{
     IResult,
@@ -50,14 +51,18 @@ pub fn parse_accept_header(input: &str) -> Result<Vec<accept::Accept>, String> {
     parse_vec(input, accept::accept)
 }
 
+// Returns the freshness lifetime for a shared cache.
+pub fn parse_cache_control_header(input: &str) -> Result<Duration, String> {
+    let directives = parse_vec(input, cache_control::directive)?;
+    cache_control::freshness_lifetime(directives).ok_or("Freshness lifetime is implicit".into())
+}
+
 pub fn parse_content_type_header(input: &str) -> Result<media_type::MediaType, String> {
     complete(media_type::media_type)(input)
         .map(|(_, output)| output)
         .map_err(format_nom_err)
 }
 
-// Returns the freshness lifetime for a shared cache.
-pub fn parse_cache_control_header(input: &str) -> Result<Duration, String> {
-    let directives = parse_vec(input, cache_control::directive)?;
-    cache_control::freshness_lifetime(directives).ok_or("Freshness lifetime is implicit".into())
+pub fn parse_link_header(input: &str) -> Result<Vec<link::Link>, String> {
+    parse_vec(input, link::link)
 }

@@ -89,7 +89,7 @@ impl SxgWorker {
         // 16384 is the max mice record size allowed by SXG spec.
         // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#section-3.5-7.9.1
         let (mice_digest, payload_body) = crate::mice::calculate(payload_body, 16384);
-        let signed_headers = payload_headers.get_signed_headers_bytes(status_code, &mice_digest);
+        let signed_headers = payload_headers.get_signed_headers_bytes(&fallback_base, status_code, &mice_digest);
         let cert_url = cert_base.join(&format!("{}{}", &self.config.cert_url_dirname, &self.cert_basename()))
             .map_err(|_| "Failed to parse cert_url_dirname")?;
         let validity_url = fallback_base.join(&format!("{}{}", &self.config.validity_url_dirname, "validity"))
