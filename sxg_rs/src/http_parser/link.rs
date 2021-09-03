@@ -43,7 +43,7 @@ fn quote(value: &str) -> Option<String> {
         Some(value.into())
     } else if value.chars().all(|c| is_quoted_pair_payload(c)) {
         Some("\"".to_string() + &value.chars().map(|c: char| {
-            if c == '\\' or c == '"' {
+            if c == '\\' || c == '"' {
                 format!("\\{}", c)
             } else {
                 format!("{}", c)
