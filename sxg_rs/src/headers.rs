@@ -16,6 +16,8 @@ use crate::http_parser::{
     parse_accept_header,
     parse_cache_control_header,
     parse_content_type_header,
+    parse_link_header,
+    link::Link,
     media_type::MediaType,
 };
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -24,6 +26,7 @@ use crate::http::HeaderFields;
 use serde::Deserialize;
 use std::cmp::min;
 use std::time::Duration;
+use url::Url;
 
 #[derive(Debug)]
 pub struct Headers(HashMap<String, String>);
@@ -124,19 +127,69 @@ impl Headers {
         }
         Ok(())
     }
-    pub fn get_signed_headers_bytes(&self, status_code: u16, mice_digest: &[u8]) -> Vec<u8> {
-        use crate::cbor::DataItem;
+    // Filters the link header to comply with
+    // https://github.com/google/webpackager/blob/main/docs/cache_requirements.md.
+    fn process_link_header(value: &str, fallback_url: &Url) -> String {
+        static ALLOWED_PARAM: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+            vec!["as", "header-integrity", "media", "rel", "imagesrcset", "imagesizes", "crossorigin"].into_iter().collect()});
+        static ALLOWED_REL: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+            vec!["preload", "allowed-alt-sxg"].into_iter().collect()});
+        static ALLOWED_CROSSORIGIN: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+            vec!["", "anonymous"].into_iter().collect()});
+        match parse_link_header(value) {
+            Ok(links) => {
+                let mut count = 0;
+                links.into_iter().filter_map(|link| {
+                    let uri: String = fallback_url.join(&link.uri).ok()?.into();
+                    let params_valid = link.params.iter().all(|(k, v)|
+                        ALLOWED_PARAM.contains(k) &&
+                        match *k {
+                            "rel" => matches!(v, Some(v) if ALLOWED_REL.contains(v.as_str())),
+                            "crossorigin" => matches!(v, Some(v) if ALLOWED_CROSSORIGIN.contains(v.as_str())),
+                            _ => true,
+                        }
+                    );
+                    if params_valid {
+                        if link.params.iter().any(|(k,v)| *k == "rel" && matches!(v, Some(v) if v == "preload")) {
+                            if count >= 20 {
+                                return None
+                            }
+                            count += 1;
+                        }
+                        Some(Link{uri: &uri, ..link}.serialize())
+                    } else {
+                        None
+                    }
+                }).collect::<Vec<String>>().join(",")
+            },
+            Err(_) => "".into(),
+        }
+    }
+    // Returns the signed headers via the serializer callback instead of return
+    // value, because it contains a mix of &str and String. This makes it easy
+    // to test the intermediate Vec<(&str, &str)> without sacrificing
+    // performance by copying it into a Vec<(String, String)>.
+    fn get_signed_headers<O, F>(&self, fallback_url: &Url, status_code: u16, mice_digest: &[u8], serializer: F) -> O
+        where F: Fn(Vec<(&str, &str)>) -> O {
         let connection = self.connection_headers();
         let mut fields: Vec<(&str, &str)> = vec![];
         let html = self.0.get("content-type").map_or(false, |t|
             matches!(parse_content_type_header(t),
                      Ok(MediaType {primary_type, sub_type, ..})
                          if primary_type.eq_ignore_ascii_case("text") && sub_type.eq_ignore_ascii_case("html")));
+        let link = self.0.get("link").map_or("".into(), |value| Self::process_link_header(value, fallback_url));
+        if !link.is_empty() {
+            fields.push(("link", &link));
+        }
         for (k, v) in self.0.iter() {
             if STRIP_RESPONSE_HEADERS.contains(k.as_str()) || DONT_SIGN_RESPONSE_HEADERS.contains(k.as_str()) || connection.contains(k) {
                 continue;
             }
             if !html && (STRIP_SUBRESOURCE_RESPONSE_HEADERS.contains(k.as_str()) || crate::id_headers::ID_HEADERS.contains(k.as_str())) {
+                continue;
+            }
+            if k == "link" {
+                // Handled above.
                 continue;
             }
             fields.push((k, v));
@@ -146,12 +199,18 @@ impl Headers {
         fields.push((":status", &status_code));
         fields.push(("content-encoding", "mi-sha256-03"));
         fields.push(("digest", &digest));
-        let cbor_data = DataItem::Map(
-            fields.iter().map(|(key, value)| {
-                (DataItem::ByteString(key.as_bytes()), DataItem::ByteString(value.as_bytes()))
-            }).collect()
-        );
-        cbor_data.serialize()
+        serializer(fields)
+    }
+    pub fn get_signed_headers_bytes(&self, fallback_url: &Url, status_code: u16, mice_digest: &[u8]) -> Vec<u8> {
+        self.get_signed_headers(fallback_url, status_code, mice_digest, |fields| {
+            use crate::cbor::DataItem;
+            let cbor_data = DataItem::Map(
+                fields.iter().map(|(key, value)| {
+                    (DataItem::ByteString(key.as_bytes()), DataItem::ByteString(value.as_bytes()))
+                }).collect()
+            );
+            cbor_data.serialize()
+        })
     }
     // Connection-specific headers per
     // https://datatracker.ietf.org/doc/html/rfc7230#section-6.1.
@@ -425,12 +484,79 @@ mod tests {
         assert_eq!(headers(vec![("cache-control", "max=, max-age=3600")]).signature_duration().unwrap(), SEVEN_DAYS);
     }
 
-    // === get_signed_headers_bytes ===
+    // === process_link_header ===
+    #[test]
+    fn process_link_header() {
+        use std::iter::repeat;
+        let url = Url::parse("https://foo.com").unwrap();
+        assert_eq!(Headers::process_link_header(r#"<https://foo.com/> ; rel = "preload""#, &url),
+                   "<https://foo.com/>;rel=preload");
+        {
+            let link = "<https://foo.com/>;rel=preload";
+            assert_eq!(Headers::process_link_header(&repeat(link).take(21).collect::<Vec<&str>>().join(","), &url),
+                       repeat(link).take(20).collect::<Vec<&str>>().join(","));
+        }
+        {
+            let link = r#"<https://foo.com/>;rel=preload,<https://foo.com/>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#;
+            assert_eq!(Headers::process_link_header(&repeat(link).take(21).collect::<Vec<&str>>().join(","), &url),
+                       repeat(link).take(20).collect::<Vec<&str>>().join(",") + r#",<https://foo.com/>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#);
+        }
+        assert_eq!(Headers::process_link_header("</foo>;rel=preload", &url),
+                   "<https://foo.com/foo>;rel=preload");
+        assert_eq!(Headers::process_link_header("<../quux>;rel=preload", &url.join("/bar/baz/").unwrap()),
+                   "<https://foo.com/bar/quux>;rel=preload");
+        assert_eq!(Headers::process_link_header("<https://foo.com/>;rel=prefetch", &url),
+                   "");
+        assert_eq!(Headers::process_link_header("<https://foo.com/>;other", &url),
+                   "");
+        assert_eq!(Headers::process_link_header("<https://foo.com/>;rel=preload,<https://foo.com/>;rel=prefetch", &url),
+                   "<https://foo.com/>;rel=preload");
+        assert_eq!(Headers::process_link_header(r#"<img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset="img.jpg 800w""#, &url),
+                   r#"<https://foo.com/img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset="img.jpg 800w""#);
+    }
+
+    // === get_signed_headers ===
     #[test]
     fn strip_id_headers() {
-        assert_eq!(headers(vec![("content-type", "image/jpeg"), ("x-request-id", "abcdef123")]).get_signed_headers_bytes(200, &[]),
+        let url = Url::parse("https://foo.com").unwrap();
+        assert_eq!(headers(vec![("content-type", "image/jpeg"), ("x-request-id", "abcdef123")]).get_signed_headers::<HashMap<String, String>, _>(&url, 200, &[], header_fields),
+                   header_fields::<HashMap<String, String>>(vec![
+                       ("content-type", "image/jpeg"),
+                       // x-request-id is missing
+                       (":status", "200"),
+                       ("content-encoding", "mi-sha256-03"),
+                       ("digest", "mi-sha256-03=")]));
+        assert_eq!(headers(vec![("content-type", "text/html;charset=utf-8"), ("x-request-id", "abcdef123")]).get_signed_headers::<HashMap<String, String>, _>(&url, 200, &[], header_fields),
+                   header_fields::<HashMap<String, String>>(vec![
+                       ("content-type", "text/html;charset=utf-8"),
+                       ("x-request-id", "abcdef123"),
+                       (":status", "200"),
+                       ("content-encoding", "mi-sha256-03"),
+                       ("digest", "mi-sha256-03=")]));
+    }
+    #[test]
+    fn includes_link_if_valid() {
+        let url = Url::parse("https://foo.com").unwrap();
+        assert_eq!(headers(vec![("content-type", "text/html"), ("link", "<https://foo.com/>;rel=preload")]).get_signed_headers::<HashMap<String, String>, _>(&url ,200, &[], header_fields),
+                   header_fields::<HashMap<String, String>>(vec![
+                       ("content-type", "text/html"),
+                       ("link", "<https://foo.com/>;rel=preload"),
+                       (":status", "200"),
+                       ("content-encoding", "mi-sha256-03"),
+                       ("digest", "mi-sha256-03=")]));
+        assert_eq!(headers(vec![("content-type", "text/html"), ("link", r#"</foo>;rel=prefetch"#)]).get_signed_headers::<HashMap<String, String>, _>(&url, 200, &[], header_fields),
+                   header_fields::<HashMap<String, String>>(vec![
+                       ("content-type", "text/html"),
+                       (":status", "200"),
+                       ("content-encoding", "mi-sha256-03"),
+                       ("digest", "mi-sha256-03=")]));
+    }
+
+    // === get_signed_headers_bytes ===
+    #[test]
+    fn get_signed_headers_bytes() {
+        let url = Url::parse("https://foo.com").unwrap();
+        assert_eq!(headers(vec![("content-type", "image/jpeg")]).get_signed_headers_bytes(&url, 200, &[]),
                    b"\xA4FdigestMmi-sha256-03=G:statusC200Lcontent-typeJimage/jpegPcontent-encodingLmi-sha256-03");
-        assert_eq!(headers(vec![("content-type", "text/html;charset=utf-8"), ("x-request-id", "abcdef123")]).get_signed_headers_bytes(200, &[]),
-                   b"\xA5FdigestMmi-sha256-03=G:statusC200Lcontent-typeWtext/html;charset=utf-8Lx-request-idIabcdef123Pcontent-encodingLmi-sha256-03");
     }
 }

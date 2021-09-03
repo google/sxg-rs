@@ -35,7 +35,7 @@ pub fn token(input: &str) -> IResult<&str, &str> {
     take_while1(is_tchar)(input)
 }
 
-fn is_tchar(c: char) -> bool {
+pub fn is_tchar(c: char) -> bool {
     match c {
         '!' | '#' | '$' | '%' | '&' | '\'' | '*' => true,
         '+' | '-' | '.' | '^' | '_' | '`' | '|' | '~' => true,
@@ -83,7 +83,7 @@ fn is_qdtext(c: char) -> bool {
     }
 }
 
-fn is_quoted_pair_payload(c: char) -> bool {
+pub fn is_quoted_pair_payload(c: char) -> bool {
     match c {
         '\t' | ' ' => true,
         '\x21'..='\x7E' => true,
