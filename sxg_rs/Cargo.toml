@@ -35,6 +35,7 @@ futures = { version = "0.3.14", features = ["executor"] }
 js-sys = "0.3.50"
 nom = { version = "6.1.2", features = ["alloc"] }
 once_cell = "1.7.2"
+p256 = { version = "0.7.2", features = ["ecdsa"] }
 pem = "0.8.3"
 serde = { version = "1.0.125", features = ["derive"] }
 serde_yaml = "0.8.17"
@@ -42,8 +43,8 @@ sha2 = "0.9.3"
 url = "2.2.2"
 wasm-bindgen = { version = "0.2.73", features = ["serde-serialize"] }
 wasm-bindgen-futures = "0.4.23"
+web-sys = { version = "0.3.42", features = ["console"] }
 x509-parser = "0.9.2"
 
-[dependencies.p256]
-version = "0.7.2"
-features = ["ecdsa"]
+[dev-dependencies]
+async-std = { version = "1.10.0", features = ["attributes"] }

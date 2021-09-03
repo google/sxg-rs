@@ -30,7 +30,7 @@ addEventListener('fetch', (event) => {
   event.respondWith(handleRequest(event.request))
 })
 
-function responseFromWasm(data: WasmResponse) {
+function responseFromWasm(data: WasmResponse): Response {
   return new Response(
     new Uint8Array(data.body),
     {
@@ -38,6 +38,14 @@ function responseFromWasm(data: WasmResponse) {
       headers: data.headers,
     },
   );
+}
+
+async function wasmFromResponse(response: Response): Promise<WasmResponse> {
+  return {
+    body: Array.from(new Uint8Array(await response.arrayBuffer())),
+    headers: Array.from(response.headers),
+    status: response.status,
+  };
 }
 
 /**
@@ -263,10 +271,6 @@ async function generateSxgResponse(fallbackUrl: string, certOrigin: string, payl
     createSignedExchange,
     validatePayloadHeaders,
   } = await wasmFunctionsPromise;
-  const payloadStatusCode = payload.status;
-  if (payloadStatusCode !== 200) {
-    throw `The resource status code is ${payloadStatusCode}`;
-  }
   const payloadHeaders = Array.from(payload.headers);
   validatePayloadHeaders(payloadHeaders);
   const PAYLOAD_SIZE_LIMIT = 8000000;
@@ -274,31 +278,78 @@ async function generateSxgResponse(fallbackUrl: string, certOrigin: string, payl
   if (!payloadBody) {
     throw `The size of payload exceeds the limit ${PAYLOAD_SIZE_LIMIT}`;
   }
+  let {get: headerIntegrityGet, put: headerIntegrityPut} = await headerIntegrityCache();
   const sxg = await createSignedExchange(
     fallbackUrl,
     certOrigin,
-    payloadStatusCode,
+    payload.status,
     payloadHeaders,
     new Uint8Array(payloadBody),
     Math.round(Date.now() / 1000 - 60 * 60 * 12),
     signer,
+    fetcher,
+    headerIntegrityGet,
+    headerIntegrityPut,
   );
   return responseFromWasm(sxg);
 }
 
 async function fetcher(request: WasmRequest): Promise<WasmResponse> {
-  const response = await fetch(
-    request.url,
-    {
-      body: new Uint8Array(request.body),
+  let requestInit: RequestInit = {
       headers: request.headers,
       method: request.method,
-    },
-  );
-  const responseBody = await response.arrayBuffer();
-  return {
-    body: Array.from(new Uint8Array(responseBody)),
-    headers: [],
-    status: response.status,
   };
+  if (request.body.length > 0) {
+    requestInit.body = new Uint8Array(request.body);
+  }
+  const response = await fetch(request.url, requestInit);
+
+  let body: ArrayBuffer;
+  if (response.body) {
+    const bodyReader = response.body.pipeThrough(limitBytes(8000000));
+    body = await new Response(bodyReader).arrayBuffer();
+  } else {
+    body = new ArrayBuffer(0);
+  }
+  return await wasmFromResponse(new Response(body, {
+    headers: response.headers,
+    status: response.status,
+  }));
+}
+
+function limitBytes(maxBytes: number): TransformStream {
+  let bytes = 0;
+  return new TransformStream({
+    transform: (chunk: Uint8Array, controller: TransformStreamDefaultController) => {
+      bytes += chunk.byteLength;
+      if (bytes <= maxBytes) {
+        controller.enqueue(chunk);
+      } else {
+        // TODO: Should this be controller.error(...) instead?
+        controller.terminate();
+      }
+    },
+  });
+}
+
+type HttpCache = {
+  get: (url: string) => Promise<WasmResponse>,
+  put: (url: string, response: WasmResponse) => Promise<void>,
+};
+const ERROR_RESPONSE: WasmResponse = {
+  body: [],
+  headers: [["cache-control", "max-age=3600"]],
+  status: 406,
+};
+async function headerIntegrityCache(): Promise<HttpCache> {
+  let cache = await caches.open('header-integrity');
+  return {
+    get: async (url: string) => {
+      const response = await cache.match(url);
+      return response ? await wasmFromResponse(response) : ERROR_RESPONSE;
+    },
+    put: async (url: string, response: WasmResponse) => {
+      return cache.put(url, responseFromWasm(response));
+    }
+  }
 }

@@ -97,12 +97,20 @@ pub async fn create_signed_exchange(
     payload_body: Vec<u8>,
     now_in_seconds: u32,
     signer: Function,
+    subresource_fetcher: Function,
+    header_integrity_get: Function,
+    header_integrity_put: Function,
 ) -> Result<JsValue, JsValue> {
     let payload_headers = payload_headers.into_serde().map_err(to_js_error)?;
     let payload_headers = get_worker()?
         .transform_payload_headers(payload_headers)
         .map_err(to_js_error)?;
     let signer = ::sxg_rs::signature::js_signer::JsSigner::from_raw_signer(signer);
+    let subresource_fetcher = sxg_rs::fetcher::js_fetcher::JsFetcher::new(subresource_fetcher);
+    let mut header_integrity_cache = sxg_rs::http_cache::JsHttpCache {
+        get: header_integrity_get,
+        put: header_integrity_put,
+    };
     let sxg: HttpResponse = get_worker()?
         .create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
             fallback_url: &fallback_url,
@@ -112,6 +120,8 @@ pub async fn create_signed_exchange(
             payload_headers,
             signer,
             status_code,
+            subresource_fetcher,
+            header_integrity_cache: &mut header_integrity_cache,
         })
         .await
         .map_err(to_js_error)?;

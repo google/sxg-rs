@@ -12,11 +12,50 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::fetcher::Fetcher;
+use crate::header_integrity;
+use crate::headers::Headers;
+use crate::http_cache::HttpCache;
+use anyhow::{anyhow, Result};
+use std::collections::BTreeSet;
+use url::Url;
+
 pub fn get_sha(bytes: &[u8]) -> Vec<u8> {
     use ::sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     hasher.finalize().to_vec()
+}
+
+pub async fn signed_headers_and_payload<F: Fetcher, C: HttpCache>(
+    fallback_url: &Url,
+    status_code: u16,
+    payload_headers: &Headers,
+    payload_body: &[u8],
+    subresource_fetcher: F,
+    header_integrity_cache: &mut C,
+    strip_response_headers: &BTreeSet<String>,
+) -> Result<(Vec<u8>, Vec<u8>)> {
+    if status_code != 200 {
+        return Err(anyhow!("The resource status code is {}.", status_code));
+    }
+    // 16384 is the max mice record size allowed by SXG spec.
+    // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#section-3.5-7.9.1
+    let (mice_digest, payload_body) = crate::mice::calculate(payload_body, 16384);
+    let mut header_integrity_fetcher = header_integrity::new_fetcher(
+        subresource_fetcher,
+        header_integrity_cache,
+        strip_response_headers,
+    );
+    let signed_headers = payload_headers
+        .get_signed_headers_bytes(
+            fallback_url,
+            status_code,
+            &mice_digest,
+            &mut header_integrity_fetcher,
+        )
+        .await;
+    Ok((signed_headers, payload_body))
 }
 
 #[cfg(test)]

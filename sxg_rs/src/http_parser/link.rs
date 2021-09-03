@@ -28,7 +28,7 @@ use nom::{
 // supported.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Link<'a> {
-    pub uri: &'a str,
+    pub uri: String,
     pub params: Vec<(&'a str, Option<String>)>,
 }
 
@@ -58,7 +58,7 @@ fn quote(value: &str) -> Option<String> {
 impl<'a> Link<'a> {
     pub fn serialize(&self) -> String {
         "<".to_string()
-            + self.uri
+            + &self.uri
             + ">"
             + &self
                 .params
@@ -108,7 +108,10 @@ pub fn link(input: &str) -> IResult<&str, Link> {
             delimited(char('<'), uri_ref, char('>')),
             many0(preceded(tuple((ows, char(';'), ows)), link_param)),
         ),
-        |(uri, params)| Link { uri, params },
+        |(uri, params)| Link {
+            uri: uri.into(),
+            params,
+        },
     )(input)
 }
 
@@ -122,7 +125,7 @@ mod tests {
             (
                 "",
                 Link {
-                    uri: "",
+                    uri: "".into(),
                     params: vec![]
                 }
             )
@@ -132,7 +135,7 @@ mod tests {
             (
                 "",
                 Link {
-                    uri: "/foo,bar;baz",
+                    uri: "/foo,bar;baz".into(),
                     params: vec![]
                 }
             )
@@ -142,7 +145,7 @@ mod tests {
             (
                 "",
                 Link {
-                    uri: "/foo",
+                    uri: "/foo".into(),
                     params: vec![("bar", None), ("baz", Some("quux".into()))]
                 }
             )
@@ -152,7 +155,7 @@ mod tests {
             (
                 "",
                 Link {
-                    uri: "/foo",
+                    uri: "/foo".into(),
                     params: vec![("bar", Some(r#"baz \"quux"#.into()))]
                 }
             )
@@ -166,7 +169,7 @@ mod tests {
     fn serialize() {
         assert_eq!(
             Link {
-                uri: "/foo",
+                uri: "/foo".into(),
                 params: vec![("bar", None)]
             }
             .serialize(),
@@ -174,7 +177,7 @@ mod tests {
         );
         assert_eq!(
             Link {
-                uri: "/foo",
+                uri: "/foo".into(),
                 params: vec![("bar", Some("baz".into()))]
             }
             .serialize(),
@@ -182,7 +185,7 @@ mod tests {
         );
         assert_eq!(
             Link {
-                uri: "/foo",
+                uri: "/foo".into(),
                 params: vec![("bar", Some("baz quux".into()))]
             }
             .serialize(),
@@ -190,7 +193,7 @@ mod tests {
         );
         assert_eq!(
             Link {
-                uri: "/foo",
+                uri: "/foo".into(),
                 params: vec![("bar", Some(r#"baz\"quux"#.into()))]
             }
             .serialize(),
@@ -198,7 +201,7 @@ mod tests {
         );
         assert_eq!(
             Link {
-                uri: "/foo",
+                uri: "/foo".into(),
                 params: vec![("bar", Some("\x7f".into()))]
             }
             .serialize(),

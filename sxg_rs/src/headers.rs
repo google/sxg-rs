@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::header_integrity::HeaderIntegrityFetcher;
 use crate::http::HeaderFields;
 use crate::http_parser::{
-    link::Link, media_type::MediaType, parse_accept_header, parse_cache_control_header,
-    parse_content_type_header, parse_link_header,
+    media_type::MediaType, parse_accept_header, parse_cache_control_header,
+    parse_content_type_header,
 };
+use crate::link::process_link_header;
 use anyhow::{Error, Result};
 use once_cell::sync::Lazy;
 use serde::Deserialize;
@@ -25,7 +27,6 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::time::Duration;
 use url::Url;
 
-#[derive(Debug)]
 pub struct Headers(HashMap<String, String>);
 
 // Which requestors to serve an SXG to.
@@ -145,68 +146,20 @@ impl Headers {
         }
         Ok(())
     }
-    // Filters the link header to comply with
-    // https://github.com/google/webpackager/blob/main/docs/cache_requirements.md.
-    fn process_link_header(value: &str, fallback_url: &Url) -> String {
-        static ALLOWED_PARAM: Lazy<HashSet<&'static str>> = Lazy::new(|| {
-            vec![
-                "as",
-                "header-integrity",
-                "media",
-                "rel",
-                "imagesrcset",
-                "imagesizes",
-                "crossorigin",
-            ]
-            .into_iter()
-            .collect()
-        });
-        static ALLOWED_REL: Lazy<HashSet<&'static str>> =
-            Lazy::new(|| vec!["preload", "allowed-alt-sxg"].into_iter().collect());
-        static ALLOWED_CROSSORIGIN: Lazy<HashSet<&'static str>> =
-            Lazy::new(|| vec!["", "anonymous"].into_iter().collect());
-        match parse_link_header(value) {
-            Ok(links) => {
-                let mut count = 0;
-                links.into_iter().filter_map(|link| {
-                    let uri: String = fallback_url.join(&link.uri).ok()?.into();
-                    let params_valid = link.params.iter().all(|(k, v)|
-                        ALLOWED_PARAM.contains(k) &&
-                        match *k {
-                            "rel" => matches!(v, Some(v) if ALLOWED_REL.contains(v.as_str())),
-                            "crossorigin" => matches!(v, Some(v) if ALLOWED_CROSSORIGIN.contains(v.as_str())),
-                            _ => true,
-                        }
-                    );
-                    if params_valid {
-                        if link.params.iter().any(|(k,v)| *k == "rel" && matches!(v, Some(v) if v == "preload")) {
-                            if count >= 20 {
-                                return None
-                            }
-                            count += 1;
-                        }
-                        Some(Link{uri: &uri, ..link}.serialize())
-                    } else {
-                        None
-                    }
-                }).collect::<Vec<String>>().join(",")
-            }
-            Err(_) => "".into(),
-        }
-    }
     // Returns the signed headers via the serializer callback instead of return
     // value, because it contains a mix of &str and String. This makes it easy
     // to test the intermediate Vec<(&str, &str)> without sacrificing
     // performance by copying it into a Vec<(String, String)>.
-    fn get_signed_headers<O, F>(
+    async fn get_signed_headers<O, S>(
         &self,
         fallback_url: &Url,
         status_code: u16,
         mice_digest: &[u8],
-        serializer: F,
+        header_integrity_fetcher: &mut dyn HeaderIntegrityFetcher,
+        serializer: S,
     ) -> O
     where
-        F: Fn(Vec<(&str, &str)>) -> O,
+        S: Fn(Vec<(&str, &str)>) -> O,
     {
         let connection = self.connection_headers();
         let mut fields: Vec<(&str, &str)> = vec![];
@@ -214,9 +167,13 @@ impl Headers {
             matches!(parse_content_type_header(t),
                      Ok(MediaType {primary_type, sub_type, ..})
                          if primary_type.eq_ignore_ascii_case("text") && sub_type.eq_ignore_ascii_case("html")));
-        let link = self.0.get("link").map_or("".into(), |value| {
-            Self::process_link_header(value, fallback_url)
-        });
+        let link = match self.0.get("link") {
+            Some(value) => {
+                process_link_header(value, fallback_url, header_integrity_fetcher)
+                    .await
+            }
+            None => "".into(),
+        };
         if !link.is_empty() {
             fields.push(("link", &link));
         }
@@ -246,27 +203,35 @@ impl Headers {
         fields.push(("digest", &digest));
         serializer(fields)
     }
-    pub(crate) fn get_signed_headers_bytes(
+    pub(crate) async fn get_signed_headers_bytes(
         &self,
         fallback_url: &Url,
         status_code: u16,
         mice_digest: &[u8],
+        header_integrity_fetcher: &mut dyn HeaderIntegrityFetcher,
     ) -> Vec<u8> {
-        self.get_signed_headers(fallback_url, status_code, mice_digest, |fields| {
-            use crate::cbor::DataItem;
-            let cbor_data = DataItem::Map(
-                fields
-                    .iter()
-                    .map(|(key, value)| {
-                        (
-                            DataItem::ByteString(key.as_bytes()),
-                            DataItem::ByteString(value.as_bytes()),
-                        )
-                    })
-                    .collect(),
-            );
-            cbor_data.serialize()
-        })
+        self.get_signed_headers(
+            fallback_url,
+            status_code,
+            mice_digest,
+            header_integrity_fetcher,
+            |fields| {
+                use crate::cbor::DataItem;
+                let cbor_data = DataItem::Map(
+                    fields
+                        .iter()
+                        .map(|(key, value)| {
+                            (
+                                DataItem::ByteString(key.as_bytes()),
+                                DataItem::ByteString(value.as_bytes()),
+                            )
+                        })
+                        .collect(),
+                );
+                cbor_data.serialize()
+            },
+        )
+        .await
     }
     // Connection-specific headers per
     // https://datatracker.ietf.org/doc/html/rfc7230#section-6.1.
@@ -449,6 +414,7 @@ fn validate_accept_header(accept: &str, accept_filter: AcceptFilter) -> Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::header_integrity::tests::null_integrity_fetcher;
     use std::iter::FromIterator;
 
     fn header_fields<T: FromIterator<(String, String)>>(pairs: Vec<(&str, &str)>) -> T {
@@ -754,71 +720,9 @@ mod tests {
         );
     }
 
-    // === process_link_header ===
-    #[test]
-    fn process_link_header() {
-        use std::iter::repeat;
-        let url = Url::parse("https://foo.com").unwrap();
-        assert_eq!(
-            Headers::process_link_header(r#"<https://foo.com/> ; rel = "preload""#, &url),
-            "<https://foo.com/>;rel=preload"
-        );
-        {
-            let link = "<https://foo.com/>;rel=preload";
-            assert_eq!(
-                Headers::process_link_header(
-                    &repeat(link).take(21).collect::<Vec<&str>>().join(","),
-                    &url
-                ),
-                repeat(link).take(20).collect::<Vec<&str>>().join(",")
-            );
-        }
-        {
-            let link = r#"<https://foo.com/>;rel=preload,<https://foo.com/>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#;
-            assert_eq!(
-                Headers::process_link_header(
-                    &repeat(link).take(21).collect::<Vec<&str>>().join(","),
-                    &url
-                ),
-                repeat(link).take(20).collect::<Vec<&str>>().join(",")
-                    + r#",<https://foo.com/>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#
-            );
-        }
-        assert_eq!(
-            Headers::process_link_header("</foo>;rel=preload", &url),
-            "<https://foo.com/foo>;rel=preload"
-        );
-        assert_eq!(
-            Headers::process_link_header("<../quux>;rel=preload", &url.join("/bar/baz/").unwrap()),
-            "<https://foo.com/bar/quux>;rel=preload"
-        );
-        assert_eq!(
-            Headers::process_link_header("<https://foo.com/>;rel=prefetch", &url),
-            ""
-        );
-        assert_eq!(
-            Headers::process_link_header("<https://foo.com/>;other", &url),
-            ""
-        );
-        assert_eq!(
-            Headers::process_link_header(
-                "<https://foo.com/>;rel=preload,<https://foo.com/>;rel=prefetch",
-                &url
-            ),
-            "<https://foo.com/>;rel=preload"
-        );
-        assert_eq!(
-            Headers::process_link_header(
-                r#"<img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset="img.jpg 800w""#,
-                &url
-            ),
-            r#"<https://foo.com/img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset="img.jpg 800w""#
-        );
-    }
-
     // === get_signed_headers ===
-    #[test]
-    fn strip_id_headers() {
+    #[async_std::test]
+    async fn strip_id_headers() {
         let url = Url::parse("https://foo.com").unwrap();
         assert_eq!(
             headers(vec![
@@ -829,8 +733,10 @@ mod tests {
                 &url,
                 200,
                 &[],
+                &mut null_integrity_fetcher(),
                 header_fields
-            ),
+            )
+            .await,
             header_fields::<HashMap<String, String>>(vec![
                 ("content-type", "image/jpeg"),
                 // x-request-id is missing
@@ -848,8 +754,10 @@ mod tests {
                 &url,
                 200,
                 &[],
+                &mut null_integrity_fetcher(),
                 header_fields
-            ),
+            )
+            .await,
             header_fields::<HashMap<String, String>>(vec![
                 ("content-type", "text/html;charset=utf-8"),
                 ("x-request-id", "abcdef123"),
@@ -859,8 +767,8 @@ mod tests {
             ])
         );
     }
-    #[test]
-    fn includes_link_if_valid() {
+    #[async_std::test]
+    async fn includes_link_if_valid() {
         let url = Url::parse("https://foo.com").unwrap();
         assert_eq!(
             headers(vec![
@@ -871,8 +779,10 @@ mod tests {
                 &url,
                 200,
                 &[],
+                &mut null_integrity_fetcher(),
                 header_fields
-            ),
+            )
+            .await,
             header_fields::<HashMap<String, String>>(vec![
                 ("content-type", "text/html"),
                 ("link", "<https://foo.com/>;rel=preload"),
@@ -890,8 +800,10 @@ mod tests {
                 &url,
                 200,
                 &[],
+                &mut null_integrity_fetcher(),
                 header_fields
-            ),
+            )
+            .await,
             header_fields::<HashMap<String, String>>(vec![
                 ("content-type", "text/html"),
                 (":status", "200"),
@@ -902,10 +814,10 @@ mod tests {
     }
 
     // === get_signed_headers_bytes ===
-    #[test]
-    fn get_signed_headers_bytes() {
+    #[async_std::test]
+    async fn get_signed_headers_bytes() {
         let url = Url::parse("https://foo.com").unwrap();
-        assert_eq!(headers(vec![("content-type", "image/jpeg")]).get_signed_headers_bytes(&url, 200, &[]),
+        assert_eq!(headers(vec![("content-type", "image/jpeg")]).get_signed_headers_bytes(&url, 200, &[], &mut null_integrity_fetcher()).await,
                    b"\xA4FdigestMmi-sha256-03=G:statusC200Lcontent-typeJimage/jpegPcontent-encodingLmi-sha256-03");
     }
 }
