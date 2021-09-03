@@ -58,12 +58,11 @@ impl <'a> Link<'a> {
     pub fn serialize(&self) -> String {
         "<".to_string() + self.uri + ">" +
             &self.params.iter().filter_map(|(k, v)| {
-                let directive = if let Some(v) = v {
-                  format!(";{}={}", k, quote(v)?)
+                Some(if let Some(v) = v {
+                    format!(";{}={}", k, quote(v)?)
                 } else {
-                  format!(";{}", k)
-                };
-                Some(directive)
+                    format!(";{}", k)
+                })
             }).collect::<String>()
     }
 }
