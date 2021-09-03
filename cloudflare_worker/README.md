@@ -50,6 +50,10 @@ limitations under the License.
 
 1. Run `./publish.sh` to build and deploy the worker online.
 
+1. Go to the [workers dashboard](https://dash.cloudflare.com/workers), and edit
+   the `your_domain.com/*` route to fail open, like this:
+   ![screenshot of workers dashboard with "Fail open" highlighted](fail_open.png)
+
 1. To check whether the worker generates a valid SXG,
    use Chrome browser to open `https://${WORKER_HOST}/.sxg/test.html`.
 
