@@ -43,13 +43,11 @@ fn quote(value: &str) -> Option<String> {
         Some(value.into())
     } else if value.chars().all(|c| is_quoted_pair_payload(c)) {
         Some("\"".to_string() + &value.chars().map(|c: char| {
-            let mut quoted_pair = if c == '\\' || c == '"' {
-                "\\"
+            if c == '\\' or c == '"' {
+                format!("\\{}", c)
             } else {
-                ""
-            }.to_string();
-            quoted_pair.push(c);
-            quoted_pair
+                format!("{}", c)
+            }
         }).collect::<String>() + "\"")
     } else {
         None
@@ -60,15 +58,11 @@ impl <'a> Link<'a> {
     pub fn serialize(&self) -> String {
         "<".to_string() + self.uri + ">" +
             &self.params.iter().filter_map(|(k, v)| {
-                let mut directive = ";".to_string() + k;
-                if let Some(v) = v {
-                    if let Some(quoted) = quote(v) {
-                        directive.push('=');
-                        directive.push_str(&quoted);
-                    } else {
-                        return None
-                    }
-                }
+                let directive = if let Some(v) = v {
+                  format!(";{}={}", k, quote(v)?)
+                } else {
+                  format!(";{}", k)
+                };
                 Some(directive)
             }).collect::<String>()
     }
