@@ -31,9 +31,9 @@ impl RustSigner {
 
 #[async_trait(?Send)]
 impl Signer for RustSigner {
-    async fn sign(&self, message: &[u8]) -> Vec<u8> {
+    async fn sign(&self, message: &[u8]) -> Result<Vec<u8>,String> {
         use p256::ecdsa::signature::Signer as _;
         let sig = self.private_key.sign(&message).to_asn1();
-        sig.as_bytes().to_vec()
+        Ok(sig.as_bytes().to_vec())
     }
 }
