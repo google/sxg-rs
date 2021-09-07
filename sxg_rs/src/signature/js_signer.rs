@@ -30,22 +30,23 @@ impl JsSigner {
 
 #[async_trait(?Send)]
 impl Signer for JsSigner {
-    async fn sign(&self, message: &[u8]) -> Vec<u8> {
+    async fn sign(&self, message: &[u8]) -> Result<Vec<u8>,String> {
         let a = Uint8Array::new_with_length(message.len() as u32);
         a.copy_from(&message);
         let this = JsValue::null();
-        let sig = self.0.call1(&this, &a).unwrap();
+        let sig = self.0.call1(&this, &a).map_err(|_| "Bad call")?;
         let sig = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(sig));
-        let sig = sig.await.unwrap();
+        let sig = sig.await.map_err(|_| "Bad async result")?;
         let sig = Uint8Array::from(sig);
         let sig = sig.to_vec();
-        raw_sig_to_asn1(sig)
+        // raw_sig_to_asn1(sig)
+        Ok(sig)
     }
 }
 
-fn raw_sig_to_asn1(raw: Vec<u8>) -> Vec<u8> {
+fn raw_sig_to_asn1(raw: Vec<u8>) -> Result<Vec<u8>, String> {
     if raw.len() != 64 {
-        panic!("Expecting signature length to be 64, found {}.", raw.len());
+        return Err(format!("Expecting signature length to be 64, found {}.", raw.len()));
     }
     let mut r = raw;
     let mut s = r.split_off(32);
@@ -55,7 +56,7 @@ fn raw_sig_to_asn1(raw: Vec<u8>) -> Vec<u8> {
         BerObject::from_obj(BerObjectContent::Integer(&r)),
         BerObject::from_obj(BerObjectContent::Integer(&s)),
     ]));
-    asn1.to_vec().unwrap()
+    asn1.to_vec().map_err(|_| "Bad Sig to ASN1".to_string())
 }
 
 // Prepend the big-endian integer with leading zeros if needed, in order to

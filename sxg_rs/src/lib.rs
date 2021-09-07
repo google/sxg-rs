@@ -105,6 +105,8 @@ impl SxgWorker {
             signer,
             validity_url: validity_url.as_str(),
         }).await;
+
+        let signature = signature.map_err(|_| "Signature error")?;
         let sxg_body = sxg::build(fallback_url, &signature.serialize(), &signed_headers, &payload_body)?;
         Ok(HttpResponse {
             body: sxg_body,

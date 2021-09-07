@@ -22,7 +22,7 @@ use crate::structured_header::{ShItem, ShParamList, ParamItem};
 
 #[async_trait(?Send)]
 pub trait Signer {
-    async fn sign(&self, message: &[u8]) -> Vec<u8>;
+    async fn sign(&self, message: &[u8]) -> Result<Vec<u8>,String>;
 }
 
 pub struct SignatureParams<'a> {
@@ -49,7 +49,7 @@ pub struct Signature<'a> {
 }
 
 impl<'a> Signature<'a> {
-    pub async fn new(params: SignatureParams<'a>) -> Signature<'a> {
+    pub async fn new(params: SignatureParams<'a>) -> Result<Signature<'a>,String> {
         let SignatureParams {
             cert_url,
             cert_sha256,
@@ -79,8 +79,8 @@ impl<'a> Signature<'a> {
             &(headers.len() as u64).to_be_bytes(),
             &headers,
         ].concat();
-        let sig = signer.sign(&message).await;
-        Signature {
+        let sig = signer.sign(&message).await.map_err(|_| "Signer error")?;
+        Ok(Signature {
             cert_url,
             cert_sha256,
             date,
@@ -88,7 +88,7 @@ impl<'a> Signature<'a> {
             id,
             sig,
             validity_url,
-        }
+        })
     }
     pub fn serialize(&self) -> Vec<u8> {
         let mut list = ShParamList::new();
