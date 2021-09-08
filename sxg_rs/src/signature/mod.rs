@@ -22,7 +22,8 @@ use crate::structured_header::{ShItem, ShParamList, ParamItem};
 
 #[async_trait(?Send)]
 pub trait Signer {
-    async fn sign(&self, message: &[u8]) -> Result<Vec<u8>,String>;
+    /// Signs the message, and returns `ASN.1` format.
+    async fn sign(&self, message: &[u8]) -> Result<Vec<u8>, String>;
 }
 
 pub struct SignatureParams<'a> {

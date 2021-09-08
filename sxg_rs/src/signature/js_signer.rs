@@ -18,13 +18,39 @@ use js_sys::{Function as JsFunction, Uint8Array};
 use wasm_bindgen::JsValue;
 use super::Signer;
 
-pub struct JsSigner(JsFunction);
+
+enum SigFormat {
+    Raw,
+    Asn1,
+}
+
+/// [JsSigner] allows you to implement [Signer] trait by a JavaScript function.
+pub struct JsSigner {
+    js_function: JsFunction,
+    js_sig_format: SigFormat,
+}
 
 impl JsSigner {
-    // The JS function should be of type
-    // `(input: Uint8Array) => Promise<Uint8Array>`
-    pub fn new(js_function: JsFunction) -> Self {
-        JsSigner(js_function)
+    /// Creates a signer by a JavaScript async function,
+    /// `js_function` must be of type `(input: Uint8Array) => Promise<Uint8Array>`.
+    /// `js_function` should return the signature in `ASN.1` format.
+    pub fn from_asn1_signer(js_function: JsFunction) -> Self {
+        JsSigner {
+            js_function,
+            js_sig_format: SigFormat::Asn1,
+        }
+    }
+    /// Creates a signer by a JavaScript async function.
+    /// `js_function` must be of type `(input: Uint8Array) => Promise<Uint8Array>`.
+    /// `js_function` should return the raw signature, which contains exactly 64 bytes.
+    /// For example, Web API
+    /// [SubtleCrypto.sign()](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/sign)
+    /// returns the raw signature as 64 bytes.
+    pub fn from_raw_signer(js_function: JsFunction) -> Self {
+        JsSigner {
+            js_function,
+            js_sig_format: SigFormat::Raw,
+        }
     }
 }
 
@@ -34,12 +60,15 @@ impl Signer for JsSigner {
         let a = Uint8Array::new_with_length(message.len() as u32);
         a.copy_from(&message);
         let this = JsValue::null();
-        let sig = self.0.call1(&this, &a).map_err(|_| "Bad call")?;
+        let sig = self.js_function.call1(&this, &a).map_err(|_| "Bad call")?;
         let sig = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(sig));
         let sig = sig.await.map_err(|_| "Bad async result")?;
         let sig = Uint8Array::from(sig);
         let sig = sig.to_vec();
-        // raw_sig_to_asn1(sig)
+        let sig = match self.js_sig_format {
+            SigFormat::Asn1 => sig,
+            SigFormat::Raw => raw_sig_to_asn1(sig)?,
+        };
         Ok(sig)
     }
 }
