@@ -14,15 +14,12 @@
 
 // https://tools.ietf.org/html/draft-thomson-http-mice-03
 
+use ::sha2::{Digest, Sha256};
 use std::collections::VecDeque;
-use ::sha2::{Sha256, Digest};
 
 pub fn calculate(input: &[u8], record_size: usize) -> (Vec<u8>, Vec<u8>) {
     if input.len() == 0 {
-        return (
-            crate::utils::get_sha(&[0]),
-            vec![],
-        );
+        return (crate::utils::get_sha(&[0]), vec![]);
     }
     let record_size = std::cmp::min(record_size, input.len());
     let records: Vec<_> = if record_size > 0 {
@@ -80,7 +77,8 @@ mod tests {
                     &input[16..32],
                     &::base64::decode("iPMpmgExHPrbEX3/RvwP4d16fWlK4l++p75PUu/KyN0=").unwrap(),
                     &input[32..],
-                ].concat(),
+                ]
+                .concat(),
             ),
         );
     }

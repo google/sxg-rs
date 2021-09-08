@@ -12,15 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use nom::{
-    map,
-    named,
-};
-use super::media_type::{
-    MediaType,
-    Parameter,
-    media_type,
-};
+use super::media_type::{media_type, MediaType, Parameter};
+use nom::{map, named};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Accept<'a> {
@@ -62,12 +55,12 @@ named!(
 );
 
 fn parse_q_millis(s: &str) -> Option<u16> {
-  let x = s.parse::<f64>().ok()?;
-  if x >= 0.0 && x <= 1.0 {
-      Some((x * 1000.0) as u16)
-  } else {
-      None
-  }
+    let x = s.parse::<f64>().ok()?;
+    if x >= 0.0 && x <= 1.0 {
+        Some((x * 1000.0) as u16)
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -83,12 +76,10 @@ mod tests {
                     media_range: MediaType {
                         primary_type: "text",
                         sub_type: "html",
-                        parameters: vec![
-                            Parameter {
-                                name: "charset",
-                                value: "utf-8".to_string(),
-                            }
-                        ],
+                        parameters: vec![Parameter {
+                            name: "charset",
+                            value: "utf-8".to_string(),
+                        }],
                     },
                     q_millis: 900,
                     extensions: vec![],

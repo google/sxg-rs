@@ -16,9 +16,9 @@ mod utils;
 
 use js_sys::{Function, Uint8Array};
 use once_cell::sync::OnceCell;
-use sxg_rs::SxgWorker;
 use sxg_rs::headers::AcceptFilter;
 use sxg_rs::http::HttpResponse;
+use sxg_rs::SxgWorker;
 use utils::anyhow_error_to_js_value;
 use wasm_bindgen::prelude::*;
 
@@ -33,9 +33,9 @@ fn get_worker() -> Result<&'static SxgWorker, JsValue> {
 #[wasm_bindgen(js_name=init)]
 pub fn init(config_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<(), JsValue> {
     utils::init();
-    WORKER.set(SxgWorker::new(config_yaml, cert_pem, issuer_pem)).map_err(|_| {
-        JsValue::from_str("The init functional has already been called")
-    })
+    WORKER
+        .set(SxgWorker::new(config_yaml, cert_pem, issuer_pem))
+        .map_err(|_| JsValue::from_str("The init functional has already been called"))
 }
 
 #[wasm_bindgen(js_name=getLastErrorMessage)]
@@ -66,17 +66,16 @@ pub fn should_respond_debug_info() -> Result<bool, JsValue> {
 }
 
 #[wasm_bindgen(js_name=createRequestHeaders)]
-pub fn create_request_headers(accept_filter: JsValue, requestor_headers: JsValue) -> Result<JsValue, JsValue> {
+pub fn create_request_headers(
+    accept_filter: JsValue,
+    requestor_headers: JsValue,
+) -> Result<JsValue, JsValue> {
     let fields = requestor_headers.into_serde().unwrap();
     let accept_filter: AcceptFilter = accept_filter.into_serde().unwrap();
     let result = get_worker()?.transform_request_headers(fields, accept_filter);
     match result {
-        Ok(fields) => {
-            Ok(JsValue::from_serde(&fields).unwrap())
-        },
-        Err(err) => {
-            Err(anyhow_error_to_js_value(err))
-        },
+        Ok(fields) => Ok(JsValue::from_serde(&fields).unwrap()),
+        Err(err) => Err(anyhow_error_to_js_value(err)),
     }
 }
 
@@ -97,16 +96,24 @@ pub async fn create_signed_exchange(
     now_in_seconds: u32,
     signer: Function,
 ) -> Result<JsValue, JsValue> {
-    let payload_headers = ::sxg_rs::headers::Headers::new(payload_headers.into_serde().unwrap(), &get_worker()?.config.strip_response_headers);
-    let signer = Box::new(::sxg_rs::signature::js_signer::JsSigner::from_raw_signer(signer));
-    let sxg: HttpResponse = get_worker()?.create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
-        fallback_url: &fallback_url,
-        cert_origin: &cert_origin,
-        now: std::time::UNIX_EPOCH + std::time::Duration::from_secs(now_in_seconds as u64),
-        payload_body: &payload_body,
-        payload_headers,
+    let payload_headers = ::sxg_rs::headers::Headers::new(
+        payload_headers.into_serde().unwrap(),
+        &get_worker()?.config.strip_response_headers,
+    );
+    let signer = Box::new(::sxg_rs::signature::js_signer::JsSigner::from_raw_signer(
         signer,
-        status_code,
-    }).await.map_err(anyhow_error_to_js_value)?;
+    ));
+    let sxg: HttpResponse = get_worker()?
+        .create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
+            fallback_url: &fallback_url,
+            cert_origin: &cert_origin,
+            now: std::time::UNIX_EPOCH + std::time::Duration::from_secs(now_in_seconds as u64),
+            payload_body: &payload_body,
+            payload_headers,
+            signer,
+            status_code,
+        })
+        .await
+        .map_err(anyhow_error_to_js_value)?;
     Ok(JsValue::from_serde(&sxg).unwrap())
 }

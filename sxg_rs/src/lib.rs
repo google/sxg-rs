@@ -38,22 +38,20 @@ pub struct SxgWorker {
 }
 
 #[derive(Serialize, Debug, PartialEq)]
-#[serde(rename_all="camelCase", tag="kind")]
+#[serde(rename_all = "camelCase", tag = "kind")]
 pub enum PresetContent {
     Direct(HttpResponse),
     ToBeSigned {
         url: String,
         payload: HttpResponse,
         fallback: HttpResponse,
-    }
+    },
 }
 
 impl SxgWorker {
     pub fn new(config_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Self {
         let config = Config::new(config_yaml, cert_pem, issuer_pem);
-        SxgWorker {
-            config,
-        }
+        SxgWorker { config }
     }
     // TODO: Make OCSP status as an internal state of SxgWorker, so that
     // SxgWorker is able to fetch OCSP. This will need a definition of a
@@ -63,19 +61,26 @@ impl SxgWorker {
         let cert_cbor = DataItem::Array(vec![
             DataItem::TextString("📜⛓"),
             DataItem::Map(vec![
-                (DataItem::TextString("cert"), DataItem::ByteString(&self.config.cert_der)),
+                (
+                    DataItem::TextString("cert"),
+                    DataItem::ByteString(&self.config.cert_der),
+                ),
                 (DataItem::TextString("ocsp"), DataItem::ByteString(ocsp_der)),
             ]),
-            DataItem::Map(vec![
-                (DataItem::TextString("cert"), DataItem::ByteString(&self.config.issuer_der)),
-            ]),
+            DataItem::Map(vec![(
+                DataItem::TextString("cert"),
+                DataItem::ByteString(&self.config.issuer_der),
+            )]),
         ]);
         cert_cbor.serialize()
     }
     fn cert_basename(&self) -> String {
         base64::encode_config(&self.config.cert_sha256, base64::URL_SAFE_NO_PAD)
     }
-    pub async fn create_signed_exchange<'a>(&self, params: CreateSignedExchangeParams<'a>) -> Result<HttpResponse> {
+    pub async fn create_signed_exchange<'a>(
+        &self,
+        params: CreateSignedExchangeParams<'a>,
+    ) -> Result<HttpResponse> {
         let CreateSignedExchangeParams {
             fallback_url,
             cert_origin,
@@ -85,15 +90,27 @@ impl SxgWorker {
             signer,
             status_code,
         } = params;
-        let fallback_base = Url::parse(fallback_url).map_err(|e| Error::new(e).context("Failed to parse fallback URL"))?;
-        let cert_base = Url::parse(cert_origin).map_err(|e| Error::new(e).context("Failed to parse cert origin"))?;
+        let fallback_base = Url::parse(fallback_url)
+            .map_err(|e| Error::new(e).context("Failed to parse fallback URL"))?;
+        let cert_base = Url::parse(cert_origin)
+            .map_err(|e| Error::new(e).context("Failed to parse cert origin"))?;
         // 16384 is the max mice record size allowed by SXG spec.
         // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#section-3.5-7.9.1
         let (mice_digest, payload_body) = crate::mice::calculate(payload_body, 16384);
-        let signed_headers = payload_headers.get_signed_headers_bytes(&fallback_base, status_code, &mice_digest);
-        let cert_url = cert_base.join(&format!("{}{}", &self.config.cert_url_dirname, &self.cert_basename()))
+        let signed_headers =
+            payload_headers.get_signed_headers_bytes(&fallback_base, status_code, &mice_digest);
+        let cert_url = cert_base
+            .join(&format!(
+                "{}{}",
+                &self.config.cert_url_dirname,
+                &self.cert_basename()
+            ))
             .map_err(|e| Error::new(e).context("Failed to parse cert_url_dirname"))?;
-        let validity_url = fallback_base.join(&format!("{}{}", &self.config.validity_url_dirname, "validity"))
+        let validity_url = fallback_base
+            .join(&format!(
+                "{}{}",
+                &self.config.validity_url_dirname, "validity"
+            ))
             .map_err(|e| Error::new(e).context("Failed to parse validity_url_dirname"))?;
         let signature = signature::Signature::new(signature::SignatureParams {
             cert_url: cert_url.as_str(),
@@ -105,15 +122,28 @@ impl SxgWorker {
             request_url: fallback_url,
             signer,
             validity_url: validity_url.as_str(),
-        }).await;
+        })
+        .await;
 
         let signature = signature.map_err(|e| e.context("Failed to create signature."))?;
-        let sxg_body = sxg::build(fallback_url, &signature.serialize(), &signed_headers, &payload_body).map_err(|e| e.context("Failed to create SXG."))?;
+        let sxg_body = sxg::build(
+            fallback_url,
+            &signature.serialize(),
+            &signed_headers,
+            &payload_body,
+        )
+        .map_err(|e| e.context("Failed to create SXG."))?;
         Ok(HttpResponse {
             body: sxg_body,
             headers: vec![
-                (String::from("content-type"), String::from("application/signed-exchange;v=b3")),
-                (String::from("x-content-type-options"), String::from("nosniff")),
+                (
+                    String::from("content-type"),
+                    String::from("application/signed-exchange;v=b3"),
+                ),
+                (
+                    String::from("x-content-type-options"),
+                    String::from("nosniff"),
+                ),
             ],
             status: 200,
         })
@@ -130,51 +160,55 @@ impl SxgWorker {
         let path = req_url.path();
         if let Some(basename) = path.strip_prefix(&self.config.reserved_path) {
             match basename {
-                "test.html" => {
-                    Some(PresetContent::Direct(HttpResponse {
-                        headers: vec![(String::from("content-type"), String::from("text/html"))],
-                        status: 200,
-                        body: include_bytes!("./static/test.html").to_vec(),
-                    }))
-                },
-                "prefetch.html" => {
-                    Some(PresetContent::Direct(HttpResponse {
-                        headers: vec![(String::from("content-type"), String::from("text/html"))],
-                        status: 200,
-                        body: include_bytes!("./static/prefetch.html").to_vec(),
-                    }))
-                },
-                "fallback.html" => {
-                    Some(PresetContent::Direct(HttpResponse {
-                        headers: vec![(String::from("content-type"), String::from("text/html"))],
-                        status: 200,
-                        body: include_bytes!("./static/fallback.html").to_vec(),
-                    }))
-                },
+                "test.html" => Some(PresetContent::Direct(HttpResponse {
+                    headers: vec![(String::from("content-type"), String::from("text/html"))],
+                    status: 200,
+                    body: include_bytes!("./static/test.html").to_vec(),
+                })),
+                "prefetch.html" => Some(PresetContent::Direct(HttpResponse {
+                    headers: vec![(String::from("content-type"), String::from("text/html"))],
+                    status: 200,
+                    body: include_bytes!("./static/prefetch.html").to_vec(),
+                })),
+                "fallback.html" => Some(PresetContent::Direct(HttpResponse {
+                    headers: vec![(String::from("content-type"), String::from("text/html"))],
+                    status: 200,
+                    body: include_bytes!("./static/fallback.html").to_vec(),
+                })),
                 "test.sxg" => {
                     let mut fallback_url = req_url;
-                    fallback_url.set_path(&fallback_url.path().replace("test.sxg", "fallback.html"));
+                    fallback_url
+                        .set_path(&fallback_url.path().replace("test.sxg", "fallback.html"));
                     Some(PresetContent::ToBeSigned {
                         url: fallback_url.to_string(),
                         payload: HttpResponse {
-                            headers: vec![(String::from("content-type"), String::from("text/html"))],
+                            headers: vec![(
+                                String::from("content-type"),
+                                String::from("text/html"),
+                            )],
                             status: 200,
                             body: include_bytes!("./static/success.html").to_vec(),
                         },
                         fallback: HttpResponse {
-                            headers: vec![(String::from("content-type"), String::from("text/html"))],
+                            headers: vec![(
+                                String::from("content-type"),
+                                String::from("text/html"),
+                            )],
                             status: 200,
                             body: include_bytes!("./static/fallback.html").to_vec(),
                         },
                     })
-                },
+                }
                 _ => None,
             }
         } else if let Some(cert_name) = path.strip_prefix(&self.config.cert_url_dirname) {
             if cert_name == self.cert_basename() {
                 Some(PresetContent::Direct(HttpResponse {
                     body: self.create_cert_cbor(ocsp_der),
-                    headers: vec![(String::from("content-type"), String::from("application/cert-chain+cbor"))],
+                    headers: vec![(
+                        String::from("content-type"),
+                        String::from("application/cert-chain+cbor"),
+                    )],
                     status: 200,
                 }))
             } else {
@@ -188,7 +222,10 @@ impl SxgWorker {
             if validity_name == "validity" {
                 Some(PresetContent::Direct(HttpResponse {
                     body: self.create_validity(),
-                    headers: vec![(String::from("content-type"), String::from("application/cbor"))],
+                    headers: vec![(
+                        String::from("content-type"),
+                        String::from("application/cbor"),
+                    )],
                     status: 200,
                 }))
             } else {
@@ -202,7 +239,11 @@ impl SxgWorker {
             None
         }
     }
-    pub fn transform_request_headers(&self, fields: HeaderFields, accept_filter: AcceptFilter) -> Result<HeaderFields> {
+    pub fn transform_request_headers(
+        &self,
+        fields: HeaderFields,
+        accept_filter: AcceptFilter,
+    ) -> Result<HeaderFields> {
         let headers = Headers::new(fields, &self.config.strip_request_headers);
         headers.forward_to_origin_server(accept_filter, &self.config.forward_request_headers)
     }
@@ -224,8 +265,8 @@ pub struct CreateSignedExchangeParams<'a> {
 
 #[cfg(test)]
 mod lib_tests {
-    use utils::tests as util;
     use super::*;
+    use utils::tests as util;
     fn new_worker() -> SxgWorker {
         let yaml = r#"
 cert_url_dirname: ".well-known/sxg-certs/"
@@ -248,20 +289,45 @@ validity_url_dirname: "//.well-known/sxg-validity"
     #[test]
     fn serve_preset_content() {
         let worker = new_worker();
-        assert_eq!(worker.serve_preset_content("https://my_domain.com/unknown", &[]), None);
-        assert!(matches!(worker.serve_preset_content("https://my_domain.com/.sxg/test.html", &[]), Some(PresetContent::Direct(HttpResponse { status: 200, .. }))));
-        assert!(matches!(worker.serve_preset_content("https://my_domain.com/.sxg/test.sxg", &[]), Some(PresetContent::ToBeSigned{..})));
+        assert_eq!(
+            worker.serve_preset_content("https://my_domain.com/unknown", &[]),
+            None
+        );
         assert!(matches!(
-                    worker.serve_preset_content(&format!("https://my_domain.com/.well-known/sxg-certs/{}", util::SELF_SIGNED_CERT_SHA256), &[]),
-                    Some(PresetContent::Direct(HttpResponse { status: 200, .. }))));
+            worker.serve_preset_content("https://my_domain.com/.sxg/test.html", &[]),
+            Some(PresetContent::Direct(HttpResponse { status: 200, .. }))
+        ));
         assert!(matches!(
-                    worker.serve_preset_content("https://my_domain.com/.well-known/sxg-certs/unknown", &[]),
-                    Some(PresetContent::Direct(HttpResponse { status: 404, .. }))));
+            worker.serve_preset_content("https://my_domain.com/.sxg/test.sxg", &[]),
+            Some(PresetContent::ToBeSigned { .. })
+        ));
         assert!(matches!(
-                    worker.serve_preset_content("https://my_domain.com/.well-known/sxg-validity/validity", &[]),
-                    Some(PresetContent::Direct(HttpResponse { status: 200, .. }))));
+            worker.serve_preset_content(
+                &format!(
+                    "https://my_domain.com/.well-known/sxg-certs/{}",
+                    util::SELF_SIGNED_CERT_SHA256
+                ),
+                &[]
+            ),
+            Some(PresetContent::Direct(HttpResponse { status: 200, .. }))
+        ));
         assert!(matches!(
-                    worker.serve_preset_content("https://my_domain.com/.well-known/sxg-validity/unknown", &[]),
-                    Some(PresetContent::Direct(HttpResponse { status: 404, .. }))));
+            worker.serve_preset_content("https://my_domain.com/.well-known/sxg-certs/unknown", &[]),
+            Some(PresetContent::Direct(HttpResponse { status: 404, .. }))
+        ));
+        assert!(matches!(
+            worker.serve_preset_content(
+                "https://my_domain.com/.well-known/sxg-validity/validity",
+                &[]
+            ),
+            Some(PresetContent::Direct(HttpResponse { status: 200, .. }))
+        ));
+        assert!(matches!(
+            worker.serve_preset_content(
+                "https://my_domain.com/.well-known/sxg-validity/unknown",
+                &[]
+            ),
+            Some(PresetContent::Direct(HttpResponse { status: 404, .. }))
+        ));
     }
 }

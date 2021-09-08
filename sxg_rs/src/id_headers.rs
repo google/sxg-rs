@@ -1,12 +1,12 @@
-use std::collections::HashSet;
 use once_cell::sync::Lazy;
+use std::collections::HashSet;
 
 // The full list of id headers is adds about 37K to the binary, as of writing,
 // so users may choose to exclude it.
-#[cfg(not(feature="strip_id_headers"))]
+#[cfg(not(feature = "strip_id_headers"))]
 pub static ID_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| HashSet::new());
 
-#[cfg(feature="strip_id_headers")]
+#[cfg(feature = "strip_id_headers")]
 pub static ID_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     vec![
         // These headers are nonstandard, and don't affect browser behavior at
@@ -1158,5 +1158,7 @@ pub static ID_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         r#"y-who"#,
         r#"yjs-cachestatus"#,
         r#"yjs-id"#,
-    ].into_iter().collect()
+    ]
+    .into_iter()
+    .collect()
 });

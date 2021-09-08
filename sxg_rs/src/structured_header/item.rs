@@ -27,7 +27,7 @@ impl<'a> fmt::Display for ShItem<'a> {
         match self {
             ShItem::ByteSequence(bytes) => {
                 write!(f, "*{}*", ::base64::encode(bytes))
-            },
+            }
             ShItem::Integer(x) => write!(f, "{}", x),
             ShItem::String(x) => {
                 write!(f, "\"")?;
@@ -35,18 +35,17 @@ impl<'a> fmt::Display for ShItem<'a> {
                     match c {
                         '\\' | '\"' => {
                             write!(f, "\\{}", c)?;
-                        },
+                        }
                         '\u{20}'..='\u{21}' | '\u{23}'..='\u{5b}' | '\u{5d}'..='\u{7e}' => {
                             write!(f, "{}", c)?;
-                        },
+                        }
                         '\u{0}'..='\u{1f}' | '\u{7f}'..='\u{10ffff}' => {
                             return Err(std::fmt::Error);
-                        },
+                        }
                     };
                 }
                 write!(f, "\"")
-            },
+            }
         }
     }
 }
-

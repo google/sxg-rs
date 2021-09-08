@@ -92,8 +92,8 @@ fn get_ocsp_kv_id(user: &GlobalUser, account_id: &str) -> String {
 }
 
 fn read_certificate_pem_file(path: &str) -> Result<String> {
-    let text =
-        std::fs::read_to_string(path).map_err(|_| Error::msg(format!(r#"Failed to read file "{}""#, path)))?;
+    let text = std::fs::read_to_string(path)
+        .map_err(|_| Error::msg(format!(r#"Failed to read file "{}""#, path)))?;
     // Translate Windows-style line endings to Unix-style so the '\r' is
     // not rendered in the toml. This is purely cosmetic; '\r' is deserialized
     // faithfully from toml and pem::parse_many is able to parse either style.
@@ -102,7 +102,10 @@ fn read_certificate_pem_file(path: &str) -> Result<String> {
     if certs.len() == 1 && certs[0].tag == "CERTIFICATE" {
         Ok(text)
     } else {
-        Err(Error::msg(format!(r#"File "{}" is not a valid certificate PEM"#, path)))
+        Err(Error::msg(format!(
+            r#"File "{}" is not a valid certificate PEM"#,
+            path
+        )))
     }
 }
 
@@ -141,7 +144,8 @@ const CONFIG_EXAMPLE_FILE: &'static str = "cloudflare_worker/wrangler.example.to
 // This function panics if `wrangler.toml` contains syntax error,
 // even when a valid `wrangler.example.toml` exists.
 fn read_existing_config() -> (WranglerConfig, bool) {
-    let (wrangler_config, exists) = std::fs::read_to_string(CONFIG_FILE).map (|s| (s, true))
+    let (wrangler_config, exists) = std::fs::read_to_string(CONFIG_FILE)
+        .map(|s| (s, true))
         .or_else(|_| std::fs::read_to_string(CONFIG_EXAMPLE_FILE).map(|s| (s, false)))
         .unwrap();
     let wrangler_config: WranglerConfig = toml::from_str(&wrangler_config).unwrap();
@@ -179,8 +183,10 @@ fn main() -> Result<(), std::io::Error> {
             .unwrap();
         let target = Select::new()
             .with_prompt("Where do you want to deploy the worker?")
-            .items(&vec!["On your domain (recommended; required by Google SXG Cache)",
-                         "On workers.dev (development only)"])
+            .items(&vec![
+                "On your domain (recommended; required by Google SXG Cache)",
+                "On workers.dev (development only)",
+            ])
             .default(0)
             .interact()
             .unwrap();

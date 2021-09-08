@@ -12,14 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use once_cell::sync::Lazy;
 use std::panic;
 use std::sync::{Mutex, Once};
-use once_cell::sync::Lazy;
 use wasm_bindgen::JsValue;
 
-pub static LAST_ERROR_MESSAGE: Lazy<Mutex<String>> = Lazy::new(|| {
-    Mutex::new("".to_string())
-});
+pub static LAST_ERROR_MESSAGE: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("".to_string()));
 
 fn hook(info: &panic::PanicInfo) {
     console_error_panic_hook::hook(info);
@@ -39,7 +37,9 @@ pub fn get_last_error_message() -> JsValue {
     if let Ok(last_error_message) = LAST_ERROR_MESSAGE.try_lock() {
         JsValue::from_str(&last_error_message)
     } else {
-        JsValue::from_str("Last error message is not available, because it is locked by another thread.")
+        JsValue::from_str(
+            "Last error message is not available, because it is locked by another thread.",
+        )
     }
 }
 

@@ -15,14 +15,18 @@
 mod fetcher;
 
 use anyhow::{Error, Result};
-use fastly::{Error as FastlyError, Request, Response, http::{StatusCode, Url}, mime::Mime};
+use fastly::{
+    http::{StatusCode, Url},
+    mime::Mime,
+    Error as FastlyError, Request, Response,
+};
+use fetcher::FastlyFetcher;
 use futures::executor::block_on;
 use once_cell::sync::Lazy;
 use sxg_rs::{
     headers::{AcceptFilter, Headers},
     PresetContent,
 };
-use fetcher::FastlyFetcher;
 
 pub static WORKER: Lazy<::sxg_rs::SxgWorker> = Lazy::new(|| {
     ::sxg_rs::SxgWorker::new(
@@ -85,15 +89,21 @@ fn fetch_from_html_server(url: &Url, req_headers: Vec<(String, String)>) -> Resu
     for (name, value) in req_headers {
         req.append_header(name, value);
     }
-    req.send("Origin HTML server").map_err(|err| {
-        Error::msg(format!(r#"Fetching "{}" leads to error "{}""#, url, err))
-    })
+    req.send("Origin HTML server")
+        .map_err(|err| Error::msg(format!(r#"Fetching "{}" leads to error "{}""#, url, err)))
 }
 
 fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Response> {
     let private_key_der = base64::decode(
-        &WORKER.config.private_key_base64.as_ref().ok_or(Error::msg("private_key_base64 is not set"))?)?;
-    let signer = Box::new(::sxg_rs::signature::rust_signer::RustSigner::new(&private_key_der));
+        &WORKER
+            .config
+            .private_key_base64
+            .as_ref()
+            .ok_or(Error::msg("private_key_base64 is not set"))?,
+    )?;
+    let signer = Box::new(::sxg_rs::signature::rust_signer::RustSigner::new(
+        &private_key_der,
+    ));
     let payload_headers = get_rsp_header_fields(&payload)?;
     payload_headers.validate_as_sxg_payload()?;
     let payload_body = payload.into_body_bytes();
@@ -119,27 +129,25 @@ fn handle_request(req: Request) -> Result<Response> {
     let fallback_url: Url;
     let sxg_payload;
     match WORKER.serve_preset_content(req.get_url_str(), &ocsp_der) {
-        Some(PresetContent::Direct(response)) => {
-            return Ok(fetcher::from_http_response(response))
-        },
-        Some(PresetContent::ToBeSigned {
-            url,
-            payload,
-            ..
-        }) => {
+        Some(PresetContent::Direct(response)) => return Ok(fetcher::from_http_response(response)),
+        Some(PresetContent::ToBeSigned { url, payload, .. }) => {
             fallback_url = Url::parse(&url).map_err(|e| Error::new(e))?;
             sxg_payload = fetcher::from_http_response(payload);
             let req_headers = get_req_header_fields(&req)?;
-            req_headers.forward_to_origin_server(AcceptFilter::AcceptsSxg,
-                                                 &WORKER.config.forward_request_headers)?;
-        },
+            req_headers.forward_to_origin_server(
+                AcceptFilter::AcceptsSxg,
+                &WORKER.config.forward_request_headers,
+            )?;
+        }
         None => {
             fallback_url = get_fallback_url(&req);
             let req_headers = get_req_header_fields(&req)?;
             sxg_payload = fetch_from_html_server(
                 &fallback_url,
-                req_headers.forward_to_origin_server(AcceptFilter::PrefersSxg,
-                                                     &WORKER.config.forward_request_headers)?,
+                req_headers.forward_to_origin_server(
+                    AcceptFilter::PrefersSxg,
+                    &WORKER.config.forward_request_headers,
+                )?,
             )?;
         }
     };
@@ -161,7 +169,14 @@ mod tests {
     fn it_works() {
         &*WORKER;
         let private_key_der = base64::decode(
-            &WORKER.config.private_key_base64.as_ref().ok_or("private_key_base64 is not set").unwrap()).unwrap();
+            &WORKER
+                .config
+                .private_key_base64
+                .as_ref()
+                .ok_or("private_key_base64 is not set")
+                .unwrap(),
+        )
+        .unwrap();
         assert_eq!(private_key_der.len(), 32);
     }
 }

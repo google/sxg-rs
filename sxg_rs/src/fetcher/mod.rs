@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[cfg(feature="js_fetcher")]
+#[cfg(feature = "js_fetcher")]
 pub mod js_fetcher;
 
+use crate::http::{HttpRequest, HttpResponse};
 use anyhow::Result;
 use async_trait::async_trait;
-use crate::http::{HttpRequest, HttpResponse};
 
 /// An interface for fetching resources from network.
 #[async_trait(?Send)]

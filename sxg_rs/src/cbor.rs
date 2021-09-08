@@ -38,17 +38,17 @@ impl<'a> DataItem<'a> {
             ByteString(bytes) => {
                 append_integer(output, 2, bytes.len() as u64);
                 output.extend_from_slice(bytes);
-            },
+            }
             TextString(text) => {
                 append_integer(output, 3, text.len() as u64);
                 output.extend_from_slice(text.as_bytes());
-            },
+            }
             Array(items) => {
                 append_integer(output, 4, items.len() as u64);
                 for item in items {
                     item.append_binary_to(output);
                 }
-            },
+            }
             Map(fields) => {
                 let mut map = BTreeMap::<Vec<u8>, Vec<u8>>::new();
                 for (key, value) in fields {
@@ -59,7 +59,7 @@ impl<'a> DataItem<'a> {
                     output.append(&mut key);
                     output.append(&mut value);
                 }
-            },
+            }
         }
     }
 }
@@ -69,23 +69,23 @@ fn append_integer(output: &mut Vec<u8>, major_type: u8, data: u64) {
     match data {
         0..=23 => {
             output.push(major_type | (data as u8));
-        },
+        }
         24..=0xff => {
             output.push(major_type | 24);
             output.push(data as u8);
-        },
+        }
         0x100..=0xffff => {
             output.push(major_type | 25);
             output.extend_from_slice(&(data as u16).to_be_bytes());
-        },
+        }
         0x10000..=0xffffffff => {
             output.push(major_type | 26);
             output.extend_from_slice(&(data as u32).to_be_bytes());
-        },
+        }
         0x100000000..=0xffffffffffffffff => {
             output.push(major_type | 27);
             output.extend_from_slice(&data.to_be_bytes());
-        },
+        }
     };
 }
 
@@ -93,28 +93,17 @@ fn append_integer(output: &mut Vec<u8>, major_type: u8, data: u64) {
 mod tests {
     use super::*;
     fn from_hex(input: &str) -> Vec<u8> {
-        (0..input.len()).step_by(2).map(|i| {
-            u8::from_str_radix(&input[i..i + 2], 16).unwrap()
-        }).collect()
+        (0..input.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&input[i..i + 2], 16).unwrap())
+            .collect()
     }
     #[test]
     fn it_works() {
-        assert_eq!(
-            DataItem::UnsignedInteger(0).serialize(),
-            from_hex("00"),
-        );
-        assert_eq!(
-            DataItem::UnsignedInteger(23).serialize(),
-            from_hex("17"),
-        );
-        assert_eq!(
-            DataItem::UnsignedInteger(24).serialize(),
-            from_hex("1818"),
-        );
-        assert_eq!(
-            DataItem::UnsignedInteger(100).serialize(),
-            from_hex("1864"),
-        );
+        assert_eq!(DataItem::UnsignedInteger(0).serialize(), from_hex("00"),);
+        assert_eq!(DataItem::UnsignedInteger(23).serialize(), from_hex("17"),);
+        assert_eq!(DataItem::UnsignedInteger(24).serialize(), from_hex("1818"),);
+        assert_eq!(DataItem::UnsignedInteger(100).serialize(), from_hex("1864"),);
         assert_eq!(
             DataItem::UnsignedInteger(1000).serialize(),
             from_hex("1903e8"),
@@ -139,15 +128,13 @@ mod tests {
             DataItem::TextString("IETF").serialize(),
             from_hex("6449455446"),
         );
-        assert_eq!(
-            DataItem::Map(vec![]).serialize(),
-            from_hex("a0"),
-        );
+        assert_eq!(DataItem::Map(vec![]).serialize(), from_hex("a0"),);
         assert_eq!(
             DataItem::Map(vec![
                 (DataItem::UnsignedInteger(1), DataItem::UnsignedInteger(2)),
                 (DataItem::UnsignedInteger(3), DataItem::UnsignedInteger(4)),
-            ]).serialize(),
+            ])
+            .serialize(),
             from_hex("a201020304"),
         );
     }
@@ -156,9 +143,10 @@ mod tests {
         use DataItem::*;
         assert_eq!(
             Map(vec![
-              (UnsignedInteger(2), UnsignedInteger(5)),
-              (UnsignedInteger(1), UnsignedInteger(6)),
-            ]).serialize(),
+                (UnsignedInteger(2), UnsignedInteger(5)),
+                (UnsignedInteger(1), UnsignedInteger(6)),
+            ])
+            .serialize(),
             from_hex("a201060205"),
         );
         // Although "AA" is lexicographically less than "B", the CBOR format
@@ -166,9 +154,10 @@ mod tests {
         // than "AA".
         assert_eq!(
             Map(vec![
-              (TextString("AA"), UnsignedInteger(6)),
-              (TextString("B"), UnsignedInteger(5)),
-            ]).serialize(),
+                (TextString("AA"), UnsignedInteger(6)),
+                (TextString("B"), UnsignedInteger(5)),
+            ])
+            .serialize(),
             from_hex("a261420562414106"),
         );
     }

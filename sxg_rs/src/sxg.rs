@@ -15,17 +15,28 @@
 use anyhow::{Error, Result};
 
 // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#application-signed-exchange
-pub fn build(fallback_url: &str, signature: &[u8], signed_headers: &[u8], payload_body: &[u8]) -> Result<Vec<u8>> {
+pub fn build(
+    fallback_url: &str,
+    signature: &[u8],
+    signed_headers: &[u8],
+    payload_body: &[u8],
+) -> Result<Vec<u8>> {
     // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#name-application-signed-exchange
     const SIG_LEN_LIMIT: usize = 16384;
     let sig_len = signature.len();
     if sig_len > SIG_LEN_LIMIT {
-        return Err(Error::msg(format!("sigLength {} is and larger than the limit {}", sig_len, SIG_LEN_LIMIT)));
+        return Err(Error::msg(format!(
+            "sigLength {} is and larger than the limit {}",
+            sig_len, SIG_LEN_LIMIT
+        )));
     }
     const HEADER_LEN_LIMIT: usize = 524288;
     let header_len = signed_headers.len();
     if header_len > HEADER_LEN_LIMIT {
-        return Err(Error::msg(format!("headerLength {} is larger than the limit {}", header_len, HEADER_LEN_LIMIT)));
+        return Err(Error::msg(format!(
+            "headerLength {} is larger than the limit {}",
+            header_len, HEADER_LEN_LIMIT
+        )));
     }
     Ok([
         "sxg1-b3\0".as_bytes(),
@@ -36,6 +47,6 @@ pub fn build(fallback_url: &str, signature: &[u8], signed_headers: &[u8], payloa
         signature,
         signed_headers,
         payload_body,
-    ].concat())
+    ]
+    .concat())
 }
-

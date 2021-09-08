@@ -15,19 +15,15 @@
 mod accept;
 mod base;
 mod cache_control;
-pub mod media_type;
 pub mod link;
+pub mod media_type;
 
 use anyhow::{Error, Result};
-use nom::{
-    IResult,
-    character::complete::char as char1,
-    combinator::complete,
-    eof,
-    separated_list0,
-    separated_pair,
-};
 use base::ows;
+use nom::{
+    character::complete::char as char1, combinator::complete, eof, separated_list0, separated_pair,
+    IResult,
+};
 use std::time::Duration;
 
 fn format_nom_err(err: nom::Err<nom::error::Error<&str>>) -> Error {
@@ -37,13 +33,11 @@ fn format_nom_err(err: nom::Err<nom::error::Error<&str>>) -> Error {
 // Parses a http header which might have multiple values separated by comma.
 fn parse_vec<'a, F, T>(input: &'a str, parse_single: F) -> Result<Vec<T>>
 where
-    F: Fn(&'a str) -> IResult<&'a str, T>
+    F: Fn(&'a str) -> IResult<&'a str, T>,
 {
-    let (input, items) = separated_list0!(
-        input,
-        separated_pair!(ows, char1(','), ows),
-        parse_single
-    ).map_err(format_nom_err)?;
+    let (input, items) =
+        separated_list0!(input, separated_pair!(ows, char1(','), ows), parse_single)
+            .map_err(format_nom_err)?;
     eof!(input,).map_err(format_nom_err)?;
     Ok(items)
 }
@@ -55,7 +49,8 @@ pub fn parse_accept_header(input: &str) -> Result<Vec<accept::Accept>> {
 // Returns the freshness lifetime for a shared cache.
 pub fn parse_cache_control_header(input: &str) -> Result<Duration> {
     let directives = parse_vec(input, cache_control::directive)?;
-    cache_control::freshness_lifetime(directives).ok_or(Error::msg("Freshness lifetime is implicit"))
+    cache_control::freshness_lifetime(directives)
+        .ok_or(Error::msg("Freshness lifetime is implicit"))
 }
 
 pub fn parse_content_type_header(input: &str) -> Result<media_type::MediaType> {

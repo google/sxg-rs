@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::Signer;
 use anyhow::{Error, Result};
 use async_trait::async_trait;
 use der_parser::ber::{BerObject, BerObjectContent};
 use js_sys::{Function as JsFunction, Uint8Array};
 use wasm_bindgen::JsValue;
-use super::Signer;
-
 
 enum SigFormat {
     Raw,
@@ -61,9 +60,14 @@ impl Signer for JsSigner {
         let a = Uint8Array::new_with_length(message.len() as u32);
         a.copy_from(&message);
         let this = JsValue::null();
-        let sig = self.js_function.call1(&this, &a).map_err(|e| Error::msg(format!("{:?}", e)).context("JavaScript signer throws an error."))?;
+        let sig = self.js_function.call1(&this, &a).map_err(|e| {
+            Error::msg(format!("{:?}", e)).context("JavaScript signer throws an error.")
+        })?;
         let sig = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(sig));
-        let sig = sig.await.map_err(|e| Error::msg(format!("{:?}", e)).context("JavaScript signer throws an error asynchronously."))?;
+        let sig = sig.await.map_err(|e| {
+            Error::msg(format!("{:?}", e))
+                .context("JavaScript signer throws an error asynchronously.")
+        })?;
         let sig = Uint8Array::from(sig);
         let sig = sig.to_vec();
         let sig = match self.js_sig_format {
@@ -75,10 +79,14 @@ impl Signer for JsSigner {
 }
 
 fn raw_sig_to_asn1(raw: Vec<u8>) -> Result<Vec<u8>> {
-    const NUMBER_LENGTH: usize = 32;  // 256 bit is 32 bytes.
-    const SIG_LENGTH: usize = NUMBER_LENGTH * 2;  // A signature contains two numbers;
+    const NUMBER_LENGTH: usize = 32; // 256 bit is 32 bytes.
+    const SIG_LENGTH: usize = NUMBER_LENGTH * 2; // A signature contains two numbers;
     if raw.len() != SIG_LENGTH {
-        return Err(Error::msg(format!("Expecting signature length to be {}, found {}.", SIG_LENGTH, raw.len())));
+        return Err(Error::msg(format!(
+            "Expecting signature length to be {}, found {}.",
+            SIG_LENGTH,
+            raw.len()
+        )));
     }
     let mut r = raw;
     let mut s = r.split_off(NUMBER_LENGTH);
@@ -88,7 +96,8 @@ fn raw_sig_to_asn1(raw: Vec<u8>) -> Result<Vec<u8>> {
         BerObject::from_obj(BerObjectContent::Integer(&r)),
         BerObject::from_obj(BerObjectContent::Integer(&s)),
     ]));
-    asn1.to_vec().map_err(|e| Error::new(e).context("Failed to serialize asn1 BER Object"))
+    asn1.to_vec()
+        .map_err(|e| Error::new(e).context("Failed to serialize asn1 BER Object"))
 }
 
 // Prepend the big-endian integer with leading zeros if needed, in order to
