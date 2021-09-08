@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[cfg(feature="js_signer")]
+#[cfg(feature = "js_signer")]
 pub mod js_signer;
-#[cfg(feature="rust_signer")]
+#[cfg(feature = "rust_signer")]
 pub mod rust_signer;
 
+use crate::structured_header::{ParamItem, ShItem, ShParamList};
 use anyhow::Result;
 use async_trait::async_trait;
-use crate::structured_header::{ShItem, ShParamList, ParamItem};
 
 #[async_trait(?Send)]
 pub trait Signer {
@@ -80,8 +80,12 @@ impl<'a> Signature<'a> {
             request_url.as_bytes(),
             &(headers.len() as u64).to_be_bytes(),
             &headers,
-        ].concat();
-        let sig = signer.sign(&message).await.map_err(|e| e.context("Failed to sign the message."))?;
+        ]
+        .concat();
+        let sig = signer
+            .sign(&message)
+            .await
+            .map_err(|e| e.context("Failed to sign the message."))?;
         Ok(Signature {
             cert_url,
             cert_sha256,

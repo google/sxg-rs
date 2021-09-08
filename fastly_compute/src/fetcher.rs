@@ -14,17 +14,10 @@
 
 use anyhow::{Error, Result};
 use async_trait::async_trait;
-use fastly::{
-    Request as FastlyRequest,
-    Response as FastlyResponse,
-};
+use fastly::{Request as FastlyRequest, Response as FastlyResponse};
 use sxg_rs::{
     fetcher::Fetcher,
-    http::{
-        HttpRequest,
-        HttpResponse,
-        Method,
-    },
+    http::{HttpRequest, HttpResponse, Method},
 };
 
 /// A [`Fetcher`] implemented by
@@ -49,9 +42,9 @@ impl FastlyFetcher {
 impl Fetcher for FastlyFetcher {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse> {
         let request = from_http_request(request);
-        let response: FastlyResponse = request.send(self.backend_name).map_err(|e| {
-            Error::new(e).context("Failed to fetch from backend.")
-        })?;
+        let response: FastlyResponse = request
+            .send(self.backend_name)
+            .map_err(|e| Error::new(e).context("Failed to fetch from backend."))?;
         into_http_response(response)
     }
 }

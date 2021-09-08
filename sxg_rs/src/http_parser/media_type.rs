@@ -12,20 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use nom::{
-    character::complete::char as char1,
-    many0,
-    map,
-    named,
-    preceded,
-    separated_pair,
-    tuple,
-};
-use super::base::{
-    ows,
-    parameter_value,
-    token,
-};
+use super::base::{ows, parameter_value, token};
+use nom::{character::complete::char as char1, many0, map, named, preceded, separated_pair, tuple};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct MediaType<'a> {
@@ -87,12 +75,10 @@ mod tests {
                 MediaType {
                     primary_type: "text",
                     sub_type: "html",
-                    parameters: vec![
-                        Parameter {
-                            name: "charset",
-                            value: "utf-8".to_string(),
-                        }
-                    ],
+                    parameters: vec![Parameter {
+                        name: "charset",
+                        value: "utf-8".to_string(),
+                    }],
                 }
             )
         );
@@ -126,12 +112,10 @@ mod tests {
                 MediaType {
                     primary_type: "a",
                     sub_type: "b",
-                    parameters: vec![
-                        Parameter {
-                            name: "x",
-                            value: "1".to_string(),
-                        }
-                    ],
+                    parameters: vec![Parameter {
+                        name: "x",
+                        value: "1".to_string(),
+                    }],
                 }
             )
         );
@@ -145,12 +129,10 @@ mod tests {
                 MediaType {
                     primary_type: "a",
                     sub_type: "b",
-                    parameters: vec![
-                        Parameter {
-                            name: "x",
-                            value: "1".to_string(),
-                        }
-                    ],
+                    parameters: vec![Parameter {
+                        name: "x",
+                        value: "1".to_string(),
+                    }],
                 }
             )
         );
@@ -203,8 +185,6 @@ mod tests {
     }
     #[test]
     fn unclosed_quoted_string() {
-        assert!(
-            media_type(r#"a/b;x="1\"23;y=0"#).is_err()
-        )
+        assert!(media_type(r#"a/b;x="1\"23;y=0"#).is_err())
     }
 }

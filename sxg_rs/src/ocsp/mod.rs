@@ -19,10 +19,7 @@
 // https://tools.ietf.org/html/rfc2560#appendix-A.1
 
 use der_parser::{
-    ber::{
-        BerObject,
-        BerObjectContent,
-    },
+    ber::{BerObject, BerObjectContent},
     oid,
     oid::Oid,
 };
@@ -31,7 +28,7 @@ use x509_parser::{
     extensions::{GeneralName, ParsedExtension},
 };
 
-use crate::fetcher::{Fetcher};
+use crate::fetcher::Fetcher;
 use crate::http::{HttpRequest, Method};
 use crate::utils::get_sha;
 
@@ -57,25 +54,19 @@ fn create_ocsp_request(cert: &X509Certificate, issuer: &X509Certificate) -> Vec<
     // Request         ::=     SEQUENCE {
     //     reqCert                     CertID,
     //     singleRequestExtensions     [0] EXPLICIT Extensions OPTIONAL }
-    let request = BerObject::from_seq(vec![
-        cert_id,
-    ]);
+    let request = BerObject::from_seq(vec![cert_id]);
     // https://tools.ietf.org/html/rfc6960#section-4.1.1
     // TBSRequest      ::=     SEQUENCE {
     //     version             [0]     EXPLICIT Version DEFAULT v1,
     //     requestorName       [1]     EXPLICIT GeneralName OPTIONAL,
     //     requestList                 SEQUENCE OF Request,
     //     requestExtensions   [2]     EXPLICIT Extensions OPTIONAL }
-    let tbs_request = BerObject::from_seq(vec![
-        BerObject::from_seq(vec![request]),
-    ]);
+    let tbs_request = BerObject::from_seq(vec![BerObject::from_seq(vec![request])]);
     // https://tools.ietf.org/html/rfc6960#section-4.1.1
     // OCSPRequest     ::=     SEQUENCE {
     //     tbsRequest                  TBSRequest,
     //     optionalSignature   [0]     EXPLICIT Signature OPTIONAL }
-    let ocsp_request = BerObject::from_seq(vec![
-       tbs_request,
-    ]);
+    let ocsp_request = BerObject::from_seq(vec![tbs_request]);
     ocsp_request.to_vec().unwrap()
 }
 
@@ -89,18 +80,24 @@ fn signature_algorithm() -> BerObject<'static> {
         // id-sha256  OBJECT IDENTIFIER  ::=  { joint-iso-itu-t(2)
         //      country(16) us(840) organization(1) gov(101) csor(3)
         //      nistalgorithm(4) hashalgs(2) 1 }
-        BerObject::from_obj(BerObjectContent::OID(Oid::from(&[2, 16, 840, 1, 101, 3, 4, 2, 1]).unwrap())),
+        BerObject::from_obj(BerObjectContent::OID(
+            Oid::from(&[2, 16, 840, 1, 101, 3, 4, 2, 1]).unwrap(),
+        )),
         BerObject::from_obj(BerObjectContent::Null),
     ])
 }
 
 // https://datatracker.ietf.org/doc/html/rfc4325#section-2
 // https://datatracker.ietf.org/doc/html/rfc3280#section-4.2.2.1
-const AIA: Oid<'static> = oid!(1.3.6.1.5.5.7.1.1);
+const AIA: Oid<'static> = oid!(1.3.6 .1 .5 .5 .7 .1 .1);
 // https://www.iana.org/assignments/smi-numbers/smi-numbers.xhtml#smi-numbers-1.3.6.1.5.5.7.48.1
-const AIA_OCSP: Oid<'static> = oid!(1.3.6.1.5.5.7.48.1);
+const AIA_OCSP: Oid<'static> = oid!(1.3.6 .1 .5 .5 .7 .48 .1);
 
-pub async fn fetch_from_ca<'a>(cert_der: &'a [u8], issuer_der: &'a [u8], fetcher: Box<dyn Fetcher>) -> Vec<u8> {
+pub async fn fetch_from_ca<'a>(
+    cert_der: &'a [u8],
+    issuer_der: &'a [u8],
+    fetcher: Box<dyn Fetcher>,
+) -> Vec<u8> {
     let cert = x509_parser::parse_x509_certificate(&cert_der).unwrap().1;
     let issuer = x509_parser::parse_x509_certificate(&issuer_der).unwrap().1;
     let aia = cert.extensions().get(&AIA);
@@ -117,13 +114,16 @@ pub async fn fetch_from_ca<'a>(cert_der: &'a [u8], issuer_der: &'a [u8], fetcher
             };
             let req = HttpRequest {
                 body: create_ocsp_request(&cert, &issuer),
-                headers: vec![(String::from("content-type"), String::from("application/ocsp-request"))],
+                headers: vec![(
+                    String::from("content-type"),
+                    String::from("application/ocsp-request"),
+                )],
                 method: Method::Post,
                 url: url.into(),
             };
             let rsp = fetcher.fetch(req).await.unwrap();
             rsp.body
-        },
+        }
         _ => panic!("failed to parse AIA extension"),
     }
 }

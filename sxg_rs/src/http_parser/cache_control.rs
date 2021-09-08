@@ -12,22 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::base::{parameter_value, token};
 use nom::{
-    IResult,
-    branch::alt,
-    bytes::complete::tag_no_case,
-    character::complete::char,
-    combinator::map,
-    combinator::map_res,
-    combinator::opt,
-    sequence::pair,
-    sequence::preceded,
+    branch::alt, bytes::complete::tag_no_case, character::complete::char, combinator::map,
+    combinator::map_res, combinator::opt, sequence::pair, sequence::preceded, IResult,
 };
 use std::time::Duration;
-use super::base::{
-    parameter_value,
-    token,
-};
 
 // https://datatracker.ietf.org/doc/html/rfc7234#section-5.2
 #[derive(Clone, Debug, PartialEq)]
@@ -43,13 +33,21 @@ pub fn directive(input: &str) -> IResult<&str, Directive> {
         // Nonnegative integers up to 31 bits must be parseable per
         // https://datatracker.ietf.org/doc/html/rfc7234#section-1.2.1.
         // Parsers may allow higher numbers.
-        preceded(tag_no_case("s-maxage="),
-                 map(map_res(parameter_value, |s| s.parse::<u32>()),
-                     |i| Directive::SMaxAge(Duration::from_secs(i.into())))),
-        preceded(tag_no_case("max-age="),
-                 map(map_res(parameter_value, |s| s.parse::<u32>()),
-                     |i| Directive::MaxAge(Duration::from_secs(i.into())))),
-        map(pair(token, opt(pair(char('='), parameter_value))), |_| Directive::Other),
+        preceded(
+            tag_no_case("s-maxage="),
+            map(map_res(parameter_value, |s| s.parse::<u32>()), |i| {
+                Directive::SMaxAge(Duration::from_secs(i.into()))
+            }),
+        ),
+        preceded(
+            tag_no_case("max-age="),
+            map(map_res(parameter_value, |s| s.parse::<u32>()), |i| {
+                Directive::MaxAge(Duration::from_secs(i.into()))
+            }),
+        ),
+        map(pair(token, opt(pair(char('='), parameter_value))), |_| {
+            Directive::Other
+        }),
     ))(input)
 }
 
@@ -67,8 +65,12 @@ pub fn freshness_lifetime(directives: Vec<Directive>) -> Option<Duration> {
     let mut max_age = None::<Duration>;
     for directive in directives {
         match directive {
-            Directive::SMaxAge(duration) => { s_maxage.get_or_insert(duration); },
-            Directive::MaxAge(duration) => { max_age.get_or_insert(duration); },
+            Directive::SMaxAge(duration) => {
+                s_maxage.get_or_insert(duration);
+            }
+            Directive::MaxAge(duration) => {
+                max_age.get_or_insert(duration);
+            }
             Directive::Other => (),
         };
     }
@@ -80,38 +82,92 @@ mod tests {
     use super::*;
     #[test]
     fn directive_s_maxage() {
-        assert_eq!(directive("s-maxage=3600").unwrap(), ("", Directive::SMaxAge(Duration::from_secs(3600))));
-        assert_eq!(directive("s-maxage=\"3600\"").unwrap(), ("", Directive::SMaxAge(Duration::from_secs(3600))));
+        assert_eq!(
+            directive("s-maxage=3600").unwrap(),
+            ("", Directive::SMaxAge(Duration::from_secs(3600)))
+        );
+        assert_eq!(
+            directive("s-maxage=\"3600\"").unwrap(),
+            ("", Directive::SMaxAge(Duration::from_secs(3600)))
+        );
         assert_eq!(directive("s-maxage=-1").unwrap(), ("", Directive::Other));
         assert_eq!(directive("s-maxage=1e6").unwrap(), ("", Directive::Other));
-        assert_eq!(directive("s-maxage=\"3600").unwrap_err().to_string(), "Parsing requires more data");
+        assert_eq!(
+            directive("s-maxage=\"3600").unwrap_err().to_string(),
+            "Parsing requires more data"
+        );
     }
     #[test]
     fn directive_max_age() {
-        assert_eq!(directive("max-age=3600").unwrap(), ("", Directive::MaxAge(Duration::from_secs(3600))));
-        assert_eq!(directive("max-age=\"3600\"").unwrap(), ("", Directive::MaxAge(Duration::from_secs(3600))));
+        assert_eq!(
+            directive("max-age=3600").unwrap(),
+            ("", Directive::MaxAge(Duration::from_secs(3600)))
+        );
+        assert_eq!(
+            directive("max-age=\"3600\"").unwrap(),
+            ("", Directive::MaxAge(Duration::from_secs(3600)))
+        );
         assert_eq!(directive("max-age=-1").unwrap(), ("", Directive::Other));
         assert_eq!(directive("max-age=1e6").unwrap(), ("", Directive::Other));
-        assert_eq!(directive("max-age=\"3600").unwrap_err().to_string(), "Parsing requires more data");
+        assert_eq!(
+            directive("max-age=\"3600").unwrap_err().to_string(),
+            "Parsing requires more data"
+        );
     }
     #[test]
     fn directive_other() {
         assert_eq!(directive("no-store").unwrap(), ("", Directive::Other));
-        assert_eq!(directive("no-cache=set-cookie").unwrap(), ("", Directive::Other));
-        assert_eq!(directive("no-cache=\"set-cookie, set-cookie2\"").unwrap(), ("", Directive::Other));
-        assert_eq!(directive("no-cache=\"set-cookie").unwrap_err().to_string(), "Parsing requires more data");
+        assert_eq!(
+            directive("no-cache=set-cookie").unwrap(),
+            ("", Directive::Other)
+        );
+        assert_eq!(
+            directive("no-cache=\"set-cookie, set-cookie2\"").unwrap(),
+            ("", Directive::Other)
+        );
+        assert_eq!(
+            directive("no-cache=\"set-cookie").unwrap_err().to_string(),
+            "Parsing requires more data"
+        );
     }
     #[test]
     fn directive_multiple() {
-        assert_eq!(directive("no-cache=\"set-cookie, set-cookie2\", no-store").unwrap(), (", no-store", Directive::Other));
+        assert_eq!(
+            directive("no-cache=\"set-cookie, set-cookie2\", no-store").unwrap(),
+            (", no-store", Directive::Other)
+        );
     }
     #[test]
     fn freshness_lifetimes() {
         assert_eq!(freshness_lifetime(vec![]), None);
-        assert_eq!(freshness_lifetime(vec![Directive::SMaxAge(Duration::from_secs(3600))]), Some(Duration::from_secs(3600)));
-        assert_eq!(freshness_lifetime(vec![Directive::MaxAge(Duration::from_secs(3600))]), Some(Duration::from_secs(3600)));
-        assert_eq!(freshness_lifetime(vec![Directive::SMaxAge(Duration::from_secs(3600)), Directive::MaxAge(Duration::from_secs(200))]), Some(Duration::from_secs(3600)));
-        assert_eq!(freshness_lifetime(vec![Directive::MaxAge(Duration::from_secs(200)), Directive::SMaxAge(Duration::from_secs(3600))]), Some(Duration::from_secs(3600)));
-        assert_eq!(freshness_lifetime(vec![Directive::MaxAge(Duration::from_secs(3600)), Directive::MaxAge(Duration::from_secs(200))]), Some(Duration::from_secs(3600)));
+        assert_eq!(
+            freshness_lifetime(vec![Directive::SMaxAge(Duration::from_secs(3600))]),
+            Some(Duration::from_secs(3600))
+        );
+        assert_eq!(
+            freshness_lifetime(vec![Directive::MaxAge(Duration::from_secs(3600))]),
+            Some(Duration::from_secs(3600))
+        );
+        assert_eq!(
+            freshness_lifetime(vec![
+                Directive::SMaxAge(Duration::from_secs(3600)),
+                Directive::MaxAge(Duration::from_secs(200))
+            ]),
+            Some(Duration::from_secs(3600))
+        );
+        assert_eq!(
+            freshness_lifetime(vec![
+                Directive::MaxAge(Duration::from_secs(200)),
+                Directive::SMaxAge(Duration::from_secs(3600))
+            ]),
+            Some(Duration::from_secs(3600))
+        );
+        assert_eq!(
+            freshness_lifetime(vec![
+                Directive::MaxAge(Duration::from_secs(3600)),
+                Directive::MaxAge(Duration::from_secs(200))
+            ]),
+            Some(Duration::from_secs(3600))
+        );
     }
 }

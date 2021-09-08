@@ -13,20 +13,10 @@
 // limitations under the License.
 
 use nom::{
-    IResult,
     alt,
-    bytes::complete::{
-        take_while,
-        take_while1,
-    },
+    bytes::complete::{take_while, take_while1},
     character::complete::char as char1,
-    delimited,
-    many0,
-    map,
-    map_opt,
-    named,
-    preceded,
-    take,
+    delimited, many0, map, map_opt, named, preceded, take, IResult,
 };
 
 // `token` are defined in
@@ -79,7 +69,7 @@ fn is_qdtext(c: char) -> bool {
         '\t' | ' ' | '\x21' => true,
         '\x23'..='\x5B' | '\x5D'..='\x7E' => true,
         '\u{80}'..=std::char::MAX => true,
-        _ => false
+        _ => false,
     }
 }
 
@@ -88,7 +78,7 @@ pub fn is_quoted_pair_payload(c: char) -> bool {
         '\t' | ' ' => true,
         '\x21'..='\x7E' => true,
         '\u{80}'..=std::char::MAX => true,
-        _ => false
+        _ => false,
     }
 }
 
@@ -97,20 +87,16 @@ named!(
     preceded!(char1('\\'), char_if(is_quoted_pair_payload))
 );
 
-fn char_if(predicate: fn (c: char) -> bool) -> impl Fn(&str) -> IResult<&str, char> {
+fn char_if(predicate: fn(c: char) -> bool) -> impl Fn(&str) -> IResult<&str, char> {
     move |input: &str| {
-        map_opt!(
-            input,
-            take!(1),
-            |s: &str| {
-                let c = s.chars().nth(0)?;
-                if predicate(c) {
-                    Some(c)
-                } else {
-                    None
-                }
+        map_opt!(input, take!(1), |s: &str| {
+            let c = s.chars().nth(0)?;
+            if predicate(c) {
+                Some(c)
+            } else {
+                None
             }
-        )
+        })
     }
 }
 
@@ -132,26 +118,19 @@ mod tests {
         assert_eq!(
             token("amp⚡").unwrap(),
             (
-                "⚡",  // unparsed bytes
-                "amp",  // parsed token
+                "⚡", // unparsed bytes
+                "amp", // parsed token
             )
         );
         // `obs-text` are allowed in quoted-string.
         assert_eq!(
             quoted_string(r#""amp⚡s""#).unwrap(),
-            (
-                "",
-                "amp⚡s".to_string(),
-            )
+            ("", "amp⚡s".to_string(),)
         );
         // `obs-text` are allowed as quoted-pair.
         assert_eq!(
             quoted_string(r#""amp\⚡s""#).unwrap(),
-            (
-                "",
-                "amp⚡s".to_string(),
-            )
+            ("", "amp⚡s".to_string(),)
         );
-
     }
 }

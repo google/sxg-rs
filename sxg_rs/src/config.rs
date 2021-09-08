@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 
 // This struct is source-of-truth of the sxg config. The user need to create
 // a file (like `config.yaml`) to provide this config input.
@@ -96,8 +96,8 @@ fn get_der(pem_text: &str, expected_tag: &str) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::tests::SELF_SIGNED_CERT_PEM;
     use super::*;
+    use crate::utils::tests::SELF_SIGNED_CERT_PEM;
     #[test]
     fn processes_input() {
         let yaml = r#"
@@ -114,10 +114,25 @@ validity_url_dirname: "//.well-known/sxg-validity"
         "#;
         let config = Config::new(yaml, SELF_SIGNED_CERT_PEM, SELF_SIGNED_CERT_PEM);
         assert_eq!(config.cert_url_dirname, "/.well-known/sxg-certs/");
-        assert_eq!(config.forward_request_headers, ["cf-ipcountry", "user-agent"].iter().map(|s| s.to_string()).collect());
+        assert_eq!(
+            config.forward_request_headers,
+            ["cf-ipcountry", "user-agent"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        );
         assert_eq!(config.html_host, Some("my_domain.com".into()));
-        assert_eq!(config.strip_request_headers, ["forwarded"].iter().map(|s| s.to_string()).collect());
-        assert_eq!(config.strip_response_headers, ["set-cookie", "strict-transport-security"].iter().map(|s| s.to_string()).collect());
+        assert_eq!(
+            config.strip_request_headers,
+            ["forwarded"].iter().map(|s| s.to_string()).collect()
+        );
+        assert_eq!(
+            config.strip_response_headers,
+            ["set-cookie", "strict-transport-security"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        );
         assert_eq!(config.reserved_path, "/.sxg/");
         assert_eq!(config.validity_url_dirname, "/.well-known/sxg-validity/");
     }

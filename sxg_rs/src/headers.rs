@@ -12,20 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::{Error, Result};
-use crate::http_parser::{
-    parse_accept_header,
-    parse_cache_control_header,
-    parse_content_type_header,
-    parse_link_header,
-    link::Link,
-    media_type::MediaType,
-};
-use std::collections::{BTreeSet, HashMap, HashSet};
-use once_cell::sync::Lazy;
 use crate::http::HeaderFields;
+use crate::http_parser::{
+    link::Link, media_type::MediaType, parse_accept_header, parse_cache_control_header,
+    parse_content_type_header, parse_link_header,
+};
+use anyhow::{Error, Result};
+use once_cell::sync::Lazy;
 use serde::Deserialize;
 use std::cmp::min;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::time::Duration;
 use url::Url;
 
@@ -60,14 +56,21 @@ impl Headers {
         }
         headers
     }
-    pub fn forward_to_origin_server(self, accept_filter: AcceptFilter, forwarded_header_names: &BTreeSet<String>) -> Result<HeaderFields> {
+    pub fn forward_to_origin_server(
+        self,
+        accept_filter: AcceptFilter,
+        forwarded_header_names: &BTreeSet<String>,
+    ) -> Result<HeaderFields> {
         if self.0.contains_key("authorization") {
             // We should not sign personalized content, but we cannot anonymize this request per
             // https://datatracker.ietf.org/doc/html/rfc7235#section-4.2:
             // "A proxy forwarding a request MUST NOT modify any Authorization fields in that request."
             return Err(Error::msg("The request contains an Authorization header."));
         }
-        let accept = self.0.get("accept").ok_or(Error::msg("The request does not have an Accept header"))?;
+        let accept = self
+            .0
+            .get("accept")
+            .ok_or(Error::msg("The request does not have an Accept header"))?;
         validate_accept_header(accept, accept_filter)?;
         // Set Via per https://tools.ietf.org/html/rfc7230#section-5.7.1
         let mut via = format!("sxgrs");
@@ -75,20 +78,21 @@ impl Headers {
             via = format!("{}, {}", upstream_via, via);
         }
         // new_headers is ordered to make testing easier.
-        let mut new_headers: HashMap<String, String> = self.0.into_iter().filter_map(|(k, v)| {
-            let v = if forwarded_header_names.contains(&k) {
-                v
-            } else if k == "via" {
-                format!("{}, {}", v, via)
-            } else {
-                return None;
-            };
-            Some((k, v))
-        }).collect();
-        let default_values = vec![
-            ("user-agent", USER_AGENT),
-            ("via", &via),
-        ];
+        let mut new_headers: HashMap<String, String> = self
+            .0
+            .into_iter()
+            .filter_map(|(k, v)| {
+                let v = if forwarded_header_names.contains(&k) {
+                    v
+                } else if k == "via" {
+                    format!("{}, {}", v, via)
+                } else {
+                    return None;
+                };
+                Some((k, v))
+            })
+            .collect();
+        let default_values = vec![("user-agent", USER_AGENT), ("via", &via)];
         for (k, v) in default_values {
             if new_headers.contains_key(k) == false {
                 new_headers.insert(k.to_string(), v.to_string());
@@ -99,13 +103,20 @@ impl Headers {
     pub fn validate_as_sxg_payload(&self) -> Result<()> {
         for (k, v) in self.0.iter() {
             if DONT_SIGN_RESPONSE_HEADERS.contains(k.as_str()) {
-                return Err(Error::msg(format!(r#"A stateful header "{}" is found."#, k)));
+                return Err(Error::msg(format!(
+                    r#"A stateful header "{}" is found."#,
+                    k
+                )));
             }
             if CACHE_CONTROL_HEADERS.contains(k.as_str()) {
                 // `private` and `no-store` are disallowed by
                 // https://github.com/google/webpackager/blob/master/docs/cache_requirements.md#user-content-google-sxg-cache,
                 // while the other two are signals that the document is not usually cached and reused.
-                if v.contains("private") || v.contains("no-store") || v.contains("no-cache") || v.contains("max-age=0") {
+                if v.contains("private")
+                    || v.contains("no-store")
+                    || v.contains("no-cache")
+                    || v.contains("max-age=0")
+                {
                     return Err(Error::msg(format!(r#"The {} header is "{}"."#, k, v)));
                 }
             }
@@ -115,10 +126,16 @@ impl Headers {
             if let Ok(size) = size.parse::<u64>() {
                 const MAX_SIZE: u64 = 8_000_000;
                 if size > MAX_SIZE {
-                    return Err(Error::msg(format!("The content-length header is {}, which exceeds the limit {}.", size, MAX_SIZE)));
+                    return Err(Error::msg(format!(
+                        "The content-length header is {}, which exceeds the limit {}.",
+                        size, MAX_SIZE
+                    )));
                 }
             } else {
-                return Err(Error::msg(format!(r#"The content-length header "{}" is not a valid length."#, size)));
+                return Err(Error::msg(format!(
+                    r#"The content-length header "{}" is not a valid length."#,
+                    size
+                )));
             }
         }
         // The payload of SXG must have a content-type. See step 8 of
@@ -132,11 +149,22 @@ impl Headers {
     // https://github.com/google/webpackager/blob/main/docs/cache_requirements.md.
     fn process_link_header(value: &str, fallback_url: &Url) -> String {
         static ALLOWED_PARAM: Lazy<HashSet<&'static str>> = Lazy::new(|| {
-            vec!["as", "header-integrity", "media", "rel", "imagesrcset", "imagesizes", "crossorigin"].into_iter().collect()});
-        static ALLOWED_REL: Lazy<HashSet<&'static str>> = Lazy::new(|| {
-            vec!["preload", "allowed-alt-sxg"].into_iter().collect()});
-        static ALLOWED_CROSSORIGIN: Lazy<HashSet<&'static str>> = Lazy::new(|| {
-            vec!["", "anonymous"].into_iter().collect()});
+            vec![
+                "as",
+                "header-integrity",
+                "media",
+                "rel",
+                "imagesrcset",
+                "imagesizes",
+                "crossorigin",
+            ]
+            .into_iter()
+            .collect()
+        });
+        static ALLOWED_REL: Lazy<HashSet<&'static str>> =
+            Lazy::new(|| vec!["preload", "allowed-alt-sxg"].into_iter().collect());
+        static ALLOWED_CROSSORIGIN: Lazy<HashSet<&'static str>> =
+            Lazy::new(|| vec!["", "anonymous"].into_iter().collect());
         match parse_link_header(value) {
             Ok(links) => {
                 let mut count = 0;
@@ -162,7 +190,7 @@ impl Headers {
                         None
                     }
                 }).collect::<Vec<String>>().join(",")
-            },
+            }
             Err(_) => "".into(),
         }
     }
@@ -170,23 +198,39 @@ impl Headers {
     // value, because it contains a mix of &str and String. This makes it easy
     // to test the intermediate Vec<(&str, &str)> without sacrificing
     // performance by copying it into a Vec<(String, String)>.
-    fn get_signed_headers<O, F>(&self, fallback_url: &Url, status_code: u16, mice_digest: &[u8], serializer: F) -> O
-        where F: Fn(Vec<(&str, &str)>) -> O {
+    fn get_signed_headers<O, F>(
+        &self,
+        fallback_url: &Url,
+        status_code: u16,
+        mice_digest: &[u8],
+        serializer: F,
+    ) -> O
+    where
+        F: Fn(Vec<(&str, &str)>) -> O,
+    {
         let connection = self.connection_headers();
         let mut fields: Vec<(&str, &str)> = vec![];
         let html = self.0.get("content-type").map_or(false, |t|
             matches!(parse_content_type_header(t),
                      Ok(MediaType {primary_type, sub_type, ..})
                          if primary_type.eq_ignore_ascii_case("text") && sub_type.eq_ignore_ascii_case("html")));
-        let link = self.0.get("link").map_or("".into(), |value| Self::process_link_header(value, fallback_url));
+        let link = self.0.get("link").map_or("".into(), |value| {
+            Self::process_link_header(value, fallback_url)
+        });
         if !link.is_empty() {
             fields.push(("link", &link));
         }
         for (k, v) in self.0.iter() {
-            if STRIP_RESPONSE_HEADERS.contains(k.as_str()) || DONT_SIGN_RESPONSE_HEADERS.contains(k.as_str()) || connection.contains(k) {
+            if STRIP_RESPONSE_HEADERS.contains(k.as_str())
+                || DONT_SIGN_RESPONSE_HEADERS.contains(k.as_str())
+                || connection.contains(k)
+            {
                 continue;
             }
-            if !html && (STRIP_SUBRESOURCE_RESPONSE_HEADERS.contains(k.as_str()) || crate::id_headers::ID_HEADERS.contains(k.as_str())) {
+            if !html
+                && (STRIP_SUBRESOURCE_RESPONSE_HEADERS.contains(k.as_str())
+                    || crate::id_headers::ID_HEADERS.contains(k.as_str()))
+            {
                 continue;
             }
             if k == "link" {
@@ -202,13 +246,24 @@ impl Headers {
         fields.push(("digest", &digest));
         serializer(fields)
     }
-    pub fn get_signed_headers_bytes(&self, fallback_url: &Url, status_code: u16, mice_digest: &[u8]) -> Vec<u8> {
+    pub fn get_signed_headers_bytes(
+        &self,
+        fallback_url: &Url,
+        status_code: u16,
+        mice_digest: &[u8],
+    ) -> Vec<u8> {
         self.get_signed_headers(fallback_url, status_code, mice_digest, |fields| {
             use crate::cbor::DataItem;
             let cbor_data = DataItem::Map(
-                fields.iter().map(|(key, value)| {
-                    (DataItem::ByteString(key.as_bytes()), DataItem::ByteString(value.as_bytes()))
-                }).collect()
+                fields
+                    .iter()
+                    .map(|(key, value)| {
+                        (
+                            DataItem::ByteString(key.as_bytes()),
+                            DataItem::ByteString(value.as_bytes()),
+                        )
+                    })
+                    .collect(),
             );
             cbor_data.serialize()
         })
@@ -222,7 +277,10 @@ impl Headers {
         const OWS: &[char] = &[' ', '\t'];
         match self.0.get("connection") {
             None => HashSet::new(),
-            Some(connection) => connection.split(',').map(|w| w.trim_matches(OWS).to_ascii_lowercase()).collect()
+            Some(connection) => connection
+                .split(',')
+                .map(|w| w.trim_matches(OWS).to_ascii_lowercase())
+                .collect(),
         }
     }
     // How long the signature should last, or error if the response shouldn't be signed.
@@ -236,8 +294,7 @@ impl Headers {
                     Ok(min(SEVEN_DAYS, duration))
                 } else {
                     Err(Error::msg("Validity duration is too short."))
-                }
-
+                };
             }
         }
         Ok(SEVEN_DAYS)
@@ -254,18 +311,17 @@ static STRIP_RESPONSE_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         "trailer",
         "transfer-encoding",
         "upgrade",
-
         // These headers are reserved for SXG
         ":status",
         "content-encoding",
         "digest",
-
         // These headers are prohibited by Google SXG cache
         // https://github.com/google/webpackager/blob/master/docs/cache_requirements.md
         "variant-key-04",
         "variants-04",
-
-    ].into_iter().collect()
+    ]
+    .into_iter()
+    .collect()
 });
 
 // These headers don't affect the semantics of the response inside an
@@ -290,7 +346,9 @@ static STRIP_SUBRESOURCE_RESPONSE_HEADERS: Lazy<HashSet<&'static str>> = Lazy::n
         "server-timing",
         "via",
         "warning",
-    ].into_iter().collect()
+    ]
+    .into_iter()
+    .collect()
 });
 
 // These headers prevent signing, unless stripped by the strip_response_headers param.
@@ -310,7 +368,9 @@ static DONT_SIGN_RESPONSE_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         "setprofile",
         "strict-transport-security",
         "www-authenticate",
-    ].into_iter().collect()
+    ]
+    .into_iter()
+    .collect()
 });
 
 static CACHE_CONTROL_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
@@ -322,7 +382,9 @@ static CACHE_CONTROL_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         "cloudflare-cdn-cache-control",
         // https://developer.fastly.com/reference/http-headers/Surrogate-Control/
         "surrogate-control",
-    ].into_iter().collect()
+    ]
+    .into_iter()
+    .collect()
 });
 
 // Checks whether to serve SXG based on the Accept header of the HTTP request.
@@ -334,35 +396,51 @@ fn validate_accept_header(accept: &str, accept_filter: AcceptFilter) -> Result<(
     if accept.len() == 0 {
         return Err(Error::msg("Accept header is empty"));
     }
-    let q_sxg = accept.iter().filter_map(|t| {
-        if t.media_range.primary_type.eq_ignore_ascii_case("application") && t.media_range.sub_type.eq_ignore_ascii_case("signed-exchange") {
-            let mut v = "";
-            for param in &t.media_range.parameters {
-                if param.name.eq_ignore_ascii_case("v") {
-                    v = &param.value;
+    let q_sxg = accept
+        .iter()
+        .filter_map(|t| {
+            if t.media_range
+                .primary_type
+                .eq_ignore_ascii_case("application")
+                && t.media_range
+                    .sub_type
+                    .eq_ignore_ascii_case("signed-exchange")
+            {
+                let mut v = "";
+                for param in &t.media_range.parameters {
+                    if param.name.eq_ignore_ascii_case("v") {
+                        v = &param.value;
+                    }
                 }
-            }
-            if v == "b3" {
-                Some(t.q_millis)
+                if v == "b3" {
+                    Some(t.q_millis)
+                } else {
+                    None
+                }
             } else {
                 None
             }
-        } else {
-            None
-        }
-    }).max().unwrap_or(0);
+        })
+        .max()
+        .unwrap_or(0);
     const SXG: &str = "application/signed-exchange;v=b3";
     if q_sxg == 0 {
-        Err(Error::msg(format!("The request accept header does not contain {}.", SXG)))
+        Err(Error::msg(format!(
+            "The request accept header does not contain {}.",
+            SXG
+        )))
     } else {
         match accept_filter {
             AcceptFilter::PrefersSxg => {
                 if q_sxg == 1000 {
                     Ok(())
                 } else {
-                    Err(Error::msg(format!("The q value of {} is less than 1 in request Accept header.", SXG)))
+                    Err(Error::msg(format!(
+                        "The q value of {} is less than 1 in request Accept header.",
+                        SXG
+                    )))
                 }
-            },
+            }
             AcceptFilter::AcceptsSxg => Ok(()),
         }
     }
@@ -370,11 +448,14 @@ fn validate_accept_header(accept: &str, accept_filter: AcceptFilter) -> Result<(
 
 #[cfg(test)]
 mod tests {
-    use std::iter::FromIterator;
     use super::*;
+    use std::iter::FromIterator;
 
     fn header_fields<T: FromIterator<(String, String)>>(pairs: Vec<(&str, &str)>) -> T {
-        pairs.into_iter().map(|(k,v)| (k.to_string(), v.to_string())).collect()
+        pairs
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
     fn headers(pairs: Vec<(&str, &str)>) -> Headers {
         Headers::new(header_fields(pairs), &BTreeSet::new())
@@ -383,76 +464,216 @@ mod tests {
     // === new ===
     #[test]
     fn new_strips_headers() {
-        assert_eq!(Headers::new(header_fields(vec![("accept", "*/*"), ("forwarded", "for=192.168.7.1")]), &vec!["forwarded".to_string()].into_iter().collect()).0,
-                   header_fields(vec![("accept", "*/*")]));
+        assert_eq!(
+            Headers::new(
+                header_fields(vec![("accept", "*/*"), ("forwarded", "for=192.168.7.1")]),
+                &vec!["forwarded".to_string()].into_iter().collect()
+            )
+            .0,
+            header_fields(vec![("accept", "*/*")])
+        );
     }
 
     // === forward_to_origin_server ===
     #[test]
     fn basic_request_headers() {
-      assert_eq!(headers(vec![("accept", "application/signed-exchange;v=b3")]).forward_to_origin_server(AcceptFilter::PrefersSxg, &BTreeSet::new()).unwrap().into_iter().collect::<HashMap<String, String>>(),
-                 header_fields(vec![("user-agent", USER_AGENT), ("via", "sxgrs")]));
+        assert_eq!(
+            headers(vec![("accept", "application/signed-exchange;v=b3")])
+                .forward_to_origin_server(AcceptFilter::PrefersSxg, &BTreeSet::new())
+                .unwrap()
+                .into_iter()
+                .collect::<HashMap<String, String>>(),
+            header_fields(vec![("user-agent", USER_AGENT), ("via", "sxgrs")])
+        );
     }
     #[test]
     fn authenticated_request_headers() {
-      assert_eq!(headers(vec![("accept", "application/signed-exchange;v=b3"), ("authorization", "x")]).forward_to_origin_server(AcceptFilter::PrefersSxg, &BTreeSet::new()).unwrap_err().to_string(),
-                 "The request contains an Authorization header.");
+        assert_eq!(
+            headers(vec![
+                ("accept", "application/signed-exchange;v=b3"),
+                ("authorization", "x")
+            ])
+            .forward_to_origin_server(AcceptFilter::PrefersSxg, &BTreeSet::new())
+            .unwrap_err()
+            .to_string(),
+            "The request contains an Authorization header."
+        );
     }
 
     // === validate_accept_header ===
     #[test]
     fn prefers_sxg() {
-        assert!(validate_accept_header("application/signed-exchange;v=b3", AcceptFilter::PrefersSxg).is_ok());
-        assert!(validate_accept_header("application/signed-exchange;v=b3;q=1", AcceptFilter::PrefersSxg).is_ok());
-        assert!(validate_accept_header("  application/signed-exchange  ;  v=b3  ;  q=1  ,  */*  ;  q=0.8  ", AcceptFilter::PrefersSxg).is_ok());
-        assert!(validate_accept_header("text/html;q=0.5,application/signed-exchange;V=b3;Q=1", AcceptFilter::PrefersSxg).is_ok());
-        assert!(validate_accept_header("text/html;q=0.5,application/signed-exchange;v=b3", AcceptFilter::PrefersSxg).is_ok());
+        assert!(validate_accept_header(
+            "application/signed-exchange;v=b3",
+            AcceptFilter::PrefersSxg
+        )
+        .is_ok());
+        assert!(validate_accept_header(
+            "application/signed-exchange;v=b3;q=1",
+            AcceptFilter::PrefersSxg
+        )
+        .is_ok());
+        assert!(validate_accept_header(
+            "  application/signed-exchange  ;  v=b3  ;  q=1  ,  */*  ;  q=0.8  ",
+            AcceptFilter::PrefersSxg
+        )
+        .is_ok());
+        assert!(validate_accept_header(
+            "text/html;q=0.5,application/signed-exchange;V=b3;Q=1",
+            AcceptFilter::PrefersSxg
+        )
+        .is_ok());
+        assert!(validate_accept_header(
+            "text/html;q=0.5,application/signed-exchange;v=b3",
+            AcceptFilter::PrefersSxg
+        )
+        .is_ok());
 
-        assert!(validate_accept_header("application/signed-exchange;v=b3;q=0.9,*/*;q=0.8", AcceptFilter::PrefersSxg).is_err());
-        assert!(validate_accept_header("text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9", AcceptFilter::PrefersSxg).is_err());
-        assert!(validate_accept_header("application/signed-exchange;q=1;v=b3", AcceptFilter::PrefersSxg).is_err());
+        assert!(validate_accept_header(
+            "application/signed-exchange;v=b3;q=0.9,*/*;q=0.8",
+            AcceptFilter::PrefersSxg
+        )
+        .is_err());
+        assert!(validate_accept_header(
+            "text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+            AcceptFilter::PrefersSxg
+        )
+        .is_err());
+        assert!(validate_accept_header(
+            "application/signed-exchange;q=1;v=b3",
+            AcceptFilter::PrefersSxg
+        )
+        .is_err());
         assert!(validate_accept_header("", AcceptFilter::PrefersSxg).is_err());
-        assert!(validate_accept_header("application/signed-exchange", AcceptFilter::PrefersSxg).is_err());
-        assert!(validate_accept_header("application/signed-exchange;v=b2", AcceptFilter::PrefersSxg).is_err());
+        assert!(
+            validate_accept_header("application/signed-exchange", AcceptFilter::PrefersSxg)
+                .is_err()
+        );
+        assert!(validate_accept_header(
+            "application/signed-exchange;v=b2",
+            AcceptFilter::PrefersSxg
+        )
+        .is_err());
     }
     #[test]
     fn accepts_sxg() {
         // Same list as above, but some more are ok.
-        assert!(validate_accept_header("application/signed-exchange;v=b3", AcceptFilter::AcceptsSxg).is_ok());
-        assert!(validate_accept_header("application/signed-exchange;v=b3;q=1", AcceptFilter::AcceptsSxg).is_ok());
-        assert!(validate_accept_header("  application/signed-exchange  ;  v=b3  ;  q=1  ,  */*  ;  q=0.8  ", AcceptFilter::AcceptsSxg).is_ok());
-        assert!(validate_accept_header("text/html;q=0.5,application/signed-exchange;V=b3;Q=1", AcceptFilter::AcceptsSxg).is_ok());
-        assert!(validate_accept_header("text/html;q=0.5,application/signed-exchange;v=b3", AcceptFilter::AcceptsSxg).is_ok());
-        assert!(validate_accept_header("application/signed-exchange;v=b3;q=0.9,*/*;q=0.8", AcceptFilter::AcceptsSxg).is_ok());
-        assert!(validate_accept_header("text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9", AcceptFilter::AcceptsSxg).is_ok());
+        assert!(validate_accept_header(
+            "application/signed-exchange;v=b3",
+            AcceptFilter::AcceptsSxg
+        )
+        .is_ok());
+        assert!(validate_accept_header(
+            "application/signed-exchange;v=b3;q=1",
+            AcceptFilter::AcceptsSxg
+        )
+        .is_ok());
+        assert!(validate_accept_header(
+            "  application/signed-exchange  ;  v=b3  ;  q=1  ,  */*  ;  q=0.8  ",
+            AcceptFilter::AcceptsSxg
+        )
+        .is_ok());
+        assert!(validate_accept_header(
+            "text/html;q=0.5,application/signed-exchange;V=b3;Q=1",
+            AcceptFilter::AcceptsSxg
+        )
+        .is_ok());
+        assert!(validate_accept_header(
+            "text/html;q=0.5,application/signed-exchange;v=b3",
+            AcceptFilter::AcceptsSxg
+        )
+        .is_ok());
+        assert!(validate_accept_header(
+            "application/signed-exchange;v=b3;q=0.9,*/*;q=0.8",
+            AcceptFilter::AcceptsSxg
+        )
+        .is_ok());
+        assert!(validate_accept_header(
+            "text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+            AcceptFilter::AcceptsSxg
+        )
+        .is_ok());
 
-        assert!(validate_accept_header("application/signed-exchange;q=1;v=b3", AcceptFilter::AcceptsSxg).is_err());
+        assert!(validate_accept_header(
+            "application/signed-exchange;q=1;v=b3",
+            AcceptFilter::AcceptsSxg
+        )
+        .is_err());
         assert!(validate_accept_header("", AcceptFilter::AcceptsSxg).is_err());
-        assert!(validate_accept_header("application/signed-exchange", AcceptFilter::AcceptsSxg).is_err());
-        assert!(validate_accept_header("application/signed-exchange;v=b2", AcceptFilter::AcceptsSxg).is_err());
+        assert!(
+            validate_accept_header("application/signed-exchange", AcceptFilter::AcceptsSxg)
+                .is_err()
+        );
+        assert!(validate_accept_header(
+            "application/signed-exchange;v=b2",
+            AcceptFilter::AcceptsSxg
+        )
+        .is_err());
     }
 
     // === validate_as_sxg_payload ===
     #[test]
     fn response_headers_minimum_valid() {
-        assert!(headers(vec![("content-type", "text/html")]).validate_as_sxg_payload().is_ok());
+        assert!(headers(vec![("content-type", "text/html")])
+            .validate_as_sxg_payload()
+            .is_ok());
     }
     #[test]
     fn response_headers_caching() {
-        assert!(headers(vec![("content-type", "text/html"), ("cache-control", "max-age=1")]).validate_as_sxg_payload().is_ok());
-        assert!(headers(vec![("content-type", "text/html"), ("cache-control", "private")]).validate_as_sxg_payload().is_err());
-        assert!(headers(vec![("content-type", "text/html"), ("cdn-cache-control", "no-store")]).validate_as_sxg_payload().is_err());
-        assert!(headers(vec![("content-type", "text/html"), ("cloudflare-cdn-cache-control", "no-cache")]).validate_as_sxg_payload().is_err());
-        assert!(headers(vec![("content-type", "text/html"), ("surrogate-control", "max-age=0")]).validate_as_sxg_payload().is_err());
+        assert!(headers(vec![
+            ("content-type", "text/html"),
+            ("cache-control", "max-age=1")
+        ])
+        .validate_as_sxg_payload()
+        .is_ok());
+        assert!(headers(vec![
+            ("content-type", "text/html"),
+            ("cache-control", "private")
+        ])
+        .validate_as_sxg_payload()
+        .is_err());
+        assert!(headers(vec![
+            ("content-type", "text/html"),
+            ("cdn-cache-control", "no-store")
+        ])
+        .validate_as_sxg_payload()
+        .is_err());
+        assert!(headers(vec![
+            ("content-type", "text/html"),
+            ("cloudflare-cdn-cache-control", "no-cache")
+        ])
+        .validate_as_sxg_payload()
+        .is_err());
+        assert!(headers(vec![
+            ("content-type", "text/html"),
+            ("surrogate-control", "max-age=0")
+        ])
+        .validate_as_sxg_payload()
+        .is_err());
     }
     #[test]
     fn response_headers_stateful() {
-        assert!(headers(vec![("content-type", "text/html"), ("clear-site-data", r#""*""#)]).validate_as_sxg_payload().is_err());
+        assert!(headers(vec![
+            ("content-type", "text/html"),
+            ("clear-site-data", r#""*""#)
+        ])
+        .validate_as_sxg_payload()
+        .is_err());
     }
     #[test]
     fn response_headers_size() {
-        assert!(headers(vec![("content-type", "text/html"), ("content-length", "8000000")]).validate_as_sxg_payload().is_ok());
-        assert!(headers(vec![("content-type", "text/html"), ("content-length", "8000001")]).validate_as_sxg_payload().is_err());
+        assert!(headers(vec![
+            ("content-type", "text/html"),
+            ("content-length", "8000000")
+        ])
+        .validate_as_sxg_payload()
+        .is_ok());
+        assert!(headers(vec![
+            ("content-type", "text/html"),
+            ("content-length", "8000001")
+        ])
+        .validate_as_sxg_payload()
+        .is_err());
     }
 
     // === connection_headers ===
@@ -462,7 +683,13 @@ mod tests {
     }
     #[test]
     fn some_connection_headers() {
-        assert_eq!(headers(vec![("connection", " close\t,  transfer-ENCODING ")]).connection_headers(), vec!["close", "transfer-encoding"].into_iter().map(|s| s.into()).collect());
+        assert_eq!(
+            headers(vec![("connection", " close\t,  transfer-ENCODING ")]).connection_headers(),
+            vec!["close", "transfer-encoding"]
+                .into_iter()
+                .map(|s| s.into())
+                .collect()
+        );
     }
 
     // === signature_duration ===
@@ -472,17 +699,59 @@ mod tests {
     }
     #[test]
     fn signature_duration_explicit() {
-        assert_eq!(headers(vec![("cache-control", "max-age=3600")]).signature_duration().unwrap(), Duration::from_secs(3600));
-        assert_eq!(headers(vec![("cache-control", "max-age=100")]).signature_duration().unwrap_err().to_string(), "Validity duration is too short.");
-        assert_eq!(headers(vec![("cache-control", "max-age=100, s-maxage=3600")]).signature_duration().unwrap(), Duration::from_secs(3600));
-        assert_eq!(headers(vec![("cache-control", "max-age=3600, s-maxage=100")]).signature_duration().unwrap_err().to_string(), "Validity duration is too short.");
-        assert_eq!(headers(vec![("cache-control", "max, max-age=3600")]).signature_duration().unwrap(), Duration::from_secs(3600));
+        assert_eq!(
+            headers(vec![("cache-control", "max-age=3600")])
+                .signature_duration()
+                .unwrap(),
+            Duration::from_secs(3600)
+        );
+        assert_eq!(
+            headers(vec![("cache-control", "max-age=100")])
+                .signature_duration()
+                .unwrap_err()
+                .to_string(),
+            "Validity duration is too short."
+        );
+        assert_eq!(
+            headers(vec![("cache-control", "max-age=100, s-maxage=3600")])
+                .signature_duration()
+                .unwrap(),
+            Duration::from_secs(3600)
+        );
+        assert_eq!(
+            headers(vec![("cache-control", "max-age=3600, s-maxage=100")])
+                .signature_duration()
+                .unwrap_err()
+                .to_string(),
+            "Validity duration is too short."
+        );
+        assert_eq!(
+            headers(vec![("cache-control", "max, max-age=3600")])
+                .signature_duration()
+                .unwrap(),
+            Duration::from_secs(3600)
+        );
     }
     #[test]
     fn signature_duration_parse_error() {
-        assert_eq!(headers(vec![("cache-control", "max-age=fish")]).signature_duration().unwrap(), SEVEN_DAYS);
-        assert_eq!(headers(vec![("cache-control", "doesn't even parse")]).signature_duration().unwrap(), SEVEN_DAYS);
-        assert_eq!(headers(vec![("cache-control", "max=, max-age=3600")]).signature_duration().unwrap(), SEVEN_DAYS);
+        assert_eq!(
+            headers(vec![("cache-control", "max-age=fish")])
+                .signature_duration()
+                .unwrap(),
+            SEVEN_DAYS
+        );
+        assert_eq!(
+            headers(vec![("cache-control", "doesn't even parse")])
+                .signature_duration()
+                .unwrap(),
+            SEVEN_DAYS
+        );
+        assert_eq!(
+            headers(vec![("cache-control", "max=, max-age=3600")])
+                .signature_duration()
+                .unwrap(),
+            SEVEN_DAYS
+        );
     }
 
     // === process_link_header ===
@@ -490,67 +759,146 @@ mod tests {
     fn process_link_header() {
         use std::iter::repeat;
         let url = Url::parse("https://foo.com").unwrap();
-        assert_eq!(Headers::process_link_header(r#"<https://foo.com/> ; rel = "preload""#, &url),
-                   "<https://foo.com/>;rel=preload");
+        assert_eq!(
+            Headers::process_link_header(r#"<https://foo.com/> ; rel = "preload""#, &url),
+            "<https://foo.com/>;rel=preload"
+        );
         {
             let link = "<https://foo.com/>;rel=preload";
-            assert_eq!(Headers::process_link_header(&repeat(link).take(21).collect::<Vec<&str>>().join(","), &url),
-                       repeat(link).take(20).collect::<Vec<&str>>().join(","));
+            assert_eq!(
+                Headers::process_link_header(
+                    &repeat(link).take(21).collect::<Vec<&str>>().join(","),
+                    &url
+                ),
+                repeat(link).take(20).collect::<Vec<&str>>().join(",")
+            );
         }
         {
             let link = r#"<https://foo.com/>;rel=preload,<https://foo.com/>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#;
-            assert_eq!(Headers::process_link_header(&repeat(link).take(21).collect::<Vec<&str>>().join(","), &url),
-                       repeat(link).take(20).collect::<Vec<&str>>().join(",") + r#",<https://foo.com/>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#);
+            assert_eq!(
+                Headers::process_link_header(
+                    &repeat(link).take(21).collect::<Vec<&str>>().join(","),
+                    &url
+                ),
+                repeat(link).take(20).collect::<Vec<&str>>().join(",")
+                    + r#",<https://foo.com/>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#
+            );
         }
-        assert_eq!(Headers::process_link_header("</foo>;rel=preload", &url),
-                   "<https://foo.com/foo>;rel=preload");
-        assert_eq!(Headers::process_link_header("<../quux>;rel=preload", &url.join("/bar/baz/").unwrap()),
-                   "<https://foo.com/bar/quux>;rel=preload");
-        assert_eq!(Headers::process_link_header("<https://foo.com/>;rel=prefetch", &url),
-                   "");
-        assert_eq!(Headers::process_link_header("<https://foo.com/>;other", &url),
-                   "");
-        assert_eq!(Headers::process_link_header("<https://foo.com/>;rel=preload,<https://foo.com/>;rel=prefetch", &url),
-                   "<https://foo.com/>;rel=preload");
-        assert_eq!(Headers::process_link_header(r#"<img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset="img.jpg 800w""#, &url),
-                   r#"<https://foo.com/img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset="img.jpg 800w""#);
+        assert_eq!(
+            Headers::process_link_header("</foo>;rel=preload", &url),
+            "<https://foo.com/foo>;rel=preload"
+        );
+        assert_eq!(
+            Headers::process_link_header("<../quux>;rel=preload", &url.join("/bar/baz/").unwrap()),
+            "<https://foo.com/bar/quux>;rel=preload"
+        );
+        assert_eq!(
+            Headers::process_link_header("<https://foo.com/>;rel=prefetch", &url),
+            ""
+        );
+        assert_eq!(
+            Headers::process_link_header("<https://foo.com/>;other", &url),
+            ""
+        );
+        assert_eq!(
+            Headers::process_link_header(
+                "<https://foo.com/>;rel=preload,<https://foo.com/>;rel=prefetch",
+                &url
+            ),
+            "<https://foo.com/>;rel=preload"
+        );
+        assert_eq!(
+            Headers::process_link_header(
+                r#"<img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset="img.jpg 800w""#,
+                &url
+            ),
+            r#"<https://foo.com/img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset="img.jpg 800w""#
+        );
     }
 
     // === get_signed_headers ===
     #[test]
     fn strip_id_headers() {
         let url = Url::parse("https://foo.com").unwrap();
-        assert_eq!(headers(vec![("content-type", "image/jpeg"), ("x-request-id", "abcdef123")]).get_signed_headers::<HashMap<String, String>, _>(&url, 200, &[], header_fields),
-                   header_fields::<HashMap<String, String>>(vec![
-                       ("content-type", "image/jpeg"),
-                       // x-request-id is missing
-                       (":status", "200"),
-                       ("content-encoding", "mi-sha256-03"),
-                       ("digest", "mi-sha256-03=")]));
-        assert_eq!(headers(vec![("content-type", "text/html;charset=utf-8"), ("x-request-id", "abcdef123")]).get_signed_headers::<HashMap<String, String>, _>(&url, 200, &[], header_fields),
-                   header_fields::<HashMap<String, String>>(vec![
-                       ("content-type", "text/html;charset=utf-8"),
-                       ("x-request-id", "abcdef123"),
-                       (":status", "200"),
-                       ("content-encoding", "mi-sha256-03"),
-                       ("digest", "mi-sha256-03=")]));
+        assert_eq!(
+            headers(vec![
+                ("content-type", "image/jpeg"),
+                ("x-request-id", "abcdef123")
+            ])
+            .get_signed_headers::<HashMap<String, String>, _>(
+                &url,
+                200,
+                &[],
+                header_fields
+            ),
+            header_fields::<HashMap<String, String>>(vec![
+                ("content-type", "image/jpeg"),
+                // x-request-id is missing
+                (":status", "200"),
+                ("content-encoding", "mi-sha256-03"),
+                ("digest", "mi-sha256-03=")
+            ])
+        );
+        assert_eq!(
+            headers(vec![
+                ("content-type", "text/html;charset=utf-8"),
+                ("x-request-id", "abcdef123")
+            ])
+            .get_signed_headers::<HashMap<String, String>, _>(
+                &url,
+                200,
+                &[],
+                header_fields
+            ),
+            header_fields::<HashMap<String, String>>(vec![
+                ("content-type", "text/html;charset=utf-8"),
+                ("x-request-id", "abcdef123"),
+                (":status", "200"),
+                ("content-encoding", "mi-sha256-03"),
+                ("digest", "mi-sha256-03=")
+            ])
+        );
     }
     #[test]
     fn includes_link_if_valid() {
         let url = Url::parse("https://foo.com").unwrap();
-        assert_eq!(headers(vec![("content-type", "text/html"), ("link", "<https://foo.com/>;rel=preload")]).get_signed_headers::<HashMap<String, String>, _>(&url ,200, &[], header_fields),
-                   header_fields::<HashMap<String, String>>(vec![
-                       ("content-type", "text/html"),
-                       ("link", "<https://foo.com/>;rel=preload"),
-                       (":status", "200"),
-                       ("content-encoding", "mi-sha256-03"),
-                       ("digest", "mi-sha256-03=")]));
-        assert_eq!(headers(vec![("content-type", "text/html"), ("link", r#"</foo>;rel=prefetch"#)]).get_signed_headers::<HashMap<String, String>, _>(&url, 200, &[], header_fields),
-                   header_fields::<HashMap<String, String>>(vec![
-                       ("content-type", "text/html"),
-                       (":status", "200"),
-                       ("content-encoding", "mi-sha256-03"),
-                       ("digest", "mi-sha256-03=")]));
+        assert_eq!(
+            headers(vec![
+                ("content-type", "text/html"),
+                ("link", "<https://foo.com/>;rel=preload")
+            ])
+            .get_signed_headers::<HashMap<String, String>, _>(
+                &url,
+                200,
+                &[],
+                header_fields
+            ),
+            header_fields::<HashMap<String, String>>(vec![
+                ("content-type", "text/html"),
+                ("link", "<https://foo.com/>;rel=preload"),
+                (":status", "200"),
+                ("content-encoding", "mi-sha256-03"),
+                ("digest", "mi-sha256-03=")
+            ])
+        );
+        assert_eq!(
+            headers(vec![
+                ("content-type", "text/html"),
+                ("link", r#"</foo>;rel=prefetch"#)
+            ])
+            .get_signed_headers::<HashMap<String, String>, _>(
+                &url,
+                200,
+                &[],
+                header_fields
+            ),
+            header_fields::<HashMap<String, String>>(vec![
+                ("content-type", "text/html"),
+                (":status", "200"),
+                ("content-encoding", "mi-sha256-03"),
+                ("digest", "mi-sha256-03=")
+            ])
+        );
     }
 
     // === get_signed_headers_bytes ===
