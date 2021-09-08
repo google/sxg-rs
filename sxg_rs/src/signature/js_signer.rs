@@ -75,11 +75,13 @@ impl Signer for JsSigner {
 }
 
 fn raw_sig_to_asn1(raw: Vec<u8>) -> Result<Vec<u8>> {
-    if raw.len() != 64 {
-        return Err(Error::msg(format!("Expecting signature length to be 64, found {}.", raw.len())));
+    const NUMBER_LENGTH: usize = 32;  // 256 bit is 32 bytes.
+    const SIG_LENGTH: usize = NUMBER_LENGTH * 2;  // A signature contains two numbers;
+    if raw.len() != SIG_LENGTH {
+        return Err(Error::msg(format!("Expecting signature length to be {}, found {}.", SIG_LENGTH, raw.len())));
     }
     let mut r = raw;
-    let mut s = r.split_off(32);
+    let mut s = r.split_off(NUMBER_LENGTH);
     ensure_positive(&mut r);
     ensure_positive(&mut s);
     let asn1 = BerObject::from_obj(BerObjectContent::Sequence(vec![
