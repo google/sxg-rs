@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use anyhow::Result;
 use async_trait::async_trait;
 use p256::ecdsa::SigningKey;
 use super::Signer;
@@ -23,17 +24,15 @@ pub struct RustSigner {
 impl RustSigner {
     pub fn new(private_key: &[u8]) -> Self {
         let private_key = SigningKey::from_bytes(private_key).unwrap();
-        RustSigner {
-            private_key,
-        }
+        RustSigner { private_key }
     }
 }
 
 #[async_trait(?Send)]
 impl Signer for RustSigner {
-    async fn sign(&self, message: &[u8]) -> Result<Vec<u8>,String> {
+    async fn sign(&self, message: &[u8]) -> Result<Vec<u8>> {
         use p256::ecdsa::signature::Signer as _;
-        let sig = self.private_key.sign(&message).to_asn1();
+        let sig = self.private_key.try_sign(&message)?.to_asn1();
         Ok(sig.as_bytes().to_vec())
     }
 }

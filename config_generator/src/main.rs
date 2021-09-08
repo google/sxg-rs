@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use anyhow::{Error, Result};
 use console::Term;
 use dialoguer::{Input, Select};
 use serde::{Deserialize, Serialize};
@@ -90,9 +91,9 @@ fn get_ocsp_kv_id(user: &GlobalUser, account_id: &str) -> String {
     namespace.id
 }
 
-fn read_certificate_pem_file(path: &str) -> Result<String, String> {
+fn read_certificate_pem_file(path: &str) -> Result<String> {
     let text =
-        std::fs::read_to_string(path).map_err(|_| format!(r#"Failed to read file "{}""#, path))?;
+        std::fs::read_to_string(path).map_err(|_| Error::msg(format!(r#"Failed to read file "{}""#, path)))?;
     // Translate Windows-style line endings to Unix-style so the '\r' is
     // not rendered in the toml. This is purely cosmetic; '\r' is deserialized
     // faithfully from toml and pem::parse_many is able to parse either style.
@@ -101,7 +102,7 @@ fn read_certificate_pem_file(path: &str) -> Result<String, String> {
     if certs.len() == 1 && certs[0].tag == "CERTIFICATE" {
         Ok(text)
     } else {
-        Err(format!(r#"File "{}" is not a valid certificate PEM"#, path))
+        Err(Error::msg(format!(r#"File "{}" is not a valid certificate PEM"#, path)))
     }
 }
 

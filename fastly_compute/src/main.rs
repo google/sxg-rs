@@ -14,7 +14,8 @@
 
 mod fetcher;
 
-use fastly::{Error, Request, Response, http::{StatusCode, Url}, mime::Mime};
+use anyhow::{Error, Result};
+use fastly::{Error as FastlyError, Request, Response, http::{StatusCode, Url}, mime::Mime};
 use futures::executor::block_on;
 use once_cell::sync::Lazy;
 use sxg_rs::{
@@ -53,12 +54,12 @@ fn get_fallback_url(req: &Request) -> Url {
     url
 }
 
-fn get_req_header_fields(req: &Request) -> Result<Headers, String> {
+fn get_req_header_fields(req: &Request) -> Result<Headers> {
     let mut fields: Vec<(String, String)> = vec![];
     for name in req.get_header_names() {
         for value in req.get_header_all(name) {
             let value = value.to_str().map_err(|_| {
-                format!(r#"Header "{}" contains non-ASCII value."#, name)
+                Error::msg(format!(r#"Header "{}" contains non-ASCII value."#, name))
             })?;
             fields.push((name.as_str().to_string(), value.to_string()))
         }
@@ -66,12 +67,12 @@ fn get_req_header_fields(req: &Request) -> Result<Headers, String> {
     Ok(Headers::new(fields, &WORKER.config.strip_request_headers))
 }
 
-fn get_rsp_header_fields(rsp: &Response) -> Result<Headers, String> {
+fn get_rsp_header_fields(rsp: &Response) -> Result<Headers> {
     let mut fields: Vec<(String, String)> = vec![];
     for name in rsp.get_header_names() {
         for value in rsp.get_header_all(name) {
             let value = value.to_str().map_err(|_| {
-                format!(r#"Header "{}" contains non-ASCII value."#, name)
+                Error::msg(format!(r#"Header "{}" contains non-ASCII value."#, name))
             })?;
             fields.push((name.as_str().to_string(), value.to_string()))
         }
@@ -79,19 +80,19 @@ fn get_rsp_header_fields(rsp: &Response) -> Result<Headers, String> {
     Ok(Headers::new(fields, &WORKER.config.strip_response_headers))
 }
 
-fn fetch_from_html_server(url: &Url, req_headers: Vec<(String, String)>) -> Result<Response, String> {
+fn fetch_from_html_server(url: &Url, req_headers: Vec<(String, String)>) -> Result<Response> {
     let mut req = Request::new("GET", url);
     for (name, value) in req_headers {
         req.append_header(name, value);
     }
     req.send("Origin HTML server").map_err(|err| {
-        format!(r#"Fetching "{}" leads to error "{}""#, url, err)
+        Error::msg(format!(r#"Fetching "{}" leads to error "{}""#, url, err))
     })
 }
 
-fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Response, String> {
+fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Response> {
     let private_key_der = base64::decode(
-        &WORKER.config.private_key_base64.as_ref().ok_or("private_key_base64 is not set")?).unwrap();
+        &WORKER.config.private_key_base64.as_ref().ok_or(Error::msg("private_key_base64 is not set"))?)?;
     let signer = Box::new(::sxg_rs::signature::rust_signer::RustSigner::new(&private_key_der));
     let payload_headers = get_rsp_header_fields(&payload)?;
     payload_headers.validate_as_sxg_payload()?;
@@ -110,7 +111,7 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
     Ok(fetcher::from_http_response(sxg))
 }
 
-fn handle_request(req: Request) -> Result<Response, String> {
+fn handle_request(req: Request) -> Result<Response> {
     let fetcher = Box::new(FastlyFetcher::new("OCSP server"));
     // TODO: store OCSP in database
     let ocsp_der = WORKER.fetch_ocsp_from_ca(fetcher);
@@ -126,7 +127,7 @@ fn handle_request(req: Request) -> Result<Response, String> {
             payload,
             ..
         }) => {
-            fallback_url = Url::parse(&url).map_err(|e| e.to_string())?;
+            fallback_url = Url::parse(&url).map_err(|e| Error::new(e))?;
             sxg_payload = fetcher::from_http_response(payload);
             let req_headers = get_req_header_fields(&req)?;
             req_headers.forward_to_origin_server(AcceptFilter::AcceptsSxg,
@@ -146,9 +147,9 @@ fn handle_request(req: Request) -> Result<Response, String> {
 }
 
 #[fastly::main]
-fn main(req: Request) -> Result<Response, Error> {
+fn main(req: Request) -> Result<Response, FastlyError> {
     let response = handle_request(req).unwrap_or_else(|msg| {
-        text_response(&format!("A message is gracefully thrown.\n{}", msg))
+        text_response(&format!("A message is gracefully thrown.\n{:?}", msg))
     });
     Ok(response)
 }

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use anyhow::{Error, Result};
 use async_trait::async_trait;
 use der_parser::ber::{BerObject, BerObjectContent};
 use js_sys::{Function as JsFunction, Uint8Array};
@@ -56,13 +57,13 @@ impl JsSigner {
 
 #[async_trait(?Send)]
 impl Signer for JsSigner {
-    async fn sign(&self, message: &[u8]) -> Result<Vec<u8>,String> {
+    async fn sign(&self, message: &[u8]) -> Result<Vec<u8>> {
         let a = Uint8Array::new_with_length(message.len() as u32);
         a.copy_from(&message);
         let this = JsValue::null();
-        let sig = self.js_function.call1(&this, &a).map_err(|_| "Bad call")?;
+        let sig = self.js_function.call1(&this, &a).map_err(|_| Error::msg("JavaScript signer throws an error."))?;
         let sig = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(sig));
-        let sig = sig.await.map_err(|_| "Bad async result")?;
+        let sig = sig.await.map_err(|_| Error::msg("JavaScript signer throws an error asynchronously."))?;
         let sig = Uint8Array::from(sig);
         let sig = sig.to_vec();
         let sig = match self.js_sig_format {
@@ -73,9 +74,9 @@ impl Signer for JsSigner {
     }
 }
 
-fn raw_sig_to_asn1(raw: Vec<u8>) -> Result<Vec<u8>, String> {
+fn raw_sig_to_asn1(raw: Vec<u8>) -> Result<Vec<u8>> {
     if raw.len() != 64 {
-        return Err(format!("Expecting signature length to be 64, found {}.", raw.len()));
+        return Err(Error::msg(format!("Expecting signature length to be 64, found {}.", raw.len())));
     }
     let mut r = raw;
     let mut s = r.split_off(32);
@@ -85,7 +86,7 @@ fn raw_sig_to_asn1(raw: Vec<u8>) -> Result<Vec<u8>, String> {
         BerObject::from_obj(BerObjectContent::Integer(&r)),
         BerObject::from_obj(BerObjectContent::Integer(&s)),
     ]));
-    asn1.to_vec().map_err(|_| "Bad Sig to ASN1".to_string())
+    asn1.to_vec().map_err(|e| Error::new(e).context("Failed to serialize asn1 BER Object"))
 }
 
 // Prepend the big-endian integer with leading zeros if needed, in order to

@@ -17,13 +17,14 @@ pub mod js_signer;
 #[cfg(feature="rust_signer")]
 pub mod rust_signer;
 
+use anyhow::Result;
 use async_trait::async_trait;
 use crate::structured_header::{ShItem, ShParamList, ParamItem};
 
 #[async_trait(?Send)]
 pub trait Signer {
     /// Signs the message, and returns `ASN.1` format.
-    async fn sign(&self, message: &[u8]) -> Result<Vec<u8>, String>;
+    async fn sign(&self, message: &[u8]) -> Result<Vec<u8>>;
 }
 
 pub struct SignatureParams<'a> {
@@ -50,7 +51,7 @@ pub struct Signature<'a> {
 }
 
 impl<'a> Signature<'a> {
-    pub async fn new(params: SignatureParams<'a>) -> Result<Signature<'a>,String> {
+    pub async fn new(params: SignatureParams<'a>) -> Result<Signature<'a>> {
         let SignatureParams {
             cert_url,
             cert_sha256,
@@ -80,7 +81,7 @@ impl<'a> Signature<'a> {
             &(headers.len() as u64).to_be_bytes(),
             &headers,
         ].concat();
-        let sig = signer.sign(&message).await.map_err(|_| "Signer error")?;
+        let sig = signer.sign(&message).await.map_err(|e| e.context("Failed to sign the message."))?;
         Ok(Signature {
             cert_url,
             cert_sha256,

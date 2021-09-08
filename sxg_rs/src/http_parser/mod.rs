@@ -18,6 +18,7 @@ mod cache_control;
 pub mod media_type;
 pub mod link;
 
+use anyhow::{Error, Result};
 use nom::{
     IResult,
     character::complete::char as char1,
@@ -29,12 +30,12 @@ use nom::{
 use base::ows;
 use std::time::Duration;
 
-fn format_nom_err(err: nom::Err<nom::error::Error<&str>>) -> String {
-    format!("{}", err)
+fn format_nom_err(err: nom::Err<nom::error::Error<&str>>) -> Error {
+    Error::msg(format!("{}", err))
 }
 
 // Parses a http header which might have multiple values separated by comma.
-fn parse_vec<'a, F, T>(input: &'a str, parse_single: F) -> Result<Vec<T>, String>
+fn parse_vec<'a, F, T>(input: &'a str, parse_single: F) -> Result<Vec<T>>
 where
     F: Fn(&'a str) -> IResult<&'a str, T>
 {
@@ -47,22 +48,22 @@ where
     Ok(items)
 }
 
-pub fn parse_accept_header(input: &str) -> Result<Vec<accept::Accept>, String> {
+pub fn parse_accept_header(input: &str) -> Result<Vec<accept::Accept>> {
     parse_vec(input, accept::accept)
 }
 
 // Returns the freshness lifetime for a shared cache.
-pub fn parse_cache_control_header(input: &str) -> Result<Duration, String> {
+pub fn parse_cache_control_header(input: &str) -> Result<Duration> {
     let directives = parse_vec(input, cache_control::directive)?;
-    cache_control::freshness_lifetime(directives).ok_or("Freshness lifetime is implicit".into())
+    cache_control::freshness_lifetime(directives).ok_or(Error::msg("Freshness lifetime is implicit"))
 }
 
-pub fn parse_content_type_header(input: &str) -> Result<media_type::MediaType, String> {
+pub fn parse_content_type_header(input: &str) -> Result<media_type::MediaType> {
     complete(media_type::media_type)(input)
         .map(|(_, output)| output)
         .map_err(format_nom_err)
 }
 
-pub fn parse_link_header(input: &str) -> Result<Vec<link::Link>, String> {
+pub fn parse_link_header(input: &str) -> Result<Vec<link::Link>> {
     parse_vec(input, link::link)
 }

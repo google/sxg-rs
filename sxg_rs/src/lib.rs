@@ -26,6 +26,7 @@ mod structured_header;
 mod sxg;
 mod utils;
 
+use anyhow::{Error, Result};
 use config::Config;
 use headers::{AcceptFilter, Headers};
 use http::{HeaderFields, HttpResponse};
@@ -74,7 +75,7 @@ impl SxgWorker {
     fn cert_basename(&self) -> String {
         base64::encode_config(&self.config.cert_sha256, base64::URL_SAFE_NO_PAD)
     }
-    pub async fn create_signed_exchange<'a>(&self, params: CreateSignedExchangeParams<'a>) -> Result<HttpResponse, String> {
+    pub async fn create_signed_exchange<'a>(&self, params: CreateSignedExchangeParams<'a>) -> Result<HttpResponse> {
         let CreateSignedExchangeParams {
             fallback_url,
             cert_origin,
@@ -84,16 +85,16 @@ impl SxgWorker {
             signer,
             status_code,
         } = params;
-        let fallback_base = Url::parse(fallback_url).map_err(|_| "Failed to parse fallback URL")?;
-        let cert_base = Url::parse(cert_origin).map_err(|_| "Failed to parse cert origin")?;
+        let fallback_base = Url::parse(fallback_url).map_err(|e| Error::new(e).context("Failed to parse fallback URL"))?;
+        let cert_base = Url::parse(cert_origin).map_err(|e| Error::new(e).context("Failed to parse cert origin"))?;
         // 16384 is the max mice record size allowed by SXG spec.
         // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#section-3.5-7.9.1
         let (mice_digest, payload_body) = crate::mice::calculate(payload_body, 16384);
         let signed_headers = payload_headers.get_signed_headers_bytes(&fallback_base, status_code, &mice_digest);
         let cert_url = cert_base.join(&format!("{}{}", &self.config.cert_url_dirname, &self.cert_basename()))
-            .map_err(|_| "Failed to parse cert_url_dirname")?;
+            .map_err(|e| Error::new(e).context("Failed to parse cert_url_dirname"))?;
         let validity_url = fallback_base.join(&format!("{}{}", &self.config.validity_url_dirname, "validity"))
-            .map_err(|_| "Failed to parse validity_url_dirname")?;
+            .map_err(|e| Error::new(e).context("Failed to parse validity_url_dirname"))?;
         let signature = signature::Signature::new(signature::SignatureParams {
             cert_url: cert_url.as_str(),
             cert_sha256: &self.config.cert_sha256,
@@ -106,8 +107,8 @@ impl SxgWorker {
             validity_url: validity_url.as_str(),
         }).await;
 
-        let signature = signature.map_err(|_| "Signature error")?;
-        let sxg_body = sxg::build(fallback_url, &signature.serialize(), &signed_headers, &payload_body)?;
+        let signature = signature.map_err(|e| e.context("Failed to create signature."))?;
+        let sxg_body = sxg::build(fallback_url, &signature.serialize(), &signed_headers, &payload_body).map_err(|e| e.context("Failed to create SXG."))?;
         Ok(HttpResponse {
             body: sxg_body,
             headers: vec![
@@ -201,11 +202,11 @@ impl SxgWorker {
             None
         }
     }
-    pub fn transform_request_headers(&self, fields: HeaderFields, accept_filter: AcceptFilter) -> Result<HeaderFields, String> {
+    pub fn transform_request_headers(&self, fields: HeaderFields, accept_filter: AcceptFilter) -> Result<HeaderFields> {
         let headers = Headers::new(fields, &self.config.strip_request_headers);
         headers.forward_to_origin_server(accept_filter, &self.config.forward_request_headers)
     }
-    pub fn validate_payload_headers(&self, fields: HeaderFields) -> Result<(), String> {
+    pub fn validate_payload_headers(&self, fields: HeaderFields) -> Result<()> {
         let headers = Headers::new(fields, &self.config.strip_response_headers);
         headers.validate_as_sxg_payload()
     }

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use anyhow::{Error, Result};
 use async_trait::async_trait;
 use js_sys::Function as JsFunction;
 use wasm_bindgen::JsValue;
@@ -38,13 +39,13 @@ impl JsFetcher {
 
 #[async_trait(?Send)]
 impl Fetcher for JsFetcher {
-    async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse, String> {
-        let request = JsValue::from_serde(&request).unwrap();
+    async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse> {
+        let request = JsValue::from_serde(&request).map_err(|e| Error::new(e).context("Failed to parse request."))?;
         let this = JsValue::null();
-        let response = self.0.call1(&this, &request).unwrap();
+        let response = self.0.call1(&this, &request).map_err(|_| Error::msg("JavaScript fetcher throws an error."))?;
         let response = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(response));
-        let response = response.await.unwrap();
-        let response: HttpResponse = response.into_serde().unwrap();
+        let response = response.await.map_err(|_| Error::msg("JavaScript fetcher throws an error asynchronously."))?;
+        let response: HttpResponse = response.into_serde().map_err(|e| Error::new(e).context("Failed to serialize response."))?;
         Ok(response)
     }
 }
