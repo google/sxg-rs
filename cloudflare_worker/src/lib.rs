@@ -19,6 +19,7 @@ use once_cell::sync::OnceCell;
 use sxg_rs::SxgWorker;
 use sxg_rs::headers::AcceptFilter;
 use sxg_rs::http::HttpResponse;
+use utils::anyhow_error_to_js_value;
 use wasm_bindgen::prelude::*;
 
 static WORKER: OnceCell<SxgWorker> = OnceCell::new();
@@ -74,7 +75,7 @@ pub fn create_request_headers(accept_filter: JsValue, requestor_headers: JsValue
             Ok(JsValue::from_serde(&fields).unwrap())
         },
         Err(err) => {
-            Err(JsValue::from_str(&err))
+            Err(anyhow_error_to_js_value(err))
         },
     }
 }
@@ -83,7 +84,7 @@ pub fn create_request_headers(accept_filter: JsValue, requestor_headers: JsValue
 pub fn validate_payload_headers(fields: JsValue) -> Result<(), JsValue> {
     let fields = fields.into_serde().unwrap();
     let result = get_worker()?.validate_payload_headers(fields);
-    result.map_err(|err| JsValue::from_str(&err))
+    result.map_err(anyhow_error_to_js_value)
 }
 
 #[wasm_bindgen(js_name=createSignedExchange)]
@@ -106,6 +107,6 @@ pub async fn create_signed_exchange(
         payload_headers,
         signer,
         status_code,
-    }).await.map_err(|err| JsValue::from_str(&err))?;
+    }).await.map_err(anyhow_error_to_js_value)?;
     Ok(JsValue::from_serde(&sxg).unwrap())
 }

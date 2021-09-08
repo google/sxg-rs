@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use anyhow::{Error, Result};
 use crate::http_parser::{
     parse_accept_header,
     parse_cache_control_header,
@@ -59,14 +60,14 @@ impl Headers {
         }
         headers
     }
-    pub fn forward_to_origin_server(self, accept_filter: AcceptFilter, forwarded_header_names: &BTreeSet<String>) -> Result<HeaderFields, String> {
+    pub fn forward_to_origin_server(self, accept_filter: AcceptFilter, forwarded_header_names: &BTreeSet<String>) -> Result<HeaderFields> {
         if self.0.contains_key("authorization") {
             // We should not sign personalized content, but we cannot anonymize this request per
             // https://datatracker.ietf.org/doc/html/rfc7235#section-4.2:
             // "A proxy forwarding a request MUST NOT modify any Authorization fields in that request."
-            return Err("The request contains an Authorization header.".to_string());
+            return Err(Error::msg("The request contains an Authorization header."));
         }
-        let accept = self.0.get("accept").ok_or("The request does not have an Accept header")?;
+        let accept = self.0.get("accept").ok_or(Error::msg("The request does not have an Accept header"))?;
         validate_accept_header(accept, accept_filter)?;
         // Set Via per https://tools.ietf.org/html/rfc7230#section-5.7.1
         let mut via = format!("sxgrs");
@@ -95,17 +96,17 @@ impl Headers {
         }
         Ok(new_headers.into_iter().collect())
     }
-    pub fn validate_as_sxg_payload(&self) -> Result<(), String> {
+    pub fn validate_as_sxg_payload(&self) -> Result<()> {
         for (k, v) in self.0.iter() {
             if DONT_SIGN_RESPONSE_HEADERS.contains(k.as_str()) {
-                return Err(format!(r#"A stateful header "{}" is found."#, k));
+                return Err(Error::msg(format!(r#"A stateful header "{}" is found."#, k)));
             }
             if CACHE_CONTROL_HEADERS.contains(k.as_str()) {
                 // `private` and `no-store` are disallowed by
                 // https://github.com/google/webpackager/blob/master/docs/cache_requirements.md#user-content-google-sxg-cache,
                 // while the other two are signals that the document is not usually cached and reused.
                 if v.contains("private") || v.contains("no-store") || v.contains("no-cache") || v.contains("max-age=0") {
-                    return Err(format!(r#"The {} header is "{}"."#, k, v));
+                    return Err(Error::msg(format!(r#"The {} header is "{}"."#, k, v)));
                 }
             }
         }
@@ -114,16 +115,16 @@ impl Headers {
             if let Ok(size) = size.parse::<u64>() {
                 const MAX_SIZE: u64 = 8_000_000;
                 if size > MAX_SIZE {
-                    return Err(format!("The content-length header is {}, which exceeds the limit {}.", size, MAX_SIZE));
+                    return Err(Error::msg(format!("The content-length header is {}, which exceeds the limit {}.", size, MAX_SIZE)));
                 }
             } else {
-                return Err(format!(r#"The content-length header "{}" is not a valid length."#, size));
+                return Err(Error::msg(format!(r#"The content-length header "{}" is not a valid length."#, size)));
             }
         }
         // The payload of SXG must have a content-type. See step 8 of
         // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-signature-validity
         if self.0.contains_key("content-type") == false {
-            return Err(format!("The content-type header is missing."));
+            return Err(Error::msg("The content-type header is missing."));
         }
         Ok(())
     }
@@ -225,7 +226,7 @@ impl Headers {
         }
     }
     // How long the signature should last, or error if the response shouldn't be signed.
-    pub fn signature_duration(&self) -> Result<Duration, String> {
+    pub fn signature_duration(&self) -> Result<Duration> {
         // Default to 7 days unless a cache-control directive lowers it.
         if let Some(value) = self.0.get("cache-control") {
             if let Ok(duration) = parse_cache_control_header(value) {
@@ -234,7 +235,7 @@ impl Headers {
                 return if duration >= MIN_DURATION {
                     Ok(min(SEVEN_DAYS, duration))
                 } else {
-                    Err("Validity duration is too short.".into())
+                    Err(Error::msg("Validity duration is too short."))
                 }
 
             }
@@ -327,11 +328,11 @@ static CACHE_CONTROL_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 // Checks whether to serve SXG based on the Accept header of the HTTP request.
 // Returns Ok iff the input string has a `application/signed-exchange;v=b3`,
 // and either accept_filter != PrefersSxg or its `q` value is 1.
-fn validate_accept_header(accept: &str, accept_filter: AcceptFilter) -> Result<(), String> {
+fn validate_accept_header(accept: &str, accept_filter: AcceptFilter) -> Result<()> {
     let accept = accept.trim();
     let accept = parse_accept_header(accept)?;
     if accept.len() == 0 {
-        return Err(format!("Accept header is empty"));
+        return Err(Error::msg("Accept header is empty"));
     }
     let q_sxg = accept.iter().filter_map(|t| {
         if t.media_range.primary_type.eq_ignore_ascii_case("application") && t.media_range.sub_type.eq_ignore_ascii_case("signed-exchange") {
@@ -352,14 +353,14 @@ fn validate_accept_header(accept: &str, accept_filter: AcceptFilter) -> Result<(
     }).max().unwrap_or(0);
     const SXG: &str = "application/signed-exchange;v=b3";
     if q_sxg == 0 {
-        Err(format!("The request accept header does not contain {}.", SXG))
+        Err(Error::msg(format!("The request accept header does not contain {}.", SXG)))
     } else {
         match accept_filter {
             AcceptFilter::PrefersSxg => {
                 if q_sxg == 1000 {
                     Ok(())
                 } else {
-                    Err(format!("The q value of {} is less than 1 in request Accept header.", SXG))
+                    Err(Error::msg(format!("The q value of {} is less than 1 in request Accept header.", SXG)))
                 }
             },
             AcceptFilter::AcceptsSxg => Ok(()),
@@ -394,8 +395,8 @@ mod tests {
     }
     #[test]
     fn authenticated_request_headers() {
-      assert_eq!(headers(vec![("accept", "application/signed-exchange;v=b3"), ("authorization", "x")]).forward_to_origin_server(AcceptFilter::PrefersSxg, &BTreeSet::new()).unwrap_err(),
-                 "The request contains an Authorization header.".to_string());
+      assert_eq!(headers(vec![("accept", "application/signed-exchange;v=b3"), ("authorization", "x")]).forward_to_origin_server(AcceptFilter::PrefersSxg, &BTreeSet::new()).unwrap_err().to_string(),
+                 "The request contains an Authorization header.");
     }
 
     // === validate_accept_header ===
@@ -472,9 +473,9 @@ mod tests {
     #[test]
     fn signature_duration_explicit() {
         assert_eq!(headers(vec![("cache-control", "max-age=3600")]).signature_duration().unwrap(), Duration::from_secs(3600));
-        assert_eq!(headers(vec![("cache-control", "max-age=100")]).signature_duration().unwrap_err(), "Validity duration is too short.");
+        assert_eq!(headers(vec![("cache-control", "max-age=100")]).signature_duration().unwrap_err().to_string(), "Validity duration is too short.");
         assert_eq!(headers(vec![("cache-control", "max-age=100, s-maxage=3600")]).signature_duration().unwrap(), Duration::from_secs(3600));
-        assert_eq!(headers(vec![("cache-control", "max-age=3600, s-maxage=100")]).signature_duration().unwrap_err(), "Validity duration is too short.");
+        assert_eq!(headers(vec![("cache-control", "max-age=3600, s-maxage=100")]).signature_duration().unwrap_err().to_string(), "Validity duration is too short.");
         assert_eq!(headers(vec![("cache-control", "max, max-age=3600")]).signature_duration().unwrap(), Duration::from_secs(3600));
     }
     #[test]

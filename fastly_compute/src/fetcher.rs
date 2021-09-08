@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use anyhow::{Error, Result};
 use async_trait::async_trait;
 use fastly::{
     Request as FastlyRequest,
@@ -46,10 +47,10 @@ impl FastlyFetcher {
 
 #[async_trait(?Send)]
 impl Fetcher for FastlyFetcher {
-    async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse, String> {
+    async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse> {
         let request = from_http_request(request);
-        let response: FastlyResponse = request.send(self.backend_name).map_err(|err| {
-            format!(r#"Fetching leads to error "{}""#, err)
+        let response: FastlyResponse = request.send(self.backend_name).map_err(|e| {
+            Error::new(e).context("Failed to fetch from backend.")
         })?;
         into_http_response(response)
     }
@@ -78,12 +79,12 @@ pub fn from_http_response(input: HttpResponse) -> FastlyResponse {
     output
 }
 
-fn into_http_response(response: FastlyResponse) -> Result<HttpResponse, String> {
+fn into_http_response(response: FastlyResponse) -> Result<HttpResponse> {
     let mut header_fields = vec![];
     for name in response.get_header_names() {
         for value in response.get_header_all(name) {
             let value = value.to_str().map_err(|_| {
-                format!(r#"Header "{}" contains non-ASCII value."#, name)
+                Error::msg(format!(r#"Header "{}" contains non-ASCII value."#, name))
             })?;
             header_fields.push((name.as_str().to_string(), value.to_string()));
         }

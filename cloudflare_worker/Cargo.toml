@@ -22,6 +22,7 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+anyhow = "1.0.43"
 base64 = "0.13.0"
 console_error_panic_hook = "0.1.6"
 js-sys = "0.3.50"

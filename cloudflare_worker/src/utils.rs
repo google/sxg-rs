@@ -43,3 +43,6 @@ pub fn get_last_error_message() -> JsValue {
     }
 }
 
+pub fn anyhow_error_to_js_value(error: anyhow::Error) -> JsValue {
+    JsValue::from_str(&format!("{:?}", error))
+}
