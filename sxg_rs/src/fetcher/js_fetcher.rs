@@ -42,9 +42,9 @@ impl Fetcher for JsFetcher {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse> {
         let request = JsValue::from_serde(&request).map_err(|e| Error::new(e).context("Failed to parse request."))?;
         let this = JsValue::null();
-        let response = self.0.call1(&this, &request).map_err(|_| Error::msg("JavaScript fetcher throws an error."))?;
+        let response = self.0.call1(&this, &request).map_err(|e| Error::msg(format!("{:?}", e)).context("JavaScript fetcher throws an error."))?;
         let response = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(response));
-        let response = response.await.map_err(|_| Error::msg("JavaScript fetcher throws an error asynchronously."))?;
+        let response = response.await.map_err(|e| Error::msg(format!("{:?}", e)).context("JavaScript fetcher throws an error asynchronously."))?;
         let response: HttpResponse = response.into_serde().map_err(|e| Error::new(e).context("Failed to serialize response."))?;
         Ok(response)
     }

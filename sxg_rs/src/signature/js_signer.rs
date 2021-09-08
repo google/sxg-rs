@@ -61,9 +61,9 @@ impl Signer for JsSigner {
         let a = Uint8Array::new_with_length(message.len() as u32);
         a.copy_from(&message);
         let this = JsValue::null();
-        let sig = self.js_function.call1(&this, &a).map_err(|_| Error::msg("JavaScript signer throws an error."))?;
+        let sig = self.js_function.call1(&this, &a).map_err(|e| Error::msg(format!("{:?}", e)).context("JavaScript signer throws an error."))?;
         let sig = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(sig));
-        let sig = sig.await.map_err(|_| Error::msg("JavaScript signer throws an error asynchronously."))?;
+        let sig = sig.await.map_err(|e| Error::msg(format!("{:?}", e)).context("JavaScript signer throws an error asynchronously."))?;
         let sig = Uint8Array::from(sig);
         let sig = sig.to_vec();
         let sig = match self.js_sig_format {
