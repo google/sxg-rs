@@ -101,9 +101,7 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
             .as_ref()
             .ok_or(Error::msg("private_key_base64 is not set"))?,
     )?;
-    let signer = Box::new(::sxg_rs::signature::rust_signer::RustSigner::new(
-        &private_key_der,
-    ));
+    let signer = ::sxg_rs::signature::rust_signer::RustSigner::new(&private_key_der);
     let payload_headers = get_rsp_header_fields(&payload)?;
     payload_headers.validate_as_sxg_payload()?;
     let payload_body = payload.into_body_bytes();
@@ -122,7 +120,7 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
 }
 
 fn handle_request(req: Request) -> Result<Response> {
-    let fetcher = Box::new(FastlyFetcher::new("OCSP server"));
+    let fetcher = FastlyFetcher::new("OCSP server");
     // TODO: store OCSP in database
     let ocsp_der = WORKER.fetch_ocsp_from_ca(fetcher);
     let ocsp_der = block_on(ocsp_der);

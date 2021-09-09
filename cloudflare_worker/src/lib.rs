@@ -45,7 +45,7 @@ pub fn get_last_error_message() -> JsValue {
 
 #[wasm_bindgen(js_name=fetchOcspFromCa)]
 pub async fn fetch_ocsp_from_ca(fetcher: Function) -> Result<Uint8Array, JsValue> {
-    let fetcher = Box::new(sxg_rs::fetcher::js_fetcher::JsFetcher::new(fetcher));
+    let fetcher = sxg_rs::fetcher::js_fetcher::JsFetcher::new(fetcher);
     let request = get_worker()?.fetch_ocsp_from_ca(fetcher).await;
     Ok(Uint8Array::from(request.as_slice()))
 }
@@ -100,9 +100,7 @@ pub async fn create_signed_exchange(
         payload_headers.into_serde().unwrap(),
         &get_worker()?.config.strip_response_headers,
     );
-    let signer = Box::new(::sxg_rs::signature::js_signer::JsSigner::from_raw_signer(
-        signer,
-    ));
+    let signer = ::sxg_rs::signature::js_signer::JsSigner::from_raw_signer(signer);
     let sxg: HttpResponse = get_worker()?
         .create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
             fallback_url: &fallback_url,

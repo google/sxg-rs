@@ -93,10 +93,10 @@ const AIA: Oid<'static> = oid!(1.3.6 .1 .5 .5 .7 .1 .1);
 // https://www.iana.org/assignments/smi-numbers/smi-numbers.xhtml#smi-numbers-1.3.6.1.5.5.7.48.1
 const AIA_OCSP: Oid<'static> = oid!(1.3.6 .1 .5 .5 .7 .48 .1);
 
-pub async fn fetch_from_ca<'a>(
+pub async fn fetch_from_ca<'a, F: Fetcher>(
     cert_der: &'a [u8],
     issuer_der: &'a [u8],
-    fetcher: Box<dyn Fetcher>,
+    fetcher: F,
 ) -> Vec<u8> {
     let cert = x509_parser::parse_x509_certificate(&cert_der).unwrap().1;
     let issuer = x509_parser::parse_x509_certificate(&issuer_der).unwrap().1;
