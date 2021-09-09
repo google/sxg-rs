@@ -77,9 +77,9 @@ impl SxgWorker {
     fn cert_basename(&self) -> String {
         base64::encode_config(&self.config.cert_sha256, base64::URL_SAFE_NO_PAD)
     }
-    pub async fn create_signed_exchange<'a>(
+    pub async fn create_signed_exchange<'a, S: signature::Signer>(
         &self,
-        params: CreateSignedExchangeParams<'a>,
+        params: CreateSignedExchangeParams<'a, S>,
     ) -> Result<HttpResponse> {
         let CreateSignedExchangeParams {
             fallback_url,
@@ -152,7 +152,7 @@ impl SxgWorker {
         let validity = cbor::DataItem::Map(vec![]);
         validity.serialize()
     }
-    pub async fn fetch_ocsp_from_ca(&self, fetcher: Box<dyn fetcher::Fetcher>) -> Vec<u8> {
+    pub async fn fetch_ocsp_from_ca<F: fetcher::Fetcher>(&self, fetcher: F) -> Vec<u8> {
         ocsp::fetch_from_ca(&self.config.cert_der, &self.config.issuer_der, fetcher).await
     }
     pub fn serve_preset_content(&self, req_url: &str, ocsp_der: &[u8]) -> Option<PresetContent> {
@@ -253,13 +253,13 @@ impl SxgWorker {
     }
 }
 
-pub struct CreateSignedExchangeParams<'a> {
+pub struct CreateSignedExchangeParams<'a, S: signature::Signer> {
     pub fallback_url: &'a str,
     pub cert_origin: &'a str,
     pub now: std::time::SystemTime,
     pub payload_body: &'a [u8],
     pub payload_headers: headers::Headers,
-    pub signer: Box<dyn signature::Signer>,
+    pub signer: S,
     pub status_code: u16,
 }
 
