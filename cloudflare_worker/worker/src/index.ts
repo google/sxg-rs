@@ -182,13 +182,13 @@ async function handleRequest(request: Request) {
     servePresetContent,
     shouldRespondDebugInfo,
   } = await wasmFunctionsPromise;
+  let sxgPayload: Response | undefined;
   let fallback: Response | undefined;
   try {
     const ocsp = await getOcsp();
     const presetContent = servePresetContent(request.url, ocsp);
     let fallbackUrl: string;
     let certOrigin: string;
-    let sxgPayload: Response;
     if (presetContent) {
       if (presetContent.kind === 'direct') {
         return responseFromWasm(presetContent);
@@ -212,8 +212,15 @@ async function handleRequest(request: Request) {
         }
       ));
     }
-    return await generateSxgResponse(fallbackUrl, certOrigin, sxgPayload);
+    let response = await generateSxgResponse(fallbackUrl, certOrigin, sxgPayload);
+    if (fallback.body) {
+      fallback.body.cancel();
+    }
+    return response;
   } catch (e) {
+    if (sxgPayload && sxgPayload.body) {
+      sxgPayload.body.cancel();
+    }
     if (shouldRespondDebugInfo()) {
       let message;
       if (e instanceof WebAssembly.RuntimeError) {
