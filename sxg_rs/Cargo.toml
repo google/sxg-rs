@@ -22,10 +22,9 @@ edition = "2018"
 
 [features]
 default = ["strip_id_headers"]
-js_fetcher = []
-js_signer = []
 rust_signer = []
 strip_id_headers = []
+wasm =[]
 
 [dependencies]
 anyhow = "1.0.43"
