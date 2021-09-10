@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[cfg(feature = "js_signer")]
+#[cfg(feature = "wasm")]
 pub mod js_signer;
 #[cfg(feature = "rust_signer")]
 pub mod rust_signer;
