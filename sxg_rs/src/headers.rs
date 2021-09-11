@@ -46,7 +46,7 @@ const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB2
 const SEVEN_DAYS: Duration = Duration::from_secs(60 * 60 * 24 * 7);
 
 impl Headers {
-    pub fn new(data: HeaderFields, strip_headers: &BTreeSet<String>) -> Self {
+    pub(crate) fn new(data: HeaderFields, strip_headers: &BTreeSet<String>) -> Self {
         let mut headers = Headers(HashMap::new());
         for (mut k, v) in data {
             k.make_ascii_lowercase();
@@ -56,7 +56,7 @@ impl Headers {
         }
         headers
     }
-    pub fn forward_to_origin_server(
+    pub(crate) fn forward_to_origin_server(
         self,
         accept_filter: AcceptFilter,
         forwarded_header_names: &BTreeSet<String>,
@@ -100,7 +100,7 @@ impl Headers {
         }
         Ok(new_headers.into_iter().collect())
     }
-    pub fn validate_as_sxg_payload(&self) -> Result<()> {
+    pub(crate) fn validate_as_sxg_payload(&self) -> Result<()> {
         for (k, v) in self.0.iter() {
             if DONT_SIGN_RESPONSE_HEADERS.contains(k.as_str()) {
                 return Err(Error::msg(format!(
@@ -246,7 +246,7 @@ impl Headers {
         fields.push(("digest", &digest));
         serializer(fields)
     }
-    pub fn get_signed_headers_bytes(
+    pub(crate) fn get_signed_headers_bytes(
         &self,
         fallback_url: &Url,
         status_code: u16,
@@ -284,7 +284,7 @@ impl Headers {
         }
     }
     // How long the signature should last, or error if the response shouldn't be signed.
-    pub fn signature_duration(&self) -> Result<Duration> {
+    pub(crate) fn signature_duration(&self) -> Result<Duration> {
         // Default to 7 days unless a cache-control directive lowers it.
         if let Some(value) = self.0.get("cache-control") {
             if let Ok(duration) = parse_cache_control_header(value) {

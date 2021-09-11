@@ -19,7 +19,7 @@ use once_cell::sync::OnceCell;
 use sxg_rs::headers::AcceptFilter;
 use sxg_rs::http::HttpResponse;
 use sxg_rs::SxgWorker;
-use utils::anyhow_error_to_js_value;
+use utils::anything_to_js_error;
 use wasm_bindgen::prelude::*;
 
 static WORKER: OnceCell<SxgWorker> = OnceCell::new();
@@ -62,7 +62,7 @@ pub fn serve_preset_content(req_url: &str, ocsp_base64: &str) -> Result<JsValue,
 
 #[wasm_bindgen(js_name=shouldRespondDebugInfo)]
 pub fn should_respond_debug_info() -> Result<bool, JsValue> {
-    Ok(get_worker()?.config.respond_debug_info)
+    Ok(get_worker()?.should_respond_debug_info())
 }
 
 #[wasm_bindgen(js_name=createRequestHeaders)]
@@ -75,15 +75,17 @@ pub fn create_request_headers(
     let result = get_worker()?.transform_request_headers(fields, accept_filter);
     match result {
         Ok(fields) => Ok(JsValue::from_serde(&fields).unwrap()),
-        Err(err) => Err(anyhow_error_to_js_value(err)),
+        Err(err) => Err(anything_to_js_error(err)),
     }
 }
 
 #[wasm_bindgen(js_name=validatePayloadHeaders)]
 pub fn validate_payload_headers(fields: JsValue) -> Result<(), JsValue> {
     let fields = fields.into_serde().unwrap();
-    let result = get_worker()?.validate_payload_headers(fields);
-    result.map_err(anyhow_error_to_js_value)
+    get_worker()?
+        .transform_payload_headers(fields)
+        .map_err(anything_to_js_error)?;
+    Ok(())
 }
 
 #[wasm_bindgen(js_name=createSignedExchange)]
@@ -96,10 +98,10 @@ pub async fn create_signed_exchange(
     now_in_seconds: u32,
     signer: Function,
 ) -> Result<JsValue, JsValue> {
-    let payload_headers = ::sxg_rs::headers::Headers::new(
-        payload_headers.into_serde().unwrap(),
-        &get_worker()?.config.strip_response_headers,
-    );
+    let payload_headers = payload_headers.into_serde().map_err(anything_to_js_error)?;
+    let payload_headers = get_worker()?
+        .transform_payload_headers(payload_headers)
+        .map_err(anything_to_js_error)?;
     let signer = ::sxg_rs::signature::js_signer::JsSigner::from_raw_signer(signer);
     let sxg: HttpResponse = get_worker()?
         .create_signed_exchange(::sxg_rs::CreateSignedExchangeParams {
@@ -112,6 +114,6 @@ pub async fn create_signed_exchange(
             status_code,
         })
         .await
-        .map_err(anyhow_error_to_js_value)?;
+        .map_err(anything_to_js_error)?;
     Ok(JsValue::from_serde(&sxg).unwrap())
 }
