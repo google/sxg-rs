@@ -34,7 +34,7 @@ use serde::Serialize;
 use url::Url;
 
 pub struct SxgWorker {
-    pub config: Config,
+    config: Config,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
@@ -239,6 +239,8 @@ impl SxgWorker {
             None
         }
     }
+    /// Checks `fields` as request headers from browser,
+    /// and returns the request headers to be sent to backend server.
     pub fn transform_request_headers(
         &self,
         fields: HeaderFields,
@@ -247,9 +249,39 @@ impl SxgWorker {
         let headers = Headers::new(fields, &self.config.strip_request_headers);
         headers.forward_to_origin_server(accept_filter, &self.config.forward_request_headers)
     }
-    pub fn validate_payload_headers(&self, fields: HeaderFields) -> Result<()> {
+    /// Checks `fields` as response headers from backend server,
+    /// and returns the reqsponse headers to be sent to browser.
+    pub fn transform_payload_headers(&self, fields: HeaderFields) -> Result<Headers> {
         let headers = Headers::new(fields, &self.config.strip_response_headers);
-        headers.validate_as_sxg_payload()
+        headers.validate_as_sxg_payload()?;
+        Ok(headers)
+    }
+    #[cfg(feature = "rust_signer")]
+    pub fn create_rust_signer(&self) -> Result<signature::rust_signer::RustSigner> {
+        let private_key_der = base64::decode(
+            self.config
+                .private_key_base64
+                .as_ref()
+                .ok_or(Error::msg("Config private_key_base64 is not set"))?,
+        )?;
+        signature::rust_signer::RustSigner::new(&private_key_der)
+            .map_err(|e| e.context("Failed to call RustSigner::new()."))
+    }
+    pub fn should_respond_debug_info(&self) -> bool {
+        self.config.respond_debug_info
+    }
+    /// Replaces the host name to be the html_host in the config.
+    // TODO: implement get_fallback_url_and_cert_origin, so that Cloudflare Worker can use it.
+    pub fn get_fallback_url(&self, original_url: &Url) -> Result<Url> {
+        let mut fallback = original_url.clone();
+        if let Some(html_host) = &self.config.html_host {
+            if !html_host.is_empty() {
+                fallback
+                    .set_host(Some(&html_host))
+                    .map_err(|e| Error::new(e))?;
+            }
+        }
+        Ok(fallback)
     }
 }
 

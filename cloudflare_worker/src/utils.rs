@@ -43,6 +43,6 @@ pub fn get_last_error_message() -> JsValue {
     }
 }
 
-pub fn anyhow_error_to_js_value(error: anyhow::Error) -> JsValue {
+pub fn to_js_error<T: std::fmt::Debug>(error: T) -> JsValue {
     JsValue::from_str(&format!("{:?}", error))
 }
