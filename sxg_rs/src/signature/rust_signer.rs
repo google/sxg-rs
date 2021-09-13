@@ -22,9 +22,9 @@ pub struct RustSigner {
 }
 
 impl RustSigner {
-    pub fn new(private_key: &[u8]) -> Self {
-        let private_key = SigningKey::from_bytes(private_key).unwrap();
-        RustSigner { private_key }
+    pub fn new(private_key: &[u8]) -> Result<Self> {
+        let private_key = SigningKey::from_bytes(private_key)?;
+        Ok(RustSigner { private_key })
     }
 }
 

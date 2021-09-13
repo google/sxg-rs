@@ -264,15 +264,8 @@ impl SxgWorker {
                 .as_ref()
                 .ok_or(Error::msg("Config private_key_base64 is not set"))?,
         )?;
-        const KEY_SIZE: usize = 32;
-        if private_key_der.len() != KEY_SIZE {
-            return Err(Error::msg(format!(
-                "Expecting byte size of private_key_base64 to be {}, found {}",
-                KEY_SIZE,
-                private_key_der.len()
-            )));
-        }
-        Ok(signature::rust_signer::RustSigner::new(&private_key_der))
+        signature::rust_signer::RustSigner::new(&private_key_der)
+            .map_err(|e| e.context("Failed to call RustSigner::new()."))
     }
     pub fn should_respond_debug_info(&self) -> bool {
         self.config.respond_debug_info
