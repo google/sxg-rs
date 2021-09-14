@@ -165,12 +165,12 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
     }
 }
 
-#[cfg(target_family = "wasm")]
+#[cfg(all(target_family = "wasm", feature = "wasm"))]
 fn console_log(msg: &str) {
     web_sys::console::log_1(&msg.into());
 }
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(not(all(target_family = "wasm", feature = "wasm")))]
 fn console_log(msg: &str) {
     println!("{}", msg);
 }
