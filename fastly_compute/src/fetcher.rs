@@ -91,7 +91,7 @@ fn into_http_response(response: FastlyResponse) -> Result<HttpResponse> {
         .take(MAX_BYTES as u64 + 1)
         .read_to_end(&mut body_bytes)?;
     if body_bytes.len() > MAX_BYTES {
-        return Err(anyhow!("Body is larger than {} bytes.", MAX_BYTES))
+        return Err(anyhow!("Body is larger than {} bytes.", MAX_BYTES));
     }
     Ok(HttpResponse {
         body: body_bytes,

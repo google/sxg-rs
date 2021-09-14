@@ -31,16 +31,21 @@ pub(crate) async fn process_link_header(
         Lazy::new(|| vec!["", "anonymous"].into_iter().collect());
     match parse_link_header(value) {
         Ok(links) => {
-            let links: Vec<Link> = links.into_iter().filter(|link|
-                link.params.iter().all(|(k, v)|
-                    ALLOWED_PARAM.contains(k) &&
-                    match *k {
-                        "rel" => matches!(v, Some(v) if ALLOWED_REL.contains(v.as_str())),
-                        "crossorigin" => matches!(v, Some(v) if ALLOWED_CROSSORIGIN.contains(v.as_str())),
-                        _ => true,
-                    }
-                )
-            ).collect();
+            let links: Vec<Link> = links
+                .into_iter()
+                .filter(|link| {
+                    link.params.iter().all(|(k, v)| {
+                        ALLOWED_PARAM.contains(k)
+                            && match *k {
+                                "rel" => matches!(v, Some(v) if ALLOWED_REL.contains(v.as_str())),
+                                "crossorigin" => {
+                                    matches!(v, Some(v) if ALLOWED_CROSSORIGIN.contains(v.as_str()))
+                                }
+                                _ => true,
+                            }
+                    })
+                })
+                .collect();
 
             let (mut preloads, allowed_alt_sxgs) = links
                 .into_iter()
@@ -143,8 +148,7 @@ mod tests {
             .map(|n| format!("<https://foo.com/{}.js>;rel=preload", n))
             .collect();
         assert_eq!(
-            process_link_header(&preloads.join(","), &url, &mut null_integrity_fetcher())
-                .await,
+            process_link_header(&preloads.join(","), &url, &mut null_integrity_fetcher()).await,
             preloads
                 .iter()
                 .take(20)
@@ -170,8 +174,7 @@ mod tests {
         );
 
         assert_eq!(
-            process_link_header("</foo>;rel=preload", &url, &mut null_integrity_fetcher())
-                .await,
+            process_link_header("</foo>;rel=preload", &url, &mut null_integrity_fetcher()).await,
             "<https://foo.com/foo>;rel=preload"
         );
         assert_eq!(
@@ -193,8 +196,7 @@ mod tests {
             ""
         );
         assert_eq!(
-            process_link_header("</foo>", &url, &mut null_integrity_fetcher())
-                .await,
+            process_link_header("</foo>", &url, &mut null_integrity_fetcher()).await,
             ""
         );
         assert_eq!(
@@ -232,8 +234,7 @@ mod tests {
         ));
         let url = Url::parse("https://foo.com").unwrap();
         assert_eq!(
-            process_link_header("</>;rel=preload", &url, &mut fetcher)
-                .await,
+            process_link_header("</>;rel=preload", &url, &mut fetcher).await,
             r#"<https://foo.com/>;rel=preload,<https://foo.com/>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#
         );
         assert_eq!(process_link_header(r#"</>;rel=preload,</>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#,
@@ -248,8 +249,7 @@ mod tests {
         let mut fetcher = FakeIntegrityFetcher(Err("some error".into()));
         let url = Url::parse("https://foo.com").unwrap();
         assert_eq!(
-            process_link_header("</>;rel=preload", &url, &mut fetcher)
-                .await,
+            process_link_header("</>;rel=preload", &url, &mut fetcher).await,
             "<https://foo.com/>;rel=preload"
         );
         assert_eq!(process_link_header(r#"</>;rel=preload,</>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#,

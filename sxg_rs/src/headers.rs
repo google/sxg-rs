@@ -168,10 +168,7 @@ impl Headers {
                      Ok(MediaType {primary_type, sub_type, ..})
                          if primary_type.eq_ignore_ascii_case("text") && sub_type.eq_ignore_ascii_case("html")));
         let link = match self.0.get("link") {
-            Some(value) => {
-                process_link_header(value, fallback_url, header_integrity_fetcher)
-                    .await
-            }
+            Some(value) => process_link_header(value, fallback_url, header_integrity_fetcher).await,
             None => "".into(),
         };
         if !link.is_empty() {

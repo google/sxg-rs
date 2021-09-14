@@ -64,7 +64,10 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcher for HeaderIntegrityFet
             Ok(response @ HttpResponse { status: 406, .. }) => response,
             // Cache miss or error fetching from cache; fall back to origin.
             _ => {
-                console_log(&format!("{} not found in header-integrity cache. Fetching.", url));
+                console_log(&format!(
+                    "{} not found in header-integrity cache. Fetching.",
+                    url
+                ));
                 let response = match self.fetch_subresource(url).await {
                     Ok(response) => {
                         match self.compute_integrity(url, &response).await {
@@ -157,12 +160,12 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
     }
 }
 
-#[cfg(target_family="wasm")]
+#[cfg(target_family = "wasm")]
 fn console_log(msg: &str) {
     web_sys::console::log_1(&msg.into());
 }
 
-#[cfg(not(target_family="wasm"))]
+#[cfg(not(target_family = "wasm"))]
 fn console_log(msg: &str) {
     println!("{}", msg);
 }
