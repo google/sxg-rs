@@ -279,13 +279,14 @@ async function generateSxgResponse(fallbackUrl: string, certOrigin: string, payl
     throw `The size of payload exceeds the limit ${PAYLOAD_SIZE_LIMIT}`;
   }
   let {get: headerIntegrityGet, put: headerIntegrityPut} = await headerIntegrityCache();
+  const now_in_seconds = Math.round(Date.now() / 1000 - 60 * 60 * 12);
   const sxg = await createSignedExchange(
     fallbackUrl,
     certOrigin,
     payload.status,
     payloadHeaders,
     new Uint8Array(payloadBody),
-    Math.round(Date.now() / 1000 - 60 * 60 * 12),
+    now_in_seconds,
     signer,
     fetcher,
     headerIntegrityGet,
@@ -294,6 +295,9 @@ async function generateSxgResponse(fallbackUrl: string, certOrigin: string, payl
   return responseFromWasm(sxg);
 }
 
+// SXGs larger than 8MB are not accepted by
+// https://github.com/google/webpackager/blob/main/docs/cache_requirements.md.
+const MAX_BYTES: number = 8000000;
 async function fetcher(request: WasmRequest): Promise<WasmResponse> {
   let requestInit: RequestInit = {
       headers: request.headers,
@@ -306,7 +310,7 @@ async function fetcher(request: WasmRequest): Promise<WasmResponse> {
 
   let body: ArrayBuffer;
   if (response.body) {
-    const bodyReader = response.body.pipeThrough(limitBytes(8000000));
+    const bodyReader = response.body.pipeThrough(limitBytes(MAX_BYTES));
     body = await new Response(bodyReader).arrayBuffer();
   } else {
     body = new ArrayBuffer(0);

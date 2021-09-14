@@ -85,6 +85,8 @@ fn into_http_response(response: FastlyResponse) -> Result<HttpResponse> {
     }
     let status = response.get_status().as_u16();
     let mut body_bytes = vec![];
+    // SXGs larger than 8MB are not accepted by
+    // https://github.com/google/webpackager/blob/main/docs/cache_requirements.md.
     const MAX_BYTES: usize = 8_000_000;
     response
         .into_body()

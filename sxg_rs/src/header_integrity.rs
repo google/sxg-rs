@@ -90,8 +90,6 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcher for HeaderIntegrityFet
                         url, err
                     )),
                 };
-                // TODO: Don't wait on the cache entry to be written. Instead, return a Future<()>
-                // so that the gets can be issued concurrently.
                 let _ = self.header_integrity_cache.put(url, &response).await;
                 response
             }
