@@ -61,7 +61,14 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcher for HeaderIntegrityFet
             // Use cached header-integrity.
             Ok(response @ HttpResponse { status: 200, .. }) => response,
             // Respect the cached error status; don't fetch from origin.
-            Ok(response @ HttpResponse { status: 406, .. }) => response,
+            Ok(response @ HttpResponse { status: 406, .. }) => {
+                console_log(&format!(
+                    "Cached header-integrity error for {}; not refetching for up to an hour: {}",
+                    url,
+                    String::from_utf8_lossy(&response.body),
+                ));
+                response
+            }
             // Cache miss or error fetching from cache; fall back to origin.
             _ => {
                 console_log(&format!(
@@ -181,7 +188,7 @@ pub mod tests {
 
     // For use in other modules' tests.
     pub fn null_integrity_fetcher() -> HeaderIntegrityFetcherImpl<'static, NullFetcher, NullCache> {
-        // Hopefully, the unsafe is OK in test since it's single-threaded.
+        // The unsafe should be OK since there's no data in NULL_CACHE to race.
         new_fetcher(NULL_FETCHER, unsafe { &mut NULL_CACHE }, &*EMPTY_SET)
     }
 

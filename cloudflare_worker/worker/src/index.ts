@@ -340,17 +340,17 @@ type HttpCache = {
   get: (url: string) => Promise<WasmResponse>,
   put: (url: string, response: WasmResponse) => Promise<void>,
 };
-const ERROR_RESPONSE: WasmResponse = {
+const NOT_FOUND_RESPONSE: WasmResponse = {
   body: [],
-  headers: [["cache-control", "max-age=3600"]],
-  status: 406,
+  headers: [],
+  status: 404,
 };
 async function headerIntegrityCache(): Promise<HttpCache> {
   let cache = await caches.open('header-integrity');
   return {
     get: async (url: string) => {
       const response = await cache.match(url);
-      return response ? await wasmFromResponse(response) : ERROR_RESPONSE;
+      return response ? await wasmFromResponse(response) : NOT_FOUND_RESPONSE;
     },
     put: async (url: string, response: WasmResponse) => {
       return cache.put(url, responseFromWasm(response));

@@ -51,7 +51,7 @@ interface WasmFunctions {
     payloadBody: Uint8Array,
     nowInSeconds: number,
     signer: (input: Uint8Array) => Promise<Uint8Array>,
-    subresource_fetcher: (request: WasmRequest) => Promise<WasmResponse>,
+    subresourceFetcher: (request: WasmRequest) => Promise<WasmResponse>,
     headerIntegrityGet: (url: string) => Promise<WasmResponse>,
     headerIntegrityPut: (url: string, response: WasmResponse) => Promise<void>,
   ): WasmResponse,
