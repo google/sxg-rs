@@ -16,11 +16,22 @@
 pub mod js_fetcher;
 
 use crate::http::{HttpRequest, HttpResponse};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 
 /// An interface for fetching resources from network.
 #[async_trait(?Send)]
 pub trait Fetcher {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse>;
+}
+
+pub const NULL_FETCHER: NullFetcher = NullFetcher {};
+
+pub struct NullFetcher;
+
+#[async_trait(?Send)]
+impl Fetcher for NullFetcher {
+    async fn fetch(&self, _request: HttpRequest) -> Result<HttpResponse> {
+        Err(anyhow!("Not found"))
+    }
 }

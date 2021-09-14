@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::{Error, Result};
+use anyhow::{anyhow, Error, Result};
 use async_trait::async_trait;
 use fastly::{Request as FastlyRequest, Response as FastlyResponse};
+use std::io::Read;
 use sxg_rs::{
     fetcher::Fetcher,
     http::{HttpRequest, HttpResponse, Method},
@@ -83,8 +84,19 @@ fn into_http_response(response: FastlyResponse) -> Result<HttpResponse> {
         }
     }
     let status = response.get_status().as_u16();
+    let mut body_bytes = vec![];
+    // SXGs larger than 8MB are not accepted by
+    // https://github.com/google/webpackager/blob/main/docs/cache_requirements.md.
+    const MAX_BYTES: usize = 8_000_000;
+    response
+        .into_body()
+        .take(MAX_BYTES as u64 + 1)
+        .read_to_end(&mut body_bytes)?;
+    if body_bytes.len() > MAX_BYTES {
+        return Err(anyhow!("Body is larger than {} bytes.", MAX_BYTES));
+    }
     Ok(HttpResponse {
-        body: response.into_body_bytes(),
+        body: body_bytes,
         headers: header_fields,
         status,
     })

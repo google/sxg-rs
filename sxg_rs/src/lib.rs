@@ -15,10 +15,13 @@
 mod cbor;
 pub mod config;
 pub mod fetcher;
+mod header_integrity;
 pub mod headers;
 pub mod http;
+pub mod http_cache;
 mod http_parser;
 mod id_headers;
+mod link;
 mod mice;
 mod ocsp;
 pub mod signature;
@@ -28,8 +31,10 @@ mod utils;
 
 use anyhow::{Error, Result};
 use config::Config;
+use fetcher::Fetcher;
 use headers::{AcceptFilter, Headers};
 use http::{HeaderFields, HttpResponse};
+use http_cache::HttpCache;
 use serde::Serialize;
 use url::Url;
 
@@ -77,9 +82,9 @@ impl SxgWorker {
     fn cert_basename(&self) -> String {
         base64::encode_config(&self.config.cert_sha256, base64::URL_SAFE_NO_PAD)
     }
-    pub async fn create_signed_exchange<'a, S: signature::Signer>(
+    pub async fn create_signed_exchange<'a, S: signature::Signer, F: Fetcher, C: HttpCache>(
         &self,
-        params: CreateSignedExchangeParams<'a, S>,
+        params: CreateSignedExchangeParams<'a, S, F, C>,
     ) -> Result<HttpResponse> {
         let CreateSignedExchangeParams {
             fallback_url,
@@ -89,16 +94,23 @@ impl SxgWorker {
             payload_headers,
             signer,
             status_code,
+            subresource_fetcher,
+            header_integrity_cache,
         } = params;
         let fallback_base = Url::parse(fallback_url)
             .map_err(|e| Error::new(e).context("Failed to parse fallback URL"))?;
         let cert_base = Url::parse(cert_origin)
             .map_err(|e| Error::new(e).context("Failed to parse cert origin"))?;
-        // 16384 is the max mice record size allowed by SXG spec.
-        // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#section-3.5-7.9.1
-        let (mice_digest, payload_body) = crate::mice::calculate(payload_body, 16384);
-        let signed_headers =
-            payload_headers.get_signed_headers_bytes(&fallback_base, status_code, &mice_digest);
+        let (signed_headers, payload_body) = utils::signed_headers_and_payload(
+            &fallback_base,
+            status_code,
+            &payload_headers,
+            payload_body,
+            subresource_fetcher,
+            header_integrity_cache,
+            &self.config.strip_response_headers,
+        )
+        .await?;
         let cert_url = cert_base
             .join(&format!(
                 "{}{}",
@@ -137,13 +149,10 @@ impl SxgWorker {
             body: sxg_body,
             headers: vec![
                 (
-                    String::from("content-type"),
-                    String::from("application/signed-exchange;v=b3"),
+                    "content-type".into(),
+                    "application/signed-exchange;v=b3".into(),
                 ),
-                (
-                    String::from("x-content-type-options"),
-                    String::from("nosniff"),
-                ),
+                ("x-content-type-options".into(), "nosniff".into()),
             ],
             status: 200,
         })
@@ -285,7 +294,7 @@ impl SxgWorker {
     }
 }
 
-pub struct CreateSignedExchangeParams<'a, S: signature::Signer> {
+pub struct CreateSignedExchangeParams<'a, S: signature::Signer, F: Fetcher, C: HttpCache> {
     pub fallback_url: &'a str,
     pub cert_origin: &'a str,
     pub now: std::time::SystemTime,
@@ -293,6 +302,8 @@ pub struct CreateSignedExchangeParams<'a, S: signature::Signer> {
     pub payload_headers: headers::Headers,
     pub signer: S,
     pub status_code: u16,
+    pub subresource_fetcher: F,
+    pub header_integrity_cache: &'a mut C,
 }
 
 #[cfg(test)]

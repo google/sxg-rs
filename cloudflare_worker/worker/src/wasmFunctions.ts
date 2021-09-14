@@ -51,6 +51,9 @@ interface WasmFunctions {
     payloadBody: Uint8Array,
     nowInSeconds: number,
     signer: (input: Uint8Array) => Promise<Uint8Array>,
+    subresourceFetcher: (request: WasmRequest) => Promise<WasmResponse>,
+    headerIntegrityGet: (url: string) => Promise<WasmResponse>,
+    headerIntegrityPut: (url: string, response: WasmResponse) => Promise<void>,
   ): WasmResponse,
   fetchOcspFromCa(fetcher: (request: WasmRequest) => Promise<WasmResponse>): Uint8Array,
   getLastErrorMessage(): string;
