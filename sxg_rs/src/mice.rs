@@ -18,7 +18,7 @@ use ::sha2::{Digest, Sha256};
 use std::collections::VecDeque;
 
 pub fn calculate(input: &[u8], record_size: usize) -> (Vec<u8>, Vec<u8>) {
-    if input.len() == 0 {
+    if input.is_empty() {
         return (crate::utils::get_sha(&[0]), vec![]);
     }
     let record_size = std::cmp::min(record_size, input.len());
@@ -45,7 +45,7 @@ pub fn calculate(input: &[u8], record_size: usize) -> (Vec<u8>, Vec<u8>) {
         if i > 0 {
             message.extend_from_slice(&proofs[i]);
         }
-        message.extend_from_slice(&records[i]);
+        message.extend_from_slice(records[i]);
     }
     let integrity = proofs.pop_front().unwrap();
     (integrity, message)

@@ -16,7 +16,7 @@
 pub mod js_http_cache;
 
 use crate::http::HttpResponse;
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 
 /// An interface for storing HTTP responses in a cache.

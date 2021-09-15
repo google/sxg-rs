@@ -71,10 +71,10 @@ impl Headers {
         let accept = self
             .0
             .get("accept")
-            .ok_or(Error::msg("The request does not have an Accept header"))?;
+            .ok_or_else(|| Error::msg("The request does not have an Accept header"))?;
         validate_accept_header(accept, accept_filter)?;
         // Set Via per https://tools.ietf.org/html/rfc7230#section-5.7.1
-        let mut via = format!("sxgrs");
+        let mut via = "sxgrs".to_string();
         if let Some(upstream_via) = self.0.get("via") {
             via = format!("{}, {}", upstream_via, via);
         }
@@ -95,7 +95,7 @@ impl Headers {
             .collect();
         let default_values = vec![("user-agent", USER_AGENT), ("via", &via)];
         for (k, v) in default_values {
-            if new_headers.contains_key(k) == false {
+            if !new_headers.contains_key(k) {
                 new_headers.insert(k.to_string(), v.to_string());
             }
         }
@@ -141,7 +141,7 @@ impl Headers {
         }
         // The payload of SXG must have a content-type. See step 8 of
         // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-signature-validity
-        if self.0.contains_key("content-type") == false {
+        if !self.0.contains_key("content-type") {
             return Err(Error::msg("The content-type header is missing."));
         }
         Ok(())
@@ -355,7 +355,7 @@ static CACHE_CONTROL_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 fn validate_accept_header(accept: &str, accept_filter: AcceptFilter) -> Result<()> {
     let accept = accept.trim();
     let accept = parse_accept_header(accept)?;
-    if accept.len() == 0 {
+    if accept.is_empty() {
         return Err(Error::msg("Accept header is empty"));
     }
     let q_sxg = accept

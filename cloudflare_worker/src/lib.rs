@@ -88,6 +88,7 @@ pub fn validate_payload_headers(fields: JsValue) -> Result<(), JsValue> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 #[wasm_bindgen(js_name=createSignedExchange)]
 pub async fn create_signed_exchange(
     fallback_url: String,

@@ -33,9 +33,7 @@ impl FastlyFetcher {
     /// the Fastly backend need to be created via Fastly API
     /// before calling this function.
     pub fn new(backend_name: &'static str) -> Self {
-        FastlyFetcher {
-            backend_name: backend_name,
-        }
+        FastlyFetcher { backend_name }
     }
 }
 

@@ -50,7 +50,7 @@ pub fn parse_accept_header(input: &str) -> Result<Vec<accept::Accept>> {
 pub fn parse_cache_control_header(input: &str) -> Result<Duration> {
     let directives = parse_vec(input, cache_control::directive)?;
     cache_control::freshness_lifetime(directives)
-        .ok_or(Error::msg("Freshness lifetime is implicit"))
+        .ok_or_else(|| Error::msg("Freshness lifetime is implicit"))
 }
 
 pub fn parse_content_type_header(input: &str) -> Result<media_type::MediaType> {

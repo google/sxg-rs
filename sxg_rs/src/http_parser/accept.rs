@@ -56,7 +56,7 @@ named!(
 
 fn parse_q_millis(s: &str) -> Option<u16> {
     let x = s.parse::<f64>().ok()?;
-    if x >= 0.0 && x <= 1.0 {
+    if (0.0..=1.0).contains(&x) {
         Some((x * 1000.0) as u16)
     } else {
         None
