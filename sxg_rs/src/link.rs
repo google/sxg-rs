@@ -31,24 +31,20 @@ pub(crate) async fn process_link_header(
         Lazy::new(|| vec!["", "anonymous"].into_iter().collect());
     match parse_link_header(value) {
         Ok(links) => {
-            let links: Vec<Link> = links
-                .into_iter()
-                .filter(|link| {
-                    link.params.iter().all(|(k, v)| {
-                        ALLOWED_PARAM.contains(k)
-                            && match *k {
-                                "rel" => matches!(v, Some(v) if ALLOWED_REL.contains(v.as_str())),
-                                "crossorigin" => {
-                                    matches!(v, Some(v) if ALLOWED_CROSSORIGIN.contains(v.as_str()))
-                                }
-                                _ => true,
+            let links = links.into_iter().filter(|link| {
+                link.params.iter().all(|(k, v)| {
+                    ALLOWED_PARAM.contains(k)
+                        && match *k {
+                            "rel" => matches!(v, Some(v) if ALLOWED_REL.contains(v.as_str())),
+                            "crossorigin" => {
+                                matches!(v, Some(v) if ALLOWED_CROSSORIGIN.contains(v.as_str()))
                             }
-                    })
+                            _ => true,
+                        }
                 })
-                .collect();
+            });
 
             let (mut preloads, allowed_alt_sxgs) = links
-                .into_iter()
                 .filter_map(|link| {
                     let uri: String = fallback_url.join(&link.uri).ok()?.into();
                     match get_param(&link.params, "rel") {
@@ -98,7 +94,7 @@ pub(crate) async fn process_link_header(
     }
 }
 
-fn get_param(params: &Vec<(&str, Option<String>)>, name: &str) -> Option<String> {
+fn get_param(params: &[(&str, Option<String>)], name: &str) -> Option<String> {
     let values: Vec<&Option<String>> = params
         .iter()
         .filter(|(k, _)| *k == name)

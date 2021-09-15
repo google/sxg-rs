@@ -79,7 +79,7 @@ fn get_global_user() -> GlobalUser {
 // Get the ID of the KV namespace for OCSP.
 // If there is no such KV namespace, one will be created.
 fn get_ocsp_kv_id(user: &GlobalUser, account_id: &str) -> String {
-    let client = wrangler::http::cf_v4_client(&user).unwrap();
+    let client = wrangler::http::cf_v4_client(user).unwrap();
     let target: wrangler::settings::toml::Target = Default::default();
     let namespaces = wrangler::kv::namespace::list(&client, &target).unwrap();
     if let Some(namespace) = namespaces.into_iter().find(|n| n.title == "sxg-OCSP") {
@@ -114,9 +114,9 @@ fn read_certificate_pem_file(path: &str) -> Result<String> {
 fn read_certificates() -> (String, String) {
     let cert = read_certificate_pem_file("credentials/cert.pem");
     let issuer = read_certificate_pem_file("credentials/issuer.pem");
-    if cert.is_ok() && issuer.is_ok() {
+    if let (Ok(cert), Ok(issuer)) = (&cert, &issuer) {
         println!("Successfully read certificates");
-        return (cert.unwrap(), issuer.unwrap());
+        return (cert.to_string(), issuer.to_string());
     }
     if let Err(msg) = cert {
         println!("{}", msg);
@@ -135,9 +135,9 @@ What you need to do:
     std::process::exit(1);
 }
 
-const CONFIG_FILE: &'static str = "cloudflare_worker/wrangler.toml";
+const CONFIG_FILE: &str = "cloudflare_worker/wrangler.toml";
 // TODO: Remove the example toml, and use Rust code to set the default value of WranglerConfig.
-const CONFIG_EXAMPLE_FILE: &'static str = "cloudflare_worker/wrangler.example.toml";
+const CONFIG_EXAMPLE_FILE: &str = "cloudflare_worker/wrangler.example.toml";
 
 // Read and parse `wrangler.toml`.
 // `wrangler.example.toml` will be read if `wrangler.toml` does not exist.
@@ -183,7 +183,7 @@ fn main() -> Result<(), std::io::Error> {
             .unwrap();
         let target = Select::new()
             .with_prompt("Where do you want to deploy the worker?")
-            .items(&vec![
+            .items(&[
                 "On your domain (recommended; required by Google SXG Cache)",
                 "On workers.dev (development only)",
             ])

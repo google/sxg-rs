@@ -38,4 +38,14 @@ jobs:
         with:
           command: fmt
           args: -- --check
+      - run: |
+          touch credentials/cert.pem
+          touch credentials/issuer.pem
+          touch cloudflare_worker/wrangler.toml
+          touch fastly_compute/fastly.toml
+          touch fastly_compute/config.yaml
+      - uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets --all-features -- -D warnings
 

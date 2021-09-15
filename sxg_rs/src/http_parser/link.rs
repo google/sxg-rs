@@ -33,9 +33,9 @@ pub struct Link<'a> {
 }
 
 fn quote(value: &str) -> Option<String> {
-    if value.chars().all(|c| is_tchar(c)) {
+    if value.chars().all(is_tchar) {
         Some(value.into())
-    } else if value.chars().all(|c| is_quoted_pair_payload(c)) {
+    } else if value.chars().all(is_quoted_pair_payload) {
         Some(
             "\"".to_string()
                 + &value
@@ -80,18 +80,19 @@ fn uri_ref(input: &str) -> IResult<&str, &str> {
     // URL class for parsing and validation. For defense in depth, we only allow
     // the characters specified in
     // https://datatracker.ietf.org/doc/html/rfc3986#appendix-A.
-    take_while(|c: char| match c {
-        // unreserved
-        'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '.' | '_' | '~' => true,
-        // gen-delims
-        ':' | '|' | '?' | '#' | '[' | ']' | '@' => true,
-        // sub-delims
-        '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '=' => true,
-        // pct-encoded
-        '%' => true,
-        // path
-        '/' => true,
-        _ => false,
+    take_while(|c: char| {
+        matches!(c,
+            // unreserved
+            'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '.' | '_' | '~' |
+            // gen-delims
+            ':' | '|' | '?' | '#' | '[' | ']' | '@' |
+            // sub-delims
+            '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '=' |
+            // pct-encoded
+            '%' |
+            // path
+            '/'
+        )
     })(input)
 }
 

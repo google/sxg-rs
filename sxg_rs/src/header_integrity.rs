@@ -149,7 +149,7 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
         .concat())
     }
     fn error_response(msg: &str) -> HttpResponse {
-        console_log(&msg.clone());
+        console_log(msg);
         HttpResponse {
             body: msg.as_bytes().into(),
             ..ERROR_RESPONSE.clone()
@@ -183,7 +183,7 @@ pub mod tests {
     use anyhow::{anyhow, Result};
     use std::collections::HashMap;
 
-    static EMPTY_SET: Lazy<BTreeSet<String>> = Lazy::new(|| BTreeSet::new());
+    static EMPTY_SET: Lazy<BTreeSet<String>> = Lazy::new(BTreeSet::new);
     static mut NULL_CACHE: NullCache = NullCache {};
 
     // For use in other modules' tests.
@@ -238,10 +238,7 @@ pub mod tests {
     #[async_trait(?Send)]
     impl HttpCache for InMemoryCache {
         async fn get(&mut self, url: &str) -> Result<HttpResponse> {
-            self.0
-                .get(url)
-                .map(|r| r.clone())
-                .ok_or(anyhow!("not found"))
+            self.0.get(url).cloned().ok_or_else(|| anyhow!("not found"))
         }
         async fn put(&mut self, url: &str, response: &HttpResponse) -> Result<()> {
             self.0.insert(url.into(), response.clone());

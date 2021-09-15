@@ -82,9 +82,9 @@ impl SxgWorker {
     fn cert_basename(&self) -> String {
         base64::encode_config(&self.config.cert_sha256, base64::URL_SAFE_NO_PAD)
     }
-    pub async fn create_signed_exchange<'a, S: signature::Signer, F: Fetcher, C: HttpCache>(
+    pub async fn create_signed_exchange<S: signature::Signer, F: Fetcher, C: HttpCache>(
         &self,
-        params: CreateSignedExchangeParams<'a, S, F, C>,
+        params: CreateSignedExchangeParams<'_, S, F, C>,
     ) -> Result<HttpResponse> {
         let CreateSignedExchangeParams {
             fallback_url,
@@ -271,7 +271,7 @@ impl SxgWorker {
             self.config
                 .private_key_base64
                 .as_ref()
-                .ok_or(Error::msg("Config private_key_base64 is not set"))?,
+                .ok_or_else(|| Error::msg("Config private_key_base64 is not set"))?,
         )?;
         signature::rust_signer::RustSigner::new(&private_key_der)
             .map_err(|e| e.context("Failed to call RustSigner::new()."))
@@ -285,9 +285,7 @@ impl SxgWorker {
         let mut fallback = original_url.clone();
         if let Some(html_host) = &self.config.html_host {
             if !html_host.is_empty() {
-                fallback
-                    .set_host(Some(&html_host))
-                    .map_err(|e| Error::new(e))?;
+                fallback.set_host(Some(html_host)).map_err(Error::new)?;
             }
         }
         Ok(fallback)

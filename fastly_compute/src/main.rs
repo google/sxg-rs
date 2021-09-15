@@ -94,7 +94,7 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
     let sxg = WORKER.create_signed_exchange(sxg_rs::CreateSignedExchangeParams {
         now: std::time::SystemTime::now(),
         payload_body: &payload_body,
-        payload_headers: payload_headers,
+        payload_headers,
         signer,
         status_code: 200,
         fallback_url: fallback_url.as_str(),
@@ -119,7 +119,7 @@ fn handle_request(req: Request) -> Result<Response> {
     match WORKER.serve_preset_content(req.get_url_str(), &ocsp_der) {
         Some(PresetContent::Direct(response)) => return Ok(fetcher::from_http_response(response)),
         Some(PresetContent::ToBeSigned { url, payload, .. }) => {
-            fallback_url = Url::parse(&url).map_err(|e| Error::new(e))?;
+            fallback_url = Url::parse(&url).map_err(Error::new)?;
             sxg_payload = fetcher::from_http_response(payload);
             get_req_header_fields(&req, AcceptFilter::AcceptsSxg)?;
         }
@@ -145,7 +145,6 @@ mod tests {
     use super::*;
     #[test]
     fn it_works() {
-        &*WORKER;
         WORKER.create_rust_signer().unwrap();
     }
 }

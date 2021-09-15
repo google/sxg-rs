@@ -26,12 +26,11 @@ pub fn token(input: &str) -> IResult<&str, &str> {
 }
 
 pub fn is_tchar(c: char) -> bool {
-    match c {
-        '!' | '#' | '$' | '%' | '&' | '\'' | '*' => true,
-        '+' | '-' | '.' | '^' | '_' | '`' | '|' | '~' => true,
-        '0'..='9' | 'A'..='Z' | 'a'..='z' => true,
-        _ => false,
-    }
+    matches!(c,
+        '!' | '#' | '$' | '%' | '&' | '\'' | '*' |
+        '+' | '-' | '.' | '^' | '_' | '`' | '|' | '~' |
+        '0'..='9' | 'A'..='Z' | 'a'..='z'
+    )
 }
 
 fn is_space_or_tab(c: char) -> bool {
@@ -65,21 +64,19 @@ fn qdtext(input: &str) -> IResult<&str, char> {
 }
 
 fn is_qdtext(c: char) -> bool {
-    match c {
-        '\t' | ' ' | '\x21' => true,
-        '\x23'..='\x5B' | '\x5D'..='\x7E' => true,
-        '\u{80}'..=std::char::MAX => true,
-        _ => false,
-    }
+    matches!(c,
+        '\t' | ' ' | '\x21' |
+        '\x23'..='\x5B' | '\x5D'..='\x7E' |
+        '\u{80}'..=std::char::MAX
+    )
 }
 
 pub fn is_quoted_pair_payload(c: char) -> bool {
-    match c {
-        '\t' | ' ' => true,
-        '\x21'..='\x7E' => true,
-        '\u{80}'..=std::char::MAX => true,
-        _ => false,
-    }
+    matches!(c,
+        '\t' | ' ' |
+        '\x21'..='\x7E' |
+        '\u{80}'..=std::char::MAX
+    )
 }
 
 named!(
@@ -90,7 +87,7 @@ named!(
 fn char_if(predicate: fn(c: char) -> bool) -> impl Fn(&str) -> IResult<&str, char> {
     move |input: &str| {
         map_opt!(input, take!(1), |s: &str| {
-            let c = s.chars().nth(0)?;
+            let c = s.chars().next()?;
             if predicate(c) {
                 Some(c)
             } else {

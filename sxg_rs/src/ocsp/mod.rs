@@ -48,7 +48,7 @@ fn create_ocsp_request(cert: &X509Certificate, issuer: &X509Certificate) -> Vec<
         signature_algorithm(),
         BerObject::from_obj(BerObjectContent::OctetString(&issuer_name_hash)),
         BerObject::from_obj(BerObjectContent::OctetString(&issuer_key_hash)),
-        BerObject::from_obj(BerObjectContent::Integer(&serial_number)),
+        BerObject::from_obj(BerObjectContent::Integer(serial_number)),
     ]);
     // https://tools.ietf.org/html/rfc6960#section-4.1.1
     // Request         ::=     SEQUENCE {
@@ -98,8 +98,8 @@ pub async fn fetch_from_ca<'a, F: Fetcher>(
     issuer_der: &'a [u8],
     fetcher: F,
 ) -> Vec<u8> {
-    let cert = x509_parser::parse_x509_certificate(&cert_der).unwrap().1;
-    let issuer = x509_parser::parse_x509_certificate(&issuer_der).unwrap().1;
+    let cert = x509_parser::parse_x509_certificate(cert_der).unwrap().1;
+    let issuer = x509_parser::parse_x509_certificate(issuer_der).unwrap().1;
     let aia = cert.extensions().get(&AIA);
     if aia == None {
         // If the certificate doesn't include an AIA section, it is probably a

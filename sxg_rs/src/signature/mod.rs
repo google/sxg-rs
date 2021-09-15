@@ -71,7 +71,7 @@ impl<'a> Signature<'a> {
             "HTTP Exchange 1 b3".as_bytes(),
             &[0u8],
             &[32u8],
-            &cert_sha256,
+            cert_sha256,
             &(validity_url.len() as u64).to_be_bytes(),
             validity_url.as_bytes(),
             &date.to_be_bytes(),
@@ -79,7 +79,7 @@ impl<'a> Signature<'a> {
             &(request_url.len() as u64).to_be_bytes(),
             request_url.as_bytes(),
             &(headers.len() as u64).to_be_bytes(),
-            &headers,
+            headers,
         ]
         .concat();
         let sig = signer
@@ -98,12 +98,12 @@ impl<'a> Signature<'a> {
     }
     pub fn serialize(&self) -> Vec<u8> {
         let mut list = ShParamList::new();
-        let mut param = ParamItem::new(&self.id);
+        let mut param = ParamItem::new(self.id);
         param.push(("sig", Some(ShItem::ByteSequence(&self.sig))));
         param.push(("integrity", Some(ShItem::String("digest/mi-sha256-03"))));
-        param.push(("cert-url", Some(ShItem::String(&self.cert_url))));
-        param.push(("cert-sha256", Some(ShItem::ByteSequence(&self.cert_sha256))));
-        param.push(("validity-url", Some(ShItem::String(&self.validity_url))));
+        param.push(("cert-url", Some(ShItem::String(self.cert_url))));
+        param.push(("cert-sha256", Some(ShItem::ByteSequence(self.cert_sha256))));
+        param.push(("validity-url", Some(ShItem::String(self.validity_url))));
         param.push(("date", Some(ShItem::Integer(self.date))));
         param.push(("expires", Some(ShItem::Integer(self.expires))));
         list.push(param);

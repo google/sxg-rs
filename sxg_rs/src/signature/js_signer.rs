@@ -58,7 +58,7 @@ impl JsSigner {
 impl Signer for JsSigner {
     async fn sign(&self, message: &[u8]) -> Result<Vec<u8>> {
         let a = Uint8Array::new_with_length(message.len() as u32);
-        a.copy_from(&message);
+        a.copy_from(message);
         let this = JsValue::null();
         let sig = self.js_function.call1(&this, &a).map_err(|e| {
             Error::msg(format!("{:?}", e)).context("JavaScript signer throws an error.")
@@ -104,7 +104,7 @@ fn raw_sig_to_asn1(raw: Vec<u8>) -> Result<Vec<u8>> {
 // make it a positive integer. For example, when the input is 0xffff,
 // it will be parsed as a negative number, hence we need to change it to
 // 0x00ffff.
-fn ensure_positive(a: &mut Vec<u8>) -> () {
+fn ensure_positive(a: &mut Vec<u8>) {
     if a[0] >= 0x80 {
         a.insert(0, 0x00);
     }
