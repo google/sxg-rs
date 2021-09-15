@@ -45,7 +45,6 @@ pub(crate) async fn process_link_header(
             });
 
             let (mut preloads, allowed_alt_sxgs) = links
-                .into_iter()
                 .filter_map(|link| {
                     let uri: String = fallback_url.join(&link.uri).ok()?.into();
                     match get_param(&link.params, "rel") {
