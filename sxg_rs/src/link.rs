@@ -1,6 +1,8 @@
 use crate::header_integrity::HeaderIntegrityFetcher;
 use crate::http_parser::{link::Link, parse_link_header};
+use futures::{stream, stream::StreamExt};
 use once_cell::sync::Lazy;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use url::{Origin, Url};
 
@@ -63,32 +65,46 @@ pub(crate) async fn process_link_header(
                 .map(|(_, link)| (link.uri.clone(), link))
                 .collect();
 
-            let mut directives: Vec<String> = vec![];
             let fallback_origin = fallback_url.origin();
-            for link in preloads {
-                directives.push(link.serialize());
-                match allowed_alt_sxgs.get(&link.uri) {
-                    Some(allowed_alt_sxg) => directives.push(allowed_alt_sxg.serialize()),
-                    None => {
-                        if origin_is(&fallback_origin, &link.uri) {
-                            // TODO: Make this fetch concurrent.
-                            if let Ok(integrity) = header_integrity_fetcher.fetch(&link.uri).await {
-                                directives.push(
-                                    Link {
-                                        uri: link.uri.clone(),
-                                        params: vec![
-                                            ("rel", Some("allowed-alt-sxg".into())),
-                                            ("header-integrity", Some(integrity)),
-                                        ],
-                                    }
-                                    .serialize(),
-                                )
+            let directives = RefCell::new(vec![]);
+            stream::iter(preloads)
+                .for_each_concurrent(None, |link| async {
+                    let link = link;
+                    if let Ok(mut directives) = directives.try_borrow_mut() {
+                        directives.push(link.clone());
+                    }
+                    match allowed_alt_sxgs.get(&link.uri) {
+                        Some(allowed_alt_sxg) => {
+                            if let Ok(mut directives) = directives.try_borrow_mut() {
+                                directives.push(allowed_alt_sxg.clone());
                             }
                         }
-                    }
-                };
-            }
-            directives.join(",")
+                        None => {
+                            if origin_is(&fallback_origin, &link.uri) {
+                                if let Ok(integrity) =
+                                    header_integrity_fetcher.fetch(&link.uri).await
+                                {
+                                    if let Ok(mut directives) = directives.try_borrow_mut() {
+                                        directives.push(Link {
+                                            uri: link.uri.clone(),
+                                            params: vec![
+                                                ("rel", Some("allowed-alt-sxg".into())),
+                                                ("header-integrity", Some(integrity)),
+                                            ],
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    };
+                })
+                .await;
+            directives
+                .take()
+                .iter()
+                .map(|link| link.serialize())
+                .collect::<Vec<String>>()
+                .join(",")
         }
         Err(_) => "".into(),
     }
@@ -122,7 +138,7 @@ mod tests {
 
     #[async_trait(?Send)]
     impl HeaderIntegrityFetcher for FakeIntegrityFetcher {
-        async fn fetch(&mut self, _url: &str) -> Result<String> {
+        async fn fetch(&self, _url: &str) -> Result<String> {
             self.0.clone().map_err(|e| anyhow!(e))
         }
     }
@@ -239,6 +255,72 @@ mod tests {
         assert_eq!(process_link_header(r#"</>;rel=preload,<https://foo.com/>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#,
         &url, &mut fetcher).await,
                    r#"<https://foo.com/>;rel=preload,<https://foo.com/>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#);
+    }
+    #[async_std::test]
+    async fn fetch_header_integrity_multiple() {
+        let mut fetcher = FakeIntegrityFetcher(Ok(
+            "sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=".into(),
+        ));
+        let url = Url::parse("https://foo.com").unwrap();
+        assert_eq!(
+            process_link_header("</a>;rel=preload,</b>;rel=preload", &url, &mut fetcher).await,
+            concat!(
+                r#"<https://foo.com/a>;rel=preload,<https://foo.com/a>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=","#,
+                r#"<https://foo.com/b>;rel=preload,<https://foo.com/b>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#
+            ),
+        );
+    }
+    #[async_std::test]
+    async fn fetch_header_integrity_out_of_order() {
+        // This whole mess emulates a situation where the second fetch finishes before the first.
+        use futures::{
+            future::{BoxFuture, Future},
+            task::{Context, Poll, Waker},
+        };
+        use std::pin::Pin;
+        use std::sync::{atomic, Arc, Mutex};
+        static READY: atomic::AtomicBool = atomic::AtomicBool::new(false);
+        pub struct OutOfOrderFuture(Arc<Mutex<Option<Waker>>>);
+        impl Future for OutOfOrderFuture {
+            type Output = Result<String>;
+            fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+                let ready = READY.fetch_or(true, atomic::Ordering::SeqCst);
+                println!("ready = {}", ready);
+                if ready {
+                    if let Some(waker) = &*self.0.lock().unwrap() {
+                        println!("waking!");
+                        waker.wake_by_ref();
+                    }
+                    Poll::Ready(Ok(
+                        "sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=".into()
+                    ))
+                } else {
+                    *self.0.lock().unwrap() = Some(cx.waker().clone());
+                    Poll::Pending
+                }
+            }
+        }
+        struct OutOfOrderFetcher<F: Fn() -> BoxFuture<'static, Result<String>>>(F);
+        #[async_trait(?Send)]
+        impl<F: Fn() -> BoxFuture<'static, Result<String>>> HeaderIntegrityFetcher
+            for OutOfOrderFetcher<F>
+        {
+            async fn fetch(&self, url: &str) -> Result<String> {
+                println!("url = {}", url);
+                self.0().await
+            }
+        }
+        let waker = Arc::new(Mutex::new(None));
+        let mut fetcher = OutOfOrderFetcher(|| Box::pin(OutOfOrderFuture(waker.clone())));
+        let url = Url::parse("https://foo.com").unwrap();
+        assert_eq!(
+            process_link_header("</a>;rel=preload,</b>;rel=preload", &url, &mut fetcher).await,
+            concat!(
+                r#"<https://foo.com/a>;rel=preload,"#,
+                r#"<https://foo.com/b>;rel=preload,<https://foo.com/b>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=","#,
+                r#"<https://foo.com/a>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#
+            ),
+        );
     }
     #[async_std::test]
     async fn fetch_header_integrity_ok_none() {

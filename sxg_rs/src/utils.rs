@@ -33,7 +33,7 @@ pub async fn signed_headers_and_payload<F: Fetcher, C: HttpCache>(
     payload_headers: &Headers,
     payload_body: &[u8],
     subresource_fetcher: F,
-    header_integrity_cache: &mut C,
+    header_integrity_cache: C,
     strip_response_headers: &BTreeSet<String>,
 ) -> Result<(Vec<u8>, Vec<u8>)> {
     if status_code != 200 {
