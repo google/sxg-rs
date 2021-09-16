@@ -1,5 +1,23 @@
 {
   "extends": [
-    "config:base"
+    "config:base",
+    "schedule:weekly"
+  ],
+  "postUpdateOptions": [
+    "npmDedupe"
+  ],
+  "packageRules": [
+    {
+      "matchManagers": ["cargo"],
+      "groupName": "Rust dependencies"
+    },
+    {
+      "matchManagers": ["npm"],
+      "groupName": "TypeScript dependencies"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    }
   ]
 }
