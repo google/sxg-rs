@@ -79,7 +79,7 @@ features by running this:
 ``` bash
 $ go install github.com/WICG/webpackage/go/signedexchange/cmd/dump-signedexchange@latest
 $ dump-signedexchange -uri $URL -headerIntegrity
-$ dump-signedexchange -uri $URL -headerIntegrity
+$ dump-signedexchange -uri $URL -headerIntegrity  # verify it's the same
 ```
 
 If it doesn't, eliminate frequently changing headers from the upstream
