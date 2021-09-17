@@ -341,10 +341,7 @@ pub mod tests {
             .for_each_concurrent(None, |n| {
                 println!("fetch #{}", n);
                 async {
-                    assert_eq!(
-                        fetcher.fetch(TEST_URL).await.unwrap(),
-                        "sha256-blah"
-                    );
+                    assert_eq!(fetcher.fetch(TEST_URL).await.unwrap(), "sha256-blah");
                 }
             })
             .await;
