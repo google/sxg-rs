@@ -342,7 +342,7 @@ pub mod tests {
                 println!("fetch #{}", n);
                 async {
                     assert_eq!(
-                        fetcher.fetch(TEST_URL).await.unwrap().to_string(),
+                        fetcher.fetch(TEST_URL).await.unwrap(),
                         "sha256-blah"
                     );
                 }
