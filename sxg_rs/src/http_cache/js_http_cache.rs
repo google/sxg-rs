@@ -26,7 +26,7 @@ pub struct JsHttpCache {
 
 #[async_trait(?Send)]
 impl HttpCache for JsHttpCache {
-    async fn get(&mut self, url: &str) -> Result<HttpResponse> {
+    async fn get(&self, url: &str) -> Result<HttpResponse> {
         let url = JsValue::from_serde(&url)
             .map_err(|e| Error::new(e).context("serializing url to JS"))?;
         let this = JsValue::null();
@@ -43,7 +43,7 @@ impl HttpCache for JsHttpCache {
             .map_err(|e| Error::new(e).context("parsing response from JS"))?;
         Ok(response)
     }
-    async fn put(&mut self, url: &str, response: &HttpResponse) -> Result<()> {
+    async fn put(&self, url: &str, response: &HttpResponse) -> Result<()> {
         let url = JsValue::from_serde(&url)
             .map_err(|e| Error::new(e).context("serializing url to JS"))?;
         let response = JsValue::from_serde(&response)

@@ -272,34 +272,8 @@ mod tests {
     }
     #[async_std::test]
     async fn fetch_header_integrity_out_of_order() {
-        // This whole mess emulates a situation where the second fetch finishes before the first.
-        use futures::{
-            future::{BoxFuture, Future},
-            task::{Context, Poll, Waker},
-        };
-        use std::pin::Pin;
-        use std::sync::{atomic, Arc, Mutex};
-        static READY: atomic::AtomicBool = atomic::AtomicBool::new(false);
-        pub struct OutOfOrderFuture(Arc<Mutex<Option<Waker>>>);
-        impl Future for OutOfOrderFuture {
-            type Output = Result<String>;
-            fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-                let ready = READY.fetch_or(true, atomic::Ordering::SeqCst);
-                println!("ready = {}", ready);
-                if ready {
-                    if let Some(waker) = &*self.0.lock().unwrap() {
-                        println!("waking!");
-                        waker.wake_by_ref();
-                    }
-                    Poll::Ready(Ok(
-                        "sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=".into()
-                    ))
-                } else {
-                    *self.0.lock().unwrap() = Some(cx.waker().clone());
-                    Poll::Pending
-                }
-            }
-        }
+        use crate::utils::tests::{out_of_order, OutOfOrderState};
+        use futures::future::BoxFuture;
         struct OutOfOrderFetcher<F: Fn() -> BoxFuture<'static, Result<String>>>(F);
         #[async_trait(?Send)]
         impl<F: Fn() -> BoxFuture<'static, Result<String>>> HeaderIntegrityFetcher
@@ -310,8 +284,12 @@ mod tests {
                 self.0().await
             }
         }
-        let waker = Arc::new(Mutex::new(None));
-        let mut fetcher = OutOfOrderFetcher(|| Box::pin(OutOfOrderFuture(waker.clone())));
+        let state = OutOfOrderState::new();
+        let mut fetcher = OutOfOrderFetcher(|| {
+            out_of_order(state.clone(), || {
+                Ok("sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=".into())
+            })
+        });
         let url = Url::parse("https://foo.com").unwrap();
         assert_eq!(
             process_link_header("</a>;rel=preload,</b>;rel=preload", &url, &mut fetcher).await,

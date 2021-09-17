@@ -22,18 +22,18 @@ use async_trait::async_trait;
 /// An interface for storing HTTP responses in a cache.
 #[async_trait(?Send)]
 pub trait HttpCache {
-    async fn get(&mut self, url: &str) -> Result<HttpResponse>;
-    async fn put(&mut self, url: &str, response: &HttpResponse) -> Result<()>;
+    async fn get(&self, url: &str) -> Result<HttpResponse>;
+    async fn put(&self, url: &str, response: &HttpResponse) -> Result<()>;
 }
 
 pub struct NullCache;
 
 #[async_trait(?Send)]
 impl HttpCache for NullCache {
-    async fn get(&mut self, _url: &str) -> Result<HttpResponse> {
+    async fn get(&self, _url: &str) -> Result<HttpResponse> {
         Err(anyhow!("No cache entry found in NullCache"))
     }
-    async fn put(&mut self, _url: &str, _response: &HttpResponse) -> Result<()> {
+    async fn put(&self, _url: &str, _response: &HttpResponse) -> Result<()> {
         Ok(())
     }
 }
