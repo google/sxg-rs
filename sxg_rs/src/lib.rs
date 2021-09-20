@@ -301,7 +301,7 @@ pub struct CreateSignedExchangeParams<'a, S: signature::Signer, F: Fetcher, C: H
     pub signer: S,
     pub status_code: u16,
     pub subresource_fetcher: F,
-    pub header_integrity_cache: &'a mut C,
+    pub header_integrity_cache: C,
 }
 
 #[cfg(test)]

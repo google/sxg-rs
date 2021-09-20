@@ -25,14 +25,14 @@ use url::Url;
 
 #[async_trait(?Send)]
 pub trait HeaderIntegrityFetcher {
-    async fn fetch(&mut self, url: &str) -> Result<String>;
+    async fn fetch(&self, url: &str) -> Result<String>;
 }
 
-pub fn new_fetcher<'a, F: Fetcher, C: HttpCache>(
+pub fn new_fetcher<F: Fetcher, C: HttpCache>(
     subresource_fetcher: F,
-    header_integrity_cache: &'a mut C,
-    strip_response_headers: &'a BTreeSet<String>,
-) -> HeaderIntegrityFetcherImpl<'a, F, C> {
+    header_integrity_cache: C,
+    strip_response_headers: &'_ BTreeSet<String>,
+) -> HeaderIntegrityFetcherImpl<'_, F, C> {
     HeaderIntegrityFetcherImpl {
         subresource_fetcher,
         header_integrity_cache,
@@ -42,7 +42,7 @@ pub fn new_fetcher<'a, F: Fetcher, C: HttpCache>(
 
 pub struct HeaderIntegrityFetcherImpl<'a, F: Fetcher, C: HttpCache> {
     subresource_fetcher: F,
-    header_integrity_cache: &'a mut C,
+    header_integrity_cache: C,
     strip_response_headers: &'a BTreeSet<String>,
 }
 
@@ -56,8 +56,8 @@ static ERROR_RESPONSE: Lazy<HttpResponse> = Lazy::new(|| HttpResponse {
 
 #[async_trait(?Send)]
 impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcher for HeaderIntegrityFetcherImpl<'a, F, C> {
-    async fn fetch(&mut self, url: &str) -> Result<String> {
-        let integrity_response = match self.header_integrity_cache.get(url).await {
+    async fn fetch(&self, url: &str) -> Result<String> {
+        let integrity_response = match self.cache_get(url).await {
             // Use cached header-integrity.
             Ok(response @ HttpResponse { status: 200, .. }) => response,
             // Respect the cached error status; don't fetch from origin.
@@ -97,7 +97,7 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcher for HeaderIntegrityFet
                         url, err
                     )),
                 };
-                let _ = self.header_integrity_cache.put(url, &response).await;
+                let _ = self.cache_put(url, &response).await;
                 response
             }
         };
@@ -106,6 +106,12 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcher for HeaderIntegrityFet
 }
 
 impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
+    async fn cache_get(&self, url: &str) -> Result<HttpResponse> {
+        self.header_integrity_cache.get(url).await
+    }
+    async fn cache_put(&self, url: &str, response: &HttpResponse) -> Result<()> {
+        self.header_integrity_cache.put(url, response).await
+    }
     async fn fetch_subresource(&self, url: &str) -> Result<HttpResponse> {
         // A generic SXG-preferring Accept header, for use in populating the
         // subresource integrity cache. This will be cached and reused for
@@ -138,7 +144,7 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
             &payload_headers,
             &response.body,
             NULL_FETCHER,
-            &mut NullCache {},
+            NullCache {},
             self.strip_response_headers,
         )
         .await?;
@@ -181,15 +187,14 @@ pub mod tests {
     use crate::fetcher::{NullFetcher, NULL_FETCHER};
     use crate::http_cache::NullCache;
     use anyhow::{anyhow, Result};
+    use std::cell::RefCell;
     use std::collections::HashMap;
 
     static EMPTY_SET: Lazy<BTreeSet<String>> = Lazy::new(BTreeSet::new);
-    static mut NULL_CACHE: NullCache = NullCache {};
 
     // For use in other modules' tests.
     pub fn null_integrity_fetcher() -> HeaderIntegrityFetcherImpl<'static, NullFetcher, NullCache> {
-        // The unsafe should be OK since there's no data in NULL_CACHE to race.
-        new_fetcher(NULL_FETCHER, unsafe { &mut NULL_CACHE }, &*EMPTY_SET)
+        new_fetcher(NULL_FETCHER, NullCache {}, &*EMPTY_SET)
     }
 
     const TEST_URL: &str = "https://signed-exchange-testing.dev/sxgs/image.jpg";
@@ -215,10 +220,9 @@ pub mod tests {
     #[async_std::test]
     async fn computes_integrity() {
         let strip_response_headers = BTreeSet::new();
-        let mut cache = NullCache {};
-        let mut fetcher = new_fetcher(
+        let fetcher = new_fetcher(
             FakeFetcher(&TEST_RESPONSE),
-            &mut cache,
+            NullCache {},
             &strip_response_headers,
         );
         assert_eq!(
@@ -227,28 +231,31 @@ pub mod tests {
         );
     }
 
-    struct InMemoryCache(HashMap<String, HttpResponse>);
-
-    impl InMemoryCache {
-        fn new() -> Self {
-            InMemoryCache(HashMap::new())
-        }
-    }
+    // RefCell is good enough for our single-threaded, single-task unit tests, but async_std::Mutex
+    // would be necessary for more complex usage.
+    struct InMemoryCache<'a>(&'a RefCell<HashMap<String, HttpResponse>>);
 
     #[async_trait(?Send)]
-    impl HttpCache for InMemoryCache {
-        async fn get(&mut self, url: &str) -> Result<HttpResponse> {
-            self.0.get(url).cloned().ok_or_else(|| anyhow!("not found"))
+    impl HttpCache for InMemoryCache<'_> {
+        async fn get(&self, url: &str) -> Result<HttpResponse> {
+            self.0
+                .try_borrow()?
+                .get(url)
+                .cloned()
+                .ok_or_else(|| anyhow!("not found"))
         }
-        async fn put(&mut self, url: &str, response: &HttpResponse) -> Result<()> {
-            self.0.insert(url.into(), response.clone());
+        async fn put(&self, url: &str, response: &HttpResponse) -> Result<()> {
+            self.0
+                .try_borrow_mut()?
+                .insert(url.into(), response.clone());
             Ok(())
         }
     }
 
     #[async_std::test]
     async fn gets_header_integrity_from_cache() {
-        let mut cache = InMemoryCache::new();
+        let store = RefCell::new(HashMap::new());
+        let cache = InMemoryCache(&store);
         let response = HttpResponse {
             body: b"sha256-blah".to_vec(),
             headers: vec![],
@@ -257,17 +264,14 @@ pub mod tests {
         let _ = cache.put(TEST_URL, &response).await;
 
         let strip_response_headers = BTreeSet::new();
-        let mut fetcher = new_fetcher(
-            FakeFetcher(&TEST_RESPONSE),
-            &mut cache,
-            &strip_response_headers,
-        );
+        let fetcher = new_fetcher(FakeFetcher(&TEST_RESPONSE), cache, &strip_response_headers);
 
         assert_eq!(fetcher.fetch(TEST_URL).await.unwrap(), "sha256-blah",);
     }
     #[async_std::test]
     async fn gets_error_from_cache() {
-        let mut cache = InMemoryCache::new();
+        let store = RefCell::new(HashMap::new());
+        let cache = InMemoryCache(&store);
         let response = HttpResponse {
             body: b"something went wrong".to_vec(),
             headers: vec![],
@@ -276,11 +280,7 @@ pub mod tests {
         let _ = cache.put(TEST_URL, &response).await;
 
         let strip_response_headers = BTreeSet::new();
-        let mut fetcher = new_fetcher(
-            FakeFetcher(&TEST_RESPONSE),
-            &mut cache,
-            &strip_response_headers,
-        );
+        let fetcher = new_fetcher(FakeFetcher(&TEST_RESPONSE), cache, &strip_response_headers);
 
         assert_eq!(
             fetcher.fetch(TEST_URL).await.unwrap_err().to_string(),
@@ -289,19 +289,61 @@ pub mod tests {
     }
     #[async_std::test]
     async fn puts_into_cache() {
-        let mut cache = InMemoryCache::new();
+        let store = RefCell::new(HashMap::new());
 
         let strip_response_headers = BTreeSet::new();
-        let mut fetcher = new_fetcher(
+        let fetcher = new_fetcher(
             FakeFetcher(&TEST_RESPONSE),
-            &mut cache,
+            InMemoryCache(&store),
             &strip_response_headers,
         );
 
         let _ = fetcher.fetch(TEST_URL).await;
         assert_eq!(
-            cache.get(TEST_URL).await.unwrap().body,
+            store.borrow().get(TEST_URL).unwrap().body,
             EXPECTED_HEADER_INTEGRITY.as_bytes(),
         );
+    }
+    #[async_std::test]
+    async fn out_of_order() {
+        use crate::utils::tests::{out_of_order, OutOfOrderState};
+        use futures::{
+            future::BoxFuture,
+            stream::{self, StreamExt},
+        };
+        struct OutOfOrderCache<F: Fn() -> BoxFuture<'static, Result<HttpResponse>>>(F);
+        #[async_trait(?Send)]
+        impl<F: Fn() -> BoxFuture<'static, Result<HttpResponse>>> HttpCache for OutOfOrderCache<F> {
+            async fn get(&self, url: &str) -> Result<HttpResponse> {
+                println!("get: url = {}", url);
+                self.0().await
+            }
+            async fn put(&self, url: &str, _response: &HttpResponse) -> Result<()> {
+                println!("put: url = {}", url);
+                Ok(())
+            }
+        }
+        let state = OutOfOrderState::new();
+        let cache = OutOfOrderCache(|| {
+            out_of_order(state.clone(), || {
+                Ok(HttpResponse {
+                    body: b"sha256-blah".to_vec(),
+                    headers: vec![],
+                    status: 200,
+                })
+            })
+        });
+
+        let strip_response_headers = BTreeSet::new();
+        let fetcher = new_fetcher(FakeFetcher(&TEST_RESPONSE), cache, &strip_response_headers);
+
+        stream::iter(1..=2)
+            .for_each_concurrent(None, |n| {
+                println!("fetch #{}", n);
+                async {
+                    assert_eq!(fetcher.fetch(TEST_URL).await.unwrap(), "sha256-blah");
+                }
+            })
+            .await;
     }
 }

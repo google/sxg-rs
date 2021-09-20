@@ -90,7 +90,6 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
     let payload_body = payload.into_body_bytes();
     let cert_origin = fallback_url.origin().ascii_serialization();
     let subresource_fetcher = FastlyFetcher::new("subresources");
-    let mut null_cache = sxg_rs::http_cache::NullCache {};
     let sxg = WORKER.create_signed_exchange(sxg_rs::CreateSignedExchangeParams {
         now: std::time::SystemTime::now(),
         payload_body: &payload_body,
@@ -103,7 +102,7 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
         // The fastly crate provides only read access to dictionaries, so
         // header integrities cannot be cached. However, I believe the
         // subresource_fetcher will go through the cache.
-        header_integrity_cache: &mut null_cache,
+        header_integrity_cache: sxg_rs::http_cache::NullCache {},
     });
     let sxg = block_on(sxg)?;
     Ok(fetcher::from_http_response(sxg))

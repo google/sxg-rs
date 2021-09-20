@@ -33,7 +33,7 @@ pub async fn signed_headers_and_payload<F: Fetcher, C: HttpCache>(
     payload_headers: &Headers,
     payload_body: &[u8],
     subresource_fetcher: F,
-    header_integrity_cache: &mut C,
+    header_integrity_cache: C,
     strip_response_headers: &BTreeSet<String>,
 ) -> Result<(Vec<u8>, Vec<u8>)> {
     if status_code != 200 {
@@ -60,6 +60,13 @@ pub async fn signed_headers_and_payload<F: Fetcher, C: HttpCache>(
 
 #[cfg(test)]
 pub mod tests {
+    use futures::{
+        future::{BoxFuture, Future},
+        task::{Context, Poll, Waker},
+    };
+    use std::pin::Pin;
+    use std::sync::{Arc, Mutex};
+
     // Generated with:
     //   KEY=`mktemp` && CSR=`mktemp` &&
     //   openssl ecparam -out "$KEY" -name prime256v1 -genkey &&
@@ -83,4 +90,52 @@ SFfkmh8Fc2QXpbbaK5AQfnQpkDHV
     // Generated from above cert using:
     //   openssl x509 -in - -outform DER | openssl dgst -sha256 -binary | base64 | tr /+ _- | tr -d =
     pub const SELF_SIGNED_CERT_SHA256: &str = "Lz2EMcys4NR9FP0yYnuS5Uw8xM3gbVAOM2lwSBU9qX0";
+
+    // Returns a future for the given state object. If multiple futures are created from the same
+    // shared state, the first to be polled resolves after the second.
+    pub fn out_of_order<'a, T: 'a, F: 'a + Fn() -> T + Send>(
+        state: Arc<Mutex<OutOfOrderState>>,
+        value: F,
+    ) -> BoxFuture<'a, T> {
+        Box::pin(OutOfOrderFuture { value, state })
+    }
+
+    pub struct OutOfOrderState {
+        first: bool,
+        waker: Option<Waker>,
+    }
+
+    impl OutOfOrderState {
+        pub fn new() -> Arc<Mutex<Self>> {
+            Arc::new(Mutex::new(OutOfOrderState {
+                first: true,
+                waker: None,
+            }))
+        }
+    }
+
+    struct OutOfOrderFuture<T, F: Fn() -> T> {
+        value: F,
+        state: Arc<Mutex<OutOfOrderState>>,
+    }
+
+    impl<T, F: Fn() -> T> Future for OutOfOrderFuture<T, F> {
+        type Output = T;
+        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+            let mut state = &mut *self.state.lock().unwrap();
+            let first = state.first;
+            state.first = false;
+            println!("first = {}", first);
+            if first {
+                state.waker = Some(cx.waker().clone());
+                Poll::Pending
+            } else {
+                if let Some(waker) = &state.waker {
+                    println!("waking!");
+                    waker.wake_by_ref();
+                }
+                Poll::Ready((self.value)())
+            }
+        }
+    }
 }

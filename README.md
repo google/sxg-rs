@@ -67,17 +67,20 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 ## Preload subresources
 
 LCP can be further improved by instructing Google Search to prefetch
-render-critical subresources for the page. To do so, add a `Link: rel=preload`
-header and a matching `Link: rel=allowed-alt-sxg` header in the upstream
-server, as in [this
-example](https://github.com/WICG/webpackage/blob/main/explainers/signed-exchange-subresource-substitution.md#:~:text=a%20preload%20header%20and%20an%20allowed-alt-sxg%20header).
-To compute the `header-integrity` for each subresource, run:
+render-critical subresources for the page. To do so, add a `Link:
+</foo>;rel=preload;as=bar` HTTP header for each same-origin subresource `/foo`,
+with the `as` parameter set to the [appropriate
+destination](https://fetch.spec.whatwg.org/#concept-request-destination).
+
+SXG uses an extended form of subresource integrity that includes response
+headers; ensure that this `header-integrity` remains constant over multiple
+features by running this:
 
 ``` bash
 $ go install github.com/WICG/webpackage/go/signedexchange/cmd/dump-signedexchange@latest
 $ dump-signedexchange -uri $URL -headerIntegrity
+$ dump-signedexchange -uri $URL -headerIntegrity  # verify it's the same
 ```
 
-Ensure that the `header-integrity` remains constant over multiple fetches. If
-it doesn't, try eliminating frequently changing headers from the upstream
-response, by adding them to the `strip_response_headers` config param.
+If it doesn't, eliminate frequently changing headers from the upstream
+response by adding them to the `strip_response_headers` config param.

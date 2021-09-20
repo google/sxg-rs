@@ -108,7 +108,7 @@ pub async fn create_signed_exchange(
         .map_err(to_js_error)?;
     let signer = ::sxg_rs::signature::js_signer::JsSigner::from_raw_signer(signer);
     let subresource_fetcher = sxg_rs::fetcher::js_fetcher::JsFetcher::new(subresource_fetcher);
-    let mut header_integrity_cache = sxg_rs::http_cache::js_http_cache::JsHttpCache {
+    let header_integrity_cache = sxg_rs::http_cache::js_http_cache::JsHttpCache {
         get: header_integrity_get,
         put: header_integrity_put,
     };
@@ -122,7 +122,7 @@ pub async fn create_signed_exchange(
             signer,
             status_code,
             subresource_fetcher,
-            header_integrity_cache: &mut header_integrity_cache,
+            header_integrity_cache,
         })
         .await
         .map_err(to_js_error)?;
