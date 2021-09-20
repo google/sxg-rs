@@ -16,10 +16,10 @@ use crate::header_integrity::HeaderIntegrityFetcher;
 use crate::http::HeaderFields;
 use crate::http_parser::{
     media_type::MediaType, parse_accept_header, parse_cache_control_header,
-    parse_content_type_header,
+    parse_content_type_header, parse_vary_header,
 };
 use crate::link::process_link_header;
-use anyhow::{Error, Result};
+use anyhow::{anyhow, Result};
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use std::cmp::min;
@@ -66,12 +66,12 @@ impl Headers {
             // We should not sign personalized content, but we cannot anonymize this request per
             // https://datatracker.ietf.org/doc/html/rfc7235#section-4.2:
             // "A proxy forwarding a request MUST NOT modify any Authorization fields in that request."
-            return Err(Error::msg("The request contains an Authorization header."));
+            return Err(anyhow!("The request contains an Authorization header."));
         }
         let accept = self
             .0
             .get("accept")
-            .ok_or_else(|| Error::msg("The request does not have an Accept header"))?;
+            .ok_or_else(|| anyhow!("The request does not have an Accept header"))?;
         validate_accept_header(accept, accept_filter)?;
         // Set Via per https://tools.ietf.org/html/rfc7230#section-5.7.1
         let mut via = "sxgrs".to_string();
@@ -104,10 +104,7 @@ impl Headers {
     pub(crate) fn validate_as_sxg_payload(&self) -> Result<()> {
         for (k, v) in self.0.iter() {
             if DONT_SIGN_RESPONSE_HEADERS.contains(k.as_str()) {
-                return Err(Error::msg(format!(
-                    r#"A stateful header "{}" is found."#,
-                    k
-                )));
+                return Err(anyhow!(r#"A stateful header "{}" is found."#, k));
             }
             if CACHE_CONTROL_HEADERS.contains(k.as_str()) {
                 // `private` and `no-store` are disallowed by
@@ -118,7 +115,17 @@ impl Headers {
                     || v.contains("no-cache")
                     || v.contains("max-age=0")
                 {
-                    return Err(Error::msg(format!(r#"The {} header is "{}"."#, k, v)));
+                    return Err(anyhow!(r#"The {} header is "{}"."#, k, v));
+                }
+            }
+            // TODO: Remove this section once https://crbug.com/1250532 is fixed in most clients.
+            if let Some(vary) = self.0.get("vary") {
+                if let Ok(directives) = parse_vary_header(vary) {
+                    if directives.contains(&"*")
+                        || directives.iter().any(|d| d.eq_ignore_ascii_case("vary"))
+                    {
+                        return Err(anyhow!(r#"The response may vary by cookie."#));
+                    }
                 }
             }
         }
@@ -127,22 +134,23 @@ impl Headers {
             if let Ok(size) = size.parse::<u64>() {
                 const MAX_SIZE: u64 = 8_000_000;
                 if size > MAX_SIZE {
-                    return Err(Error::msg(format!(
+                    return Err(anyhow!(
                         "The content-length header is {}, which exceeds the limit {}.",
-                        size, MAX_SIZE
-                    )));
+                        size,
+                        MAX_SIZE
+                    ));
                 }
             } else {
-                return Err(Error::msg(format!(
+                return Err(anyhow!(
                     r#"The content-length header "{}" is not a valid length."#,
                     size
-                )));
+                ));
             }
         }
         // The payload of SXG must have a content-type. See step 8 of
         // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-signature-validity
         if !self.0.contains_key("content-type") {
-            return Err(Error::msg("The content-type header is missing."));
+            return Err(anyhow!("The content-type header is missing."));
         }
         Ok(())
     }
@@ -255,7 +263,7 @@ impl Headers {
                 return if duration >= MIN_DURATION {
                     Ok(min(SEVEN_DAYS, duration))
                 } else {
-                    Err(Error::msg("Validity duration is too short."))
+                    Err(anyhow!("Validity duration is too short."))
                 };
             }
         }
@@ -356,7 +364,7 @@ fn validate_accept_header(accept: &str, accept_filter: AcceptFilter) -> Result<(
     let accept = accept.trim();
     let accept = parse_accept_header(accept)?;
     if accept.is_empty() {
-        return Err(Error::msg("Accept header is empty"));
+        return Err(anyhow!("Accept header is empty"));
     }
     let q_sxg = accept
         .iter()
@@ -387,20 +395,20 @@ fn validate_accept_header(accept: &str, accept_filter: AcceptFilter) -> Result<(
         .unwrap_or(0);
     const SXG: &str = "application/signed-exchange;v=b3";
     if q_sxg == 0 {
-        Err(Error::msg(format!(
+        Err(anyhow!(
             "The request accept header does not contain {}.",
             SXG
-        )))
+        ))
     } else {
         match accept_filter {
             AcceptFilter::PrefersSxg => {
                 if q_sxg == 1000 {
                     Ok(())
                 } else {
-                    Err(Error::msg(format!(
+                    Err(anyhow!(
                         "The q value of {} is less than 1 in request Accept header.",
                         SXG
-                    )))
+                    ))
                 }
             }
             AcceptFilter::AcceptsSxg => Ok(()),
