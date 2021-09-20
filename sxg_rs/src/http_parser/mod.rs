@@ -21,8 +21,8 @@ pub mod media_type;
 use anyhow::{Error, Result};
 use base::ows;
 use nom::{
-    character::complete::char as char1, combinator::complete, eof, separated_list0, separated_pair,
-    IResult,
+    branch::alt, bytes::complete::tag, character::complete::char as char1, combinator::complete,
+    eof, separated_list0, separated_pair, IResult,
 };
 use std::time::Duration;
 
@@ -61,4 +61,28 @@ pub fn parse_content_type_header(input: &str) -> Result<media_type::MediaType> {
 
 pub fn parse_link_header(input: &str) -> Result<Vec<link::Link>> {
     parse_vec(input, link::link)
+}
+
+// https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.4
+pub fn parse_vary_header(input: &str) -> Result<Vec<&str>> {
+    parse_vec(input, |input| {
+        alt((
+            tag("*"),
+            // https://datatracker.ietf.org/doc/html/rfc7230#section-3.2
+            base::token,
+        ))(input)
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn vary() {
+        assert_eq!(
+            parse_vary_header("*  , cookie").unwrap(),
+            vec!["*", "cookie"]
+        );
+        assert!(parse_vary_header("tokens only; no spaces or semicolons allowed").is_err());
+    }
 }
