@@ -279,7 +279,7 @@ async function generateSxgResponse(fallbackUrl: string, certOrigin: string, payl
     throw `The size of payload exceeds the limit ${PAYLOAD_SIZE_LIMIT}`;
   }
   let {get: headerIntegrityGet, put: headerIntegrityPut} = await headerIntegrityCache();
-  const now_in_seconds = Math.round(Date.now() / 1000 - 60 * 60 * 12);
+  const now_in_seconds = Math.floor(Date.now() / 1000);
   const sxg = await createSignedExchange(
     fallbackUrl,
     certOrigin,
