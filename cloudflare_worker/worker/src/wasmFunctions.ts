@@ -41,7 +41,8 @@ export type PresetContent = ({ kind: 'direct' } & WasmResponse) | {
   fallback: WasmResponse,
 }
 
-interface WasmFunctions {
+interface WasmWorker {
+  new(configYaml: string, certPem: string, issuerPem: string): WasmWorker;
   createRequestHeaders(accept_filter: AcceptFilter, fields: HeaderFields): HeaderFields;
   createSignedExchange(
     fallbackUrl: string,
@@ -62,8 +63,17 @@ interface WasmFunctions {
   validatePayloadHeaders(fields: HeaderFields): void,
 }
 
-export const wasmFunctionsPromise = (async function initWasmFunctions() {
+interface WasmFunctions {
+  init: () => void,
+  WasmWorker: WasmWorker,
+}
+
+export const workerPromise = (async function initWorker() {
   await wasm_bindgen(wasm);
-  wasm_bindgen.init(SXG_CONFIG, CERT_PEM, ISSUER_PEM);
-  return wasm_bindgen as WasmFunctions;
+  const {
+    init,
+    WasmWorker,
+  } = wasm_bindgen as WasmFunctions;
+  init();
+  return new WasmWorker(SXG_CONFIG, CERT_PEM, ISSUER_PEM);
 })();

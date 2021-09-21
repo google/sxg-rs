@@ -27,6 +27,13 @@ pub fn get_sha(bytes: &[u8]) -> Vec<u8> {
     hasher.finalize().to_vec()
 }
 
+#[cfg(feature = "wasm")]
+pub fn to_js_error<E: std::fmt::Debug>(e: E) -> wasm_bindgen::JsValue {
+    // TODO: use
+    //  js_sys::Error::new(&format!("{:?}", e)).into()
+    wasm_bindgen::JsValue::from_str(&format!("{:?}", e))
+}
+
 pub async fn signed_headers_and_payload<F: Fetcher, C: HttpCache>(
     fallback_url: &Url,
     status_code: u16,

@@ -28,6 +28,8 @@ pub mod signature;
 mod structured_header;
 mod sxg;
 mod utils;
+#[cfg(feature = "wasm")]
+mod wasm_worker;
 
 use anyhow::{Error, Result};
 use config::Config;
@@ -37,7 +39,10 @@ use http::{HeaderFields, HttpResponse};
 use http_cache::HttpCache;
 use serde::Serialize;
 use url::Url;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 pub struct SxgWorker {
     config: Config,
 }
@@ -54,9 +59,9 @@ pub enum PresetContent {
 }
 
 impl SxgWorker {
-    pub fn new(config_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Self {
-        let config = Config::new(config_yaml, cert_pem, issuer_pem);
-        SxgWorker { config }
+    pub fn new(config_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<SxgWorker> {
+        let config = Config::new(config_yaml, cert_pem, issuer_pem)?;
+        Ok(SxgWorker { config })
     }
     // TODO: Make OCSP status as an internal state of SxgWorker, so that
     // SxgWorker is able to fetch OCSP. This will need a definition of a
@@ -79,7 +84,7 @@ impl SxgWorker {
         ]);
         cert_cbor.serialize()
     }
-    fn cert_basename(&self) -> String {
+    pub fn cert_basename(&self) -> String {
         base64::encode_config(&self.config.cert_sha256, base64::URL_SAFE_NO_PAD)
     }
     pub async fn create_signed_exchange<S: signature::Signer, F: Fetcher, C: HttpCache>(
@@ -157,7 +162,7 @@ impl SxgWorker {
             status: 200,
         })
     }
-    pub fn create_validity(&self) -> Vec<u8> {
+    fn create_validity(&self) -> Vec<u8> {
         let validity = cbor::DataItem::Map(vec![]);
         validity.serialize()
     }
@@ -321,7 +326,7 @@ strip_request_headers: ["Forwarded"]
 strip_response_headers: ["Set-Cookie", "STRICT-TRANSPORT-SECURITY"]
 validity_url_dirname: "//.well-known/sxg-validity"
         "#;
-        SxgWorker::new(yaml, util::SELF_SIGNED_CERT_PEM, util::SELF_SIGNED_CERT_PEM)
+        SxgWorker::new(yaml, util::SELF_SIGNED_CERT_PEM, util::SELF_SIGNED_CERT_PEM).unwrap()
     }
     #[test]
     fn cert_basename() {
