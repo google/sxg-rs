@@ -122,7 +122,7 @@ impl Headers {
             if let Some(vary) = self.0.get("vary") {
                 if let Ok(directives) = parse_vary_header(vary) {
                     if directives.contains(&"*")
-                        || directives.iter().any(|d| d.eq_ignore_ascii_case("vary"))
+                        || directives.iter().any(|d| d.eq_ignore_ascii_case("cookie"))
                     {
                         return Err(anyhow!(r#"The response may vary by cookie."#));
                     }
