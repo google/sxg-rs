@@ -16,6 +16,6 @@ use wasm_bindgen::prelude::*;
 extern crate sxg_rs;
 
 #[wasm_bindgen(js_name=init)]
-pub fn init() -> () {
+pub fn init() {
     console_error_panic_hook::set_once()
 }
