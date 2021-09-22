@@ -18,6 +18,7 @@
 // OCSP over http is defined in
 // https://tools.ietf.org/html/rfc2560#appendix-A.1
 
+use anyhow::{anyhow, Error, Result};
 use der_parser::{
     ber::{BerObject, BerObjectContent},
     oid,
@@ -97,33 +98,51 @@ pub async fn fetch_from_ca<'a, F: Fetcher>(
     cert_der: &'a [u8],
     issuer_der: &'a [u8],
     fetcher: F,
-) -> Vec<u8> {
-    let cert = x509_parser::parse_x509_certificate(cert_der).unwrap().1;
-    let issuer = x509_parser::parse_x509_certificate(issuer_der).unwrap().1;
-    let aia = cert.extensions().get(&AIA);
-    if aia == None {
+) -> Result<Vec<u8>> {
+    let cert = x509_parser::parse_x509_certificate(cert_der)
+        .map_err(|e| Error::from(e).context("Failed to parse cert DER"))?
+        .1;
+    let issuer = x509_parser::parse_x509_certificate(issuer_der)
+        .map_err(|e| Error::from(e).context("Failed to parse issuer DER"))?
+        .1;
+    let aia = cert.extensions().iter().find(|ext| ext.oid == AIA);
+    let aia = if let Some(aia) = aia {
+        aia
+    } else {
         // If the certificate doesn't include an AIA section, it is probably a
         // self-signed certificate. Return a stub OCSP response.
-        return b"ocsp".to_vec();
-    }
-    match aia.unwrap().parsed_extension() {
-        ParsedExtension::AuthorityInfoAccess(aia) => {
-            let url = match aia.accessdescs.get(&AIA_OCSP).unwrap()[..] {
-                [GeneralName::URI(url), ..] => url,
-                _ => panic!("AIA OCSP responder is not of type URI"),
-            };
-            let req = HttpRequest {
-                body: create_ocsp_request(&cert, &issuer),
-                headers: vec![(
-                    String::from("content-type"),
-                    String::from("application/ocsp-request"),
-                )],
-                method: Method::Post,
-                url: url.into(),
-            };
-            let rsp = fetcher.fetch(req).await.unwrap();
-            rsp.body
-        }
-        _ => panic!("failed to parse AIA extension"),
-    }
+        return Ok(b"ocsp".to_vec());
+    };
+    let aia = match aia.parsed_extension() {
+        ParsedExtension::AuthorityInfoAccess(aia) => aia,
+        _ => return Err(anyhow!("Failed to parse AIA extension")),
+    };
+    let url = aia
+        .accessdescs
+        .iter()
+        .find_map(|access_desc| {
+            if access_desc.access_method == AIA_OCSP {
+                match access_desc.access_location {
+                    GeneralName::URI(url) => Some(url),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| anyhow!("AIA OCSP responder with type of URI is not found."))?;
+    let req = HttpRequest {
+        body: create_ocsp_request(&cert, &issuer),
+        headers: vec![(
+            String::from("content-type"),
+            String::from("application/ocsp-request"),
+        )],
+        method: Method::Post,
+        url: url.into(),
+    };
+    let rsp = fetcher
+        .fetch(req)
+        .await
+        .map_err(|e| e.context("Failed to fetch OCSP"))?;
+    Ok(rsp.body)
 }

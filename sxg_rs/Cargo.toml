@@ -30,7 +30,7 @@ wasm =[]
 anyhow = "1.0.43"
 async-trait = "0.1.50"
 base64 = "0.13.0"
-der-parser = { version = "5.1.0", features = ["bigint", "serialize"] }
+der-parser = { version = "6.0.0", features = ["bigint", "serialize"] }
 futures = { version = "0.3.14", features = ["executor"] }
 js-sys = "0.3.50"
 nom = { version = "6.1.2", features = ["alloc"] }
@@ -44,7 +44,7 @@ url = "2.2.2"
 wasm-bindgen = { version = "0.2.73", features = ["serde-serialize"] }
 wasm-bindgen-futures = "0.4.23"
 web-sys = { version = "0.3.42", features = ["console"] }
-x509-parser = "0.9.2"
+x509-parser = "0.12.0"
 
 [dev-dependencies]
 async-std = { version = "1.10.0", features = ["attributes"] }

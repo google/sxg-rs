@@ -162,7 +162,10 @@ impl SxgWorker {
         validity.serialize()
     }
     pub async fn fetch_ocsp_from_ca<F: fetcher::Fetcher>(&self, fetcher: F) -> Vec<u8> {
-        ocsp::fetch_from_ca(&self.config.cert_der, &self.config.issuer_der, fetcher).await
+        let result =
+            ocsp::fetch_from_ca(&self.config.cert_der, &self.config.issuer_der, fetcher).await;
+        // TODO: Remove panic
+        result.unwrap()
     }
     pub fn serve_preset_content(&self, req_url: &str, ocsp_der: &[u8]) -> Option<PresetContent> {
         let req_url = url::Url::parse(req_url).ok()?;
