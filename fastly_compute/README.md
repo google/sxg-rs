@@ -92,7 +92,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 
 1. Read on for [next steps](../README.md#next-steps).
 
-## Maintenance
+## Maintain
 
 The certificates need to be renewed every 90 days.
 
