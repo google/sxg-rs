@@ -18,7 +18,7 @@
 // binary data of the wasm file.
 declare var wasm: any;
 
-// `Wrangler` uses `wasm-pack build --target no-modules` [^1] to build wasm.
+// `wrangler` uses `wasm-pack build --target no-modules` [^1] to build wasm.
 // When the target is `no-modules`, `wasm-bindgen` declares a global variable
 // to initialize wasm [^2].
 // The default name of this global variable is `wasm_bindgen` [^3].

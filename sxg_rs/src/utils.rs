@@ -30,7 +30,7 @@ pub fn get_sha(bytes: &[u8]) -> Vec<u8> {
 #[cfg(feature = "wasm")]
 pub fn to_js_error<E: std::fmt::Debug>(e: E) -> wasm_bindgen::JsValue {
     // TODO: The `JsValue::from_str()` constructs a `string` in JavaScript.
-    // We should swith to `js_sys::Error::new()`
+    // We should switch to `js_sys::Error::new()`
     // so that JavaScript's `try catch` can catch an `Error` object.
     wasm_bindgen::JsValue::from_str(&format!("{:?}", e))
 }
