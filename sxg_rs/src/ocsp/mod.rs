@@ -113,9 +113,10 @@ pub async fn fetch_from_ca<'a, F: Fetcher>(
         // self-signed certificate. Return a stub OCSP response.
         return Ok(b"ocsp".to_vec());
     };
-    let aia = match aia.parsed_extension() {
-        ParsedExtension::AuthorityInfoAccess(aia) => aia,
-        _ => return Err(anyhow!("Failed to parse AIA extension")),
+    let aia = if let ParsedExtension::AuthorityInfoAccess(aia) = aia.parsed_extension() {
+        aia
+    } else {
+        return Err(anyhow!("Failed to parse AIA extension"));
     };
     let url = aia
         .accessdescs
