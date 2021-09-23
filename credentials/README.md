@@ -94,8 +94,6 @@ SXGs.
    and rename `your_domain.crt` as `cert.pem`. Place them in this `credentials/`
    directory.
 
-A production certificate enables the Google SXG Cache to prefetch and cache the SXG.
-
 #### Renew certificate
 
 Production certificates need to be renewed every 90 days.
