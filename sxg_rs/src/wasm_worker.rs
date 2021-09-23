@@ -21,7 +21,7 @@ use js_sys::Function as JsFunction;
 use js_sys::Promise as JsPromise;
 use js_sys::Uint8Array;
 use std::sync::Arc;
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::prelude::{wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 
 #[wasm_bindgen]

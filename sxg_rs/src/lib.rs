@@ -40,7 +40,7 @@ use http_cache::HttpCache;
 use serde::Serialize;
 use url::Url;
 #[cfg(feature = "wasm")]
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::prelude::wasm_bindgen;
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 pub struct SxgWorker {
