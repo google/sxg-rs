@@ -76,6 +76,8 @@ not work in production.
 
 For use in production, a SXG certificate must be obtained from a [Certificate
 Authority](https://github.com/google/webpackager/wiki/Certificate-Authorities).
+A production certificate enables the Google SXG Cache to prefetch your site's
+SXGs.
 
 1. Follow the [DigiCert
    doc](https://docs.digicert.com/manage-certificates/certificate-profile-options/get-your-signed-http-exchange-certificate/).

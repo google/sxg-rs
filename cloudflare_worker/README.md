@@ -14,7 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-## Setup
+# sxg-rs/cloudflare_worker
+
+This is a [Cloudflare Worker](https://workers.cloudflare.com/) that
+automatically generates [signed exchanges](https://web.dev/signed-exchanges/) (SXGs)
+for your site. It enables the site to be [prefetched from Google
+Search](https://developers.google.com/search/docs/advanced/experience/signed-exchange)
+in order to improve its [Largest Contentful Paint](https://web.dev/lcp/),
+one of the [Core Web Vitals](https://web.dev/vitals/).
+
+## Ensure compatibility with SXG
+
+The Google SXG Cache may reuse an SXG for several visits to the page, or for
+several users (until SXG expiration). Before installing this worker with a
+production certificate, follow [these
+instructions](https://developers.google.com/search/docs/advanced/experience/signed-exchange#additional-requirements-for-google-search)
+to ensure all signed pages are compatible with such reuse. To opt some pages
+out of signing, set the `Cache-Control` header to include `private` or
+`no-store` in the upstream server.
+
+The Google SXG Cache tries to [update SXGs
+often](https://developers.google.com/search/docs/advanced/experience/signed-exchange#:~:text=Regardless%20of%20the,the%20SXG%20response.),
+but may reuse them for up to 7 days. To ensure they expire sooner, set
+`s-maxage` or `max-age` on the `Cache-Control` header on the upstream server.
+
+## Install
 
 1. Get an SXG-compatible certificate
    using [these steps](../credentials/README.md#get-an-sxg_compatible-certificate).
@@ -57,9 +81,9 @@ limitations under the License.
 1. To check whether the worker generates a valid SXG,
    use Chrome browser to open `https://${WORKER_HOST}/.sxg/test.html`.
 
-1. Read on for [next steps](../README.md).
+1. Read on for [next steps](../README.md#next-steps).
 
-## Maintenance
+## Maintain
 
 The certificates need to be renewed every 90 days.
 
