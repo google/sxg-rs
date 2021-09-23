@@ -41,7 +41,6 @@ impl WasmWorker {
             let fetcher = crate::fetcher::js_fetcher::JsFetcher::new(fetcher);
             let response = worker.fetch_ocsp_from_ca(fetcher).await;
             let ocsp = Uint8Array::from(response.as_slice());
-            // TODO: check whether this conversion has additional cost
             Ok(JsValue::from(ocsp))
         })
     }
