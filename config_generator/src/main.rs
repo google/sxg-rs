@@ -68,7 +68,7 @@ fn get_global_user() -> GlobalUser {
     println!("Checking Cloudflare login state");
     let mut user = GlobalUser::new();
     if user.is_err() {
-        wrangler::login::run().unwrap();
+        wrangler::login::run(None).unwrap();
         user = GlobalUser::new();
     }
     let user = user.unwrap();
