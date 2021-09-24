@@ -3319,6 +3319,7 @@ dependencies = [
  "base64 0.13.0",
  "der-parser",
  "futures",
+ "getrandom 0.2.3",
  "js-sys",
  "nom 6.1.2",
  "once_cell",
