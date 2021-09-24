@@ -32,4 +32,4 @@ serde_yaml = "0.8.17"
 sxg_rs = { path = "../sxg_rs" }
 toml = "0.5.8"
 url = "2.2.2"
-wrangler = "1.19.0"
+wrangler = "1.19.3"
