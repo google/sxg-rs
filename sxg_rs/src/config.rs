@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -57,14 +58,14 @@ fn lowercase_all(names: BTreeSet<String>) -> BTreeSet<String> {
 }
 
 impl Config {
-    pub fn new(input_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Self {
-        let input: ConfigInput = serde_yaml::from_str(input_yaml).unwrap();
+    pub fn new(input_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<Self> {
+        let input: ConfigInput = serde_yaml::from_str(input_yaml)?;
         let cert_der = get_der(cert_pem, "CERTIFICATE");
         let issuer_der = get_der(issuer_pem, "CERTIFICATE");
         let cert_url_dirname = to_url_prefix(&input.cert_url_dirname);
         let reserved_path = to_url_prefix(&input.reserved_path);
         let validity_url_dirname = to_url_prefix(&input.validity_url_dirname);
-        Config {
+        let config = Config {
             cert_sha256: crate::utils::get_sha(&cert_der),
             cert_der,
             input: ConfigInput {
@@ -77,7 +78,8 @@ impl Config {
                 ..input
             },
             issuer_der,
-        }
+        };
+        Ok(config)
     }
 }
 
@@ -112,7 +114,7 @@ strip_request_headers: ["Forwarded"]
 strip_response_headers: ["Set-Cookie", "STRICT-TRANSPORT-SECURITY"]
 validity_url_dirname: "//.well-known/sxg-validity"
         "#;
-        let config = Config::new(yaml, SELF_SIGNED_CERT_PEM, SELF_SIGNED_CERT_PEM);
+        let config = Config::new(yaml, SELF_SIGNED_CERT_PEM, SELF_SIGNED_CERT_PEM).unwrap();
         assert_eq!(config.cert_url_dirname, "/.well-known/sxg-certs/");
         assert_eq!(
             config.forward_request_headers,

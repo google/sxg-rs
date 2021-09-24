@@ -22,7 +22,7 @@ import {
 } from './utils';
 import {
   WasmResponse,
-  wasmFunctionsPromise,
+  workerPromise,
   WasmRequest,
 } from './wasmFunctions';
 
@@ -103,10 +103,8 @@ function teeResponse(response: Response) {
 const fetchOcspFromCa = (() => {
   // The un-throttled implementation to fetch OCSP
   async function fetchOcspFromCaImpl() {
-    const {
-      fetchOcspFromCa: wasmFetchOcspFromCa,
-    } = await wasmFunctionsPromise;
-    const ocspDer = await wasmFetchOcspFromCa(fetcher);
+    let worker = await workerPromise;
+    const ocspDer = await worker.fetchOcspFromCa(fetcher);
     const ocspBase64 = arrayBufferToBase64(ocspDer);
     const now = Date.now() / 1000;
     OCSP.put(
@@ -184,17 +182,12 @@ function fallbackUrlAndCertOrigin(url: string, replaceHost: boolean): [string, s
 }
 
 async function handleRequest(request: Request) {
-  const {
-    createRequestHeaders,
-    getLastErrorMessage,
-    servePresetContent,
-    shouldRespondDebugInfo,
-  } = await wasmFunctionsPromise;
+  let worker = await workerPromise;
   let sxgPayload: Response | undefined;
   let fallback: Response | undefined;
   try {
     const ocsp = await getOcsp();
-    const presetContent = servePresetContent(request.url, ocsp);
+    const presetContent = worker.servePresetContent(request.url, ocsp);
     let fallbackUrl: string;
     let certOrigin: string;
     if (presetContent) {
@@ -208,11 +201,11 @@ async function handleRequest(request: Request) {
         // we still need to check the validity of the request header.
         // For example, if the header does not contain
         // `Accept: signed-exchange;v=b3`, we will throw an error.
-        createRequestHeaders('AcceptsSxg', Array.from(request.headers));
+        worker.createRequestHeaders('AcceptsSxg', Array.from(request.headers));
       }
     } else {
       [fallbackUrl, certOrigin] = fallbackUrlAndCertOrigin(request.url, true);
-      const requestHeaders = createRequestHeaders('PrefersSxg', Array.from(request.headers));
+      const requestHeaders = worker.createRequestHeaders('PrefersSxg', Array.from(request.headers));
       [sxgPayload, fallback] = teeResponse(await fetch(
         fallbackUrl,
         {
@@ -229,15 +222,8 @@ async function handleRequest(request: Request) {
     if (sxgPayload && sxgPayload.body) {
       sxgPayload.body.cancel();
     }
-    if (shouldRespondDebugInfo()) {
-      let message;
-      if (e instanceof WebAssembly.RuntimeError) {
-        message = `WebAssembly code is aborted.\n${e}.\n${getLastErrorMessage()}`;
-      } else if (typeof e === 'string') {
-        message = `A message is gracefully thrown.\n${e}`;
-      } else {
-        message = `JavaScript code throws an error.\n${e}`;
-      }
+    if (worker.shouldRespondDebugInfo()) {
+      let message = JSON.stringify(e);
       if (!fallback) {
         fallback = new Response(message);
       }
@@ -247,7 +233,7 @@ async function handleRequest(request: Request) {
           status: fallback.status,
           headers: [
               ...Array.from(fallback.headers || []),
-              ['sxg-edge-worker-debug-info', JSON.stringify(message)],
+              ['sxg-edge-worker-debug-info', message],
           ],
         },
       );
@@ -267,12 +253,9 @@ async function handleRequest(request: Request) {
 }
 
 async function generateSxgResponse(fallbackUrl: string, certOrigin: string, payload: Response) {
-  const {
-    createSignedExchange,
-    validatePayloadHeaders,
-  } = await wasmFunctionsPromise;
+  let worker = await workerPromise;
   const payloadHeaders = Array.from(payload.headers);
-  validatePayloadHeaders(payloadHeaders);
+  worker.validatePayloadHeaders(payloadHeaders);
   const PAYLOAD_SIZE_LIMIT = 8000000;
   const payloadBody = await readIntoArray(payload.body, PAYLOAD_SIZE_LIMIT);
   if (!payloadBody) {
@@ -280,7 +263,7 @@ async function generateSxgResponse(fallbackUrl: string, certOrigin: string, payl
   }
   let {get: headerIntegrityGet, put: headerIntegrityPut} = await headerIntegrityCache();
   const now_in_seconds = Math.floor(Date.now() / 1000);
-  const sxg = await createSignedExchange(
+  const sxg = await worker.createSignedExchange(
     fallbackUrl,
     certOrigin,
     payload.status,

@@ -35,6 +35,7 @@ pub static WORKER: Lazy<::sxg_rs::SxgWorker> = Lazy::new(|| {
         include_str!("../../credentials/cert.pem"),
         include_str!("../../credentials/issuer.pem"),
     )
+    .unwrap()
 });
 
 fn binary_response(status_code: StatusCode, content_type: Mime, body: &[u8]) -> Response {
