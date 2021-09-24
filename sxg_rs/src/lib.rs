@@ -31,13 +31,14 @@ mod utils;
 #[cfg(feature = "wasm")]
 mod wasm_worker;
 
-use anyhow::{Error, Result};
+use anyhow::{anyhow, Error, Result};
 use config::Config;
 use fetcher::Fetcher;
 use headers::{AcceptFilter, Headers};
 use http::{HeaderFields, HttpResponse};
 use http_cache::HttpCache;
 use serde::Serialize;
+use std::time::Duration;
 use url::Url;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -129,11 +130,21 @@ impl SxgWorker {
                 &self.config.validity_url_dirname, "validity"
             ))
             .map_err(|e| Error::new(e).context("Failed to parse validity_url_dirname"))?;
+        // To avoid issues with clock skew, backdate the start time by an hour. Don't backdate the
+        // expiration because it goes against the origin's cache-control header. (e.g. For max-age
+        // <1h, an SXG would be instantly invalid; this would be confusing.)
+        let expires = now
+            .checked_add(payload_headers.signature_duration()?)
+            .ok_or_else(|| anyhow!("Failed to construct expires"))?;
+        const ONE_HOUR: Duration = Duration::from_secs(60 * 60);
+        let date = now
+            .checked_sub(ONE_HOUR)
+            .ok_or_else(|| anyhow!("Failed to construct date"))?;
         let signature = signature::Signature::new(signature::SignatureParams {
             cert_url: cert_url.as_str(),
             cert_sha256: &self.config.cert_sha256,
-            date: now,
-            expires: now + payload_headers.signature_duration()?,
+            date,
+            expires,
             headers: &signed_headers,
             id: "sig",
             request_url: fallback_url,
