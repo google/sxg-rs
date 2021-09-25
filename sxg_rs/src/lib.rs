@@ -34,7 +34,7 @@ mod wasm_worker;
 use anyhow::{anyhow, Error, Result};
 use config::Config;
 use fetcher::Fetcher;
-use headers::{AcceptFilter, BACKDATING, Headers};
+use headers::{AcceptFilter, Headers, BACKDATING};
 use http::{HeaderFields, HttpResponse};
 use http_cache::HttpCache;
 use serde::Serialize;
