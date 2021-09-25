@@ -51,7 +51,7 @@ pub(crate) const BACKDATING: Duration = Duration::from_secs(60 * 60);
 // Maximum signature duration per https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#section-3.5-7.3.
 // We subtract BACKDATING because the calling code only backdates date, not expires, so we don't
 // want to generate SXGs with a too-long duration.
-const SEVEN_DAYS: Duration = Duration::from_secs(60 * 60 * 24 * 7) - BACKDATING;
+const SEVEN_DAYS: Duration = Duration::from_secs(60 * 60 * 24 * 7 - 60 * 60);
 
 impl Headers {
     pub(crate) fn new(data: HeaderFields, strip_headers: &BTreeSet<String>) -> Self {

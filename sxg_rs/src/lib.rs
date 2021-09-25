@@ -38,7 +38,6 @@ use headers::{AcceptFilter, Headers, BACKDATING};
 use http::{HeaderFields, HttpResponse};
 use http_cache::HttpCache;
 use serde::Serialize;
-use std::time::Duration;
 use url::Url;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
