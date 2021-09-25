@@ -43,8 +43,15 @@ pub enum AcceptFilter {
 // A default mobile user agent, for when the upstream request doesn't include one.
 const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36";
 
+// To avoid issues with clock skew, backdate the start time by an hour. Don't backdate the
+// expiration because it goes against the origin's cache-control header. (e.g. For max-age
+// <1h, an SXG would be instantly invalid; this would be confusing.)
+pub(crate) const BACKDATING: Duration = Duration::from_secs(60 * 60);
+
 // Maximum signature duration per https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#section-3.5-7.3.
-const SEVEN_DAYS: Duration = Duration::from_secs(60 * 60 * 24 * 7);
+// We subtract BACKDATING because the calling code only backdates date, not expires, so we don't
+// want to generate SXGs with a too-long duration.
+const SEVEN_DAYS: Duration = Duration::from_secs(60 * 60 * 24 * 7 - 60 * 60);
 
 impl Headers {
     pub(crate) fn new(data: HeaderFields, strip_headers: &BTreeSet<String>) -> Self {
