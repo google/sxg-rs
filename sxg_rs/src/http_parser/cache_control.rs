@@ -14,8 +14,13 @@
 
 use super::base::{parameter_value, token};
 use nom::{
-    branch::alt, bytes::complete::tag_no_case, character::complete::char, combinator::map,
-    combinator::map_res, combinator::opt, sequence::pair, sequence::preceded, IResult,
+    branch::alt,
+    bytes::complete::tag_no_case,
+    character::complete::char,
+    combinator::{map, map_res, opt},
+    sequence::pair,
+    sequence::preceded,
+    IResult,
 };
 use std::time::Duration;
 
@@ -93,8 +98,8 @@ mod tests {
         assert_eq!(directive("s-maxage=-1").unwrap(), ("", Directive::Other));
         assert_eq!(directive("s-maxage=1e6").unwrap(), ("", Directive::Other));
         assert_eq!(
-            directive("s-maxage=\"3600").unwrap_err().to_string(),
-            "Parsing requires more data"
+            directive("s-maxage=\"3600").unwrap(),
+            ("=\"3600", Directive::Other)
         );
     }
     #[test]
@@ -110,8 +115,8 @@ mod tests {
         assert_eq!(directive("max-age=-1").unwrap(), ("", Directive::Other));
         assert_eq!(directive("max-age=1e6").unwrap(), ("", Directive::Other));
         assert_eq!(
-            directive("max-age=\"3600").unwrap_err().to_string(),
-            "Parsing requires more data"
+            directive("max-age=\"3600").unwrap(),
+            ("=\"3600", Directive::Other)
         );
     }
     #[test]
@@ -126,8 +131,8 @@ mod tests {
             ("", Directive::Other)
         );
         assert_eq!(
-            directive("no-cache=\"set-cookie").unwrap_err().to_string(),
-            "Parsing requires more data"
+            directive("no-cache=\"set-cookie").unwrap(),
+            ("=\"set-cookie", Directive::Other)
         );
     }
     #[test]

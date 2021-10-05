@@ -98,7 +98,7 @@ fn read_certificate_pem_file(path: &str) -> Result<String> {
     // not rendered in the toml. This is purely cosmetic; '\r' is deserialized
     // faithfully from toml and pem::parse_many is able to parse either style.
     let text = text.replace("\r\n", "\n");
-    let certs = pem::parse_many(&text);
+    let certs = pem::parse_many(&text).map_err(Error::new)?;
     if certs.len() == 1 && certs[0].tag == "CERTIFICATE" {
         Ok(text)
     } else {

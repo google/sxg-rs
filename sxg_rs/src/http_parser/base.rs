@@ -13,10 +13,13 @@
 // limitations under the License.
 
 use nom::{
-    alt,
-    bytes::complete::{take_while, take_while1},
+    branch::alt,
+    bytes::complete::{take, take_while, take_while1},
     character::complete::char as char1,
-    delimited, many0, map, map_opt, named, preceded, take, IResult,
+    combinator::{map, map_opt},
+    multi::many0,
+    sequence::{delimited, preceded},
+    IResult,
 };
 
 // `token` are defined in
@@ -45,19 +48,12 @@ pub fn ows(input: &str) -> IResult<&str, &str> {
 
 // `quoted-string` is defined in
 // https://tools.ietf.org/html/rfc7230#section-3.2.6
-named!(
-    pub quoted_string(&str) -> String,
-    map!(
-        delimited!(
-            char1('"'),
-            many0!(alt!(qdtext | quoted_pair)),
-            char1('"')
-        ),
-        |s: Vec<char>| {
-            s.into_iter().collect()
-        }
-    )
-);
+pub fn quoted_string(input: &str) -> IResult<&str, String> {
+    map(
+        delimited(char1('"'), many0(alt((qdtext, quoted_pair))), char1('"')),
+        |s: Vec<char>| s.into_iter().collect(),
+    )(input)
+}
 
 fn qdtext(input: &str) -> IResult<&str, char> {
     char_if(is_qdtext)(input)
@@ -79,35 +75,35 @@ pub fn is_quoted_pair_payload(c: char) -> bool {
     )
 }
 
-named!(
-    quoted_pair(&str) -> char,
-    preceded!(char1('\\'), char_if(is_quoted_pair_payload))
-);
+fn quoted_pair(input: &str) -> IResult<&str, char> {
+    preceded(char1('\\'), char_if(is_quoted_pair_payload))(input)
+}
 
 fn char_if(predicate: fn(c: char) -> bool) -> impl Fn(&str) -> IResult<&str, char> {
     move |input: &str| {
-        map_opt!(input, take!(1), |s: &str| {
+        map_opt(take(1usize), |s: &str| {
             let c = s.chars().next()?;
             if predicate(c) {
                 Some(c)
             } else {
                 None
             }
-        })
+        })(input)
     }
 }
 
-named!(
-    pub parameter_value(&str) -> String,
-    alt!(
-        token => {|s: &str| s.to_string()} |
-        quoted_string => {|s| s}
-    )
-);
+pub fn parameter_value(input: &str) -> IResult<&str, String> {
+    alt((map(token, |s: &str| s.to_string()), quoted_string))(input)
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn incomplete() {
+        assert!(quoted_string(r#""amp"#).is_err());
+        assert!(parameter_value(r#""amp"#).is_err());
+    }
     #[test]
     fn obs_text() {
         // `obs-text` are text made by non-ascii bytes (0x80-0xff).

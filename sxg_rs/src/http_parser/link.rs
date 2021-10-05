@@ -161,10 +161,16 @@ mod tests {
                 }
             )
         );
-        assert!(matches!(
-            link(r#"</foo>;bar="baz \""#).unwrap_err(),
-            nom::Err::Incomplete(_)
-        ));
+        assert_eq!(
+            link(r#"</foo>;bar="baz \""#).unwrap(),
+            (
+                r#"="baz \""#,
+                Link {
+                    uri: "/foo".into(),
+                    params: vec![("bar", None)],
+                }
+            )
+        );
     }
     #[test]
     fn serialize() {

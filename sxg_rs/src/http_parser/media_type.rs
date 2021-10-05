@@ -13,7 +13,13 @@
 // limitations under the License.
 
 use super::base::{ows, parameter_value, token};
-use nom::{character::complete::char as char1, many0, map, named, preceded, separated_pair, tuple};
+use nom::{
+    character::complete::char as char1,
+    combinator::map,
+    multi::many0,
+    sequence::{preceded, separated_pair, tuple},
+    IResult,
+};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct MediaType<'a> {
@@ -27,19 +33,19 @@ pub struct MediaType<'a> {
 //   media-type = type "/" subtype *( OWS ";" OWS parameter )
 //   type       = token
 //   subtype    = token
-named!(
-    pub media_type<&str, MediaType<'_>>,
-    map!(
-        tuple!(separated_pair!(token, char1('/'), token), many0!(preceded!(separated_pair!(ows, char1(';'), ows), parameter))),
-        |((primary_type, sub_type), parameters)| {
-            MediaType {
-                primary_type,
-                sub_type,
-                parameters,
-            }
-        }
-    )
-);
+pub fn media_type(input: &str) -> IResult<&str, MediaType<'_>> {
+    map(
+        tuple((
+            separated_pair(token, char1('/'), token),
+            many0(preceded(separated_pair(ows, char1(';'), ows), parameter)),
+        )),
+        |((primary_type, sub_type), parameters)| MediaType {
+            primary_type,
+            sub_type,
+            parameters,
+        },
+    )(input)
+}
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Parameter<'a> {
@@ -50,18 +56,12 @@ pub struct Parameter<'a> {
 // https://tools.ietf.org/html/rfc7231#section-3.1.1.1
 // `parameter` is defined as
 //   parameter  = token "=" ( token / quoted-string )
-named!(
-    parameter(&str) -> Parameter<'_>,
-    map!(
-        separated_pair!(token, char1('='), parameter_value),
-        |(name, value)| {
-            Parameter {
-                name,
-                value,
-            }
-        }
-    )
-);
+fn parameter(input: &str) -> IResult<&str, Parameter<'_>> {
+    map(
+        separated_pair(token, char1('='), parameter_value),
+        |(name, value)| Parameter { name, value },
+    )(input)
+}
 
 #[cfg(test)]
 mod tests {
@@ -185,6 +185,16 @@ mod tests {
     }
     #[test]
     fn unclosed_quoted_string() {
-        assert!(media_type(r#"a/b;x="1\"23;y=0"#).is_err())
+        assert_eq!(
+            media_type(r#"a/b;x="1\"23;y=0"#).unwrap(),
+            (
+                r#";x="1\"23;y=0"#,
+                MediaType {
+                    primary_type: "a",
+                    sub_type: "b",
+                    parameters: vec![]
+                }
+            )
+        );
     }
 }
