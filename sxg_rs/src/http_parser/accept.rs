@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use super::media_type::{media_type, MediaType, Parameter};
-use nom::{map, named};
+use nom::{combinator::map, IResult};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Accept<'a> {
@@ -28,31 +28,27 @@ pub struct Accept<'a> {
 // The `accept` header has a similar syntax to `media-type`, except a special
 // `q` parameter. Parameters before the first `q=...` are media type parameters
 // and the parameters after are accept extension parameters.
-named!(
-    pub accept(&str) -> Accept<'_>,
-    map!(
-        media_type,
-        |media_range| {
-            let mut accept = Accept {
-                media_range,
-                q_millis: 1000,
-                extensions: vec![],
-            };
-            let params = &mut accept.media_range.parameters;
-            for (i, param) in params.iter().enumerate() {
-                if param.name.eq_ignore_ascii_case("q") {
-                    if let Some(q) = parse_q_millis(&param.value) {
-                        accept.q_millis = q;
-                        accept.extensions = params.split_off(i + 1);
-                        params.pop();
-                        break;
-                    }
+pub fn accept(input: &str) -> IResult<&str, Accept<'_>> {
+    map(media_type, |media_range| {
+        let mut accept = Accept {
+            media_range,
+            q_millis: 1000,
+            extensions: vec![],
+        };
+        let params = &mut accept.media_range.parameters;
+        for (i, param) in params.iter().enumerate() {
+            if param.name.eq_ignore_ascii_case("q") {
+                if let Some(q) = parse_q_millis(&param.value) {
+                    accept.q_millis = q;
+                    accept.extensions = params.split_off(i + 1);
+                    params.pop();
+                    break;
                 }
             }
-            accept
         }
-    )
-);
+        accept
+    })(input)
+}
 
 fn parse_q_millis(s: &str) -> Option<u16> {
     let x = s.parse::<f64>().ok()?;

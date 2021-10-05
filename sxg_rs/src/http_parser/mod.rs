@@ -21,8 +21,13 @@ pub mod media_type;
 use anyhow::{Error, Result};
 use base::ows;
 use nom::{
-    branch::alt, bytes::complete::tag, character::complete::char as char1, combinator::complete,
-    eof, separated_list0, separated_pair, IResult,
+    branch::alt,
+    bytes::complete::tag,
+    character::complete::char as char1,
+    combinator::eof,
+    multi::separated_list0,
+    sequence::{separated_pair, terminated},
+    IResult,
 };
 use std::time::Duration;
 
@@ -35,11 +40,12 @@ fn parse_vec<'a, F, T>(input: &'a str, parse_single: F) -> Result<Vec<T>>
 where
     F: Fn(&'a str) -> IResult<&'a str, T>,
 {
-    let (input, items) =
-        separated_list0!(input, separated_pair!(ows, char1(','), ows), parse_single)
-            .map_err(format_nom_err)?;
-    eof!(input,).map_err(format_nom_err)?;
-    Ok(items)
+    terminated(
+        separated_list0(separated_pair(ows, char1(','), ows), parse_single),
+        eof,
+    )(input)
+    .map(|(_, items)| items)
+    .map_err(format_nom_err)
 }
 
 pub fn parse_accept_header(input: &str) -> Result<Vec<accept::Accept>> {
@@ -54,7 +60,7 @@ pub fn parse_cache_control_header(input: &str) -> Result<Duration> {
 }
 
 pub fn parse_content_type_header(input: &str) -> Result<media_type::MediaType> {
-    complete(media_type::media_type)(input)
+    terminated(media_type::media_type, eof)(input)
         .map(|(_, output)| output)
         .map_err(format_nom_err)
 }
@@ -84,5 +90,13 @@ mod tests {
             vec!["*", "cookie"]
         );
         assert!(parse_vary_header("tokens only; no spaces or semicolons allowed").is_err());
+    }
+    #[test]
+    fn incomplete_is_err() {
+        assert!(parse_accept_header("application/signed-exchange;v=").is_err());
+        assert!(parse_cache_control_header("max-age=\"3600").is_err());
+        assert!(parse_content_type_header("application/signed-exchange;v=\"b3").is_err());
+        assert!(parse_link_header(r#"</foo>;bar="baz \""#).is_err());
+        assert!(parse_vary_header("incomplete,").is_err());
     }
 }
