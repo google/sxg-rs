@@ -44,8 +44,8 @@ where
         separated_list0(separated_pair(ows, char1(','), ows), parse_single),
         eof,
     )(input)
-        .map(|(_, items)| items)
-        .map_err(format_nom_err)
+    .map(|(_, items)| items)
+    .map_err(format_nom_err)
 }
 
 pub fn parse_accept_header(input: &str) -> Result<Vec<accept::Accept>> {
