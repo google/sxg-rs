@@ -22,7 +22,6 @@ use crate::link::process_link_header;
 use anyhow::{anyhow, Result};
 use once_cell::sync::Lazy;
 use serde::Deserialize;
-use std::cmp::min;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::time::Duration;
 use url::Url;
@@ -42,16 +41,6 @@ pub enum AcceptFilter {
 
 // A default mobile user agent, for when the upstream request doesn't include one.
 const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36";
-
-// To avoid issues with clock skew, backdate the start time by an hour. Don't backdate the
-// expiration because it goes against the origin's cache-control header. (e.g. For max-age
-// <1h, an SXG would be instantly invalid; this would be confusing.)
-pub(crate) const BACKDATING: Duration = Duration::from_secs(60 * 60);
-
-// Maximum signature duration per https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#section-3.5-7.3.
-// We subtract BACKDATING because the calling code only backdates date, not expires, so we don't
-// want to generate SXGs with a too-long duration.
-const SEVEN_DAYS: Duration = Duration::from_secs(60 * 60 * 24 * 7 - 60 * 60);
 
 impl Headers {
     pub(crate) fn new(data: HeaderFields, strip_headers: &BTreeSet<String>) -> Self {
@@ -268,13 +257,13 @@ impl Headers {
                 // https://github.com/google/webpackager/blob/main/docs/cache_requirements.md
                 const MIN_DURATION: Duration = Duration::from_secs(120);
                 return if duration >= MIN_DURATION {
-                    Ok(min(SEVEN_DAYS, duration))
+                    Ok(duration)
                 } else {
                     Err(anyhow!("Validity duration is too short."))
                 };
             }
         }
-        Ok(SEVEN_DAYS)
+        Ok(Duration::MAX)
     }
 }
 
@@ -673,7 +662,7 @@ mod tests {
     // === signature_duration ===
     #[test]
     fn signature_duration_implicit() {
-        assert_eq!(headers(vec![]).signature_duration().unwrap(), SEVEN_DAYS);
+        assert_eq!(headers(vec![]).signature_duration().unwrap(), Duration::MAX);
     }
     #[test]
     fn signature_duration_explicit() {
@@ -716,19 +705,19 @@ mod tests {
             headers(vec![("cache-control", "max-age=fish")])
                 .signature_duration()
                 .unwrap(),
-            SEVEN_DAYS
+            Duration::MAX
         );
         assert_eq!(
             headers(vec![("cache-control", "doesn't even parse")])
                 .signature_duration()
                 .unwrap(),
-            SEVEN_DAYS
+            Duration::MAX
         );
         assert_eq!(
             headers(vec![("cache-control", "max=, max-age=3600")])
                 .signature_duration()
                 .unwrap(),
-            SEVEN_DAYS
+            Duration::MAX
         );
     }
 
