@@ -152,8 +152,6 @@ fn read_existing_config() -> (WranglerConfig, bool) {
     (wrangler_config, exists)
 }
 
-// TODO: Trap ^C and show cursor.
-
 fn main() -> Result<(), std::io::Error> {
     goto_repository_root()?;
     let (cert_pem, issuer_pem) = read_certificates();

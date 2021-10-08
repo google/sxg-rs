@@ -18,18 +18,23 @@ version = "0.1.0"
 authors = ["9083193+antiphoton@users.noreply.github.com"]
 edition = "2018"
 
+[[bin]]
+name = "gen_sxg"
+required-features = ["rust_signer"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
 default = ["strip_id_headers"]
 rust_signer = []
 strip_id_headers = []
-wasm =[]
+wasm = []
 
 [dependencies]
 anyhow = "1.0.44"
 async-trait = "0.1.51"
 base64 = "0.13.0"
+clap = "3.0.0-beta.4"
 der-parser = { version = "6.0.0", features = ["bigint", "serialize"] }
 futures = { version = "0.3.17", features = ["executor"] }
 getrandom = { version = "0.2.3", features = ["js"] }
