@@ -18,8 +18,10 @@ pub mod js_signer;
 pub mod rust_signer;
 
 use crate::structured_header::{ParamItem, ShItem, ShParamList};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use std::cmp::min;
+use std::time::Duration;
 
 #[async_trait(?Send)]
 pub trait Signer {
@@ -31,7 +33,7 @@ pub struct SignatureParams<'a, S: Signer> {
     pub cert_url: &'a str,
     pub cert_sha256: &'a [u8],
     pub date: std::time::SystemTime,
-    pub expires: std::time::SystemTime,
+    pub expires: Option<std::time::SystemTime>,
     pub headers: &'a [u8],
     pub id: &'a str,
     pub request_url: &'a str,
@@ -50,6 +52,14 @@ pub struct Signature<'a> {
     validity_url: &'a str,
 }
 
+// Maximum signature duration per https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#section-3.5-7.3.
+const SEVEN_DAYS: Duration = Duration::from_secs(60 * 60 * 24 * 7);
+
+fn seven_days_from(date: &std::time::SystemTime) -> Result<std::time::SystemTime> {
+    date.checked_add(SEVEN_DAYS)
+        .ok_or_else(|| anyhow!("Overflow computing expires"))
+}
+
 impl<'a> Signature<'a> {
     pub async fn new<S: Signer>(params: SignatureParams<'a, S>) -> Result<Signature<'a>> {
         let SignatureParams {
@@ -63,6 +73,10 @@ impl<'a> Signature<'a> {
             signer,
             validity_url,
         } = params;
+        let expires = match expires {
+            None => seven_days_from(&date)?,
+            Some(expires) => min(expires, seven_days_from(&date)?),
+        };
         let date = time_to_number(date);
         let expires = time_to_number(expires);
         // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-signature-validity
