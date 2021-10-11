@@ -23,7 +23,7 @@ edition = "2018"
 anyhow = "1.0.44"
 cloudflare = "0.8.7"
 console = "0.14.1"
-ctrlc = "3.2.0"
+ctrlc = "3.2.1"
 dialoguer = "0.8.0"
 pem = "1.0.0"
 serde = { version = "1.0.130", features = ["derive"] }
