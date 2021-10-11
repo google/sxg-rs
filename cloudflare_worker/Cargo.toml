@@ -22,7 +22,7 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-console_error_panic_hook = "0.1.6"
+console_error_panic_hook = "0.1.7"
 sxg_rs = { path = "../sxg_rs", features = ["wasm"] }
 wasm-bindgen = "0.2.78"
 
