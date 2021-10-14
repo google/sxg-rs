@@ -31,11 +31,11 @@ mod utils;
 #[cfg(feature = "wasm")]
 mod wasm_worker;
 
+use crate::http::{HeaderFields, HttpResponse};
 use anyhow::{anyhow, Error, Result};
 use config::Config;
 use fetcher::Fetcher;
 use headers::{AcceptFilter, Headers};
-use http::{HeaderFields, HttpResponse};
 use http_cache::HttpCache;
 use serde::Serialize;
 use std::time::Duration;

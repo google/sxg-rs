@@ -18,11 +18,12 @@ use anyhow::{Error, Result};
 use fastly::{
     http::{StatusCode, Url},
     mime::Mime,
-    Error as FastlyError, Request, Response,
+    Request, Response,
 };
 use fetcher::FastlyFetcher;
 use futures::executor::block_on;
 use once_cell::sync::Lazy;
+use std::convert::TryInto;
 use sxg_rs::{
     headers::{AcceptFilter, Headers},
     http::HeaderFields,
@@ -76,6 +77,14 @@ fn get_rsp_header_fields(rsp: &Response) -> Result<Headers> {
     WORKER.transform_payload_headers(fields)
 }
 
+pub fn sxg_rs_response_to_fastly_response(
+    rsp: sxg_rs::http::HttpResponse,
+) -> anyhow::Result<fastly::Response> {
+    let rsp: ::http::response::Response<Vec<u8>> = rsp.try_into()?;
+    let rsp: ::http::response::Response<fastly::Body> = rsp.map(From::<Vec<u8>>::from);
+    Ok(rsp.into())
+}
+
 fn fetch_from_html_server(url: &Url, req_headers: Vec<(String, String)>) -> Result<Response> {
     let mut req = Request::new("GET", url);
     for (name, value) in req_headers {
@@ -106,7 +115,7 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
         header_integrity_cache: sxg_rs::http_cache::NullCache {},
     });
     let sxg = block_on(sxg)?;
-    Ok(fetcher::from_http_response(sxg))
+    sxg_rs_response_to_fastly_response(sxg)
 }
 
 fn handle_request(req: Request) -> Result<Response> {
@@ -117,10 +126,12 @@ fn handle_request(req: Request) -> Result<Response> {
     let fallback_url: Url;
     let sxg_payload;
     match WORKER.serve_preset_content(req.get_url_str(), &ocsp_der) {
-        Some(PresetContent::Direct(response)) => return Ok(fetcher::from_http_response(response)),
+        Some(PresetContent::Direct(response)) => {
+            return sxg_rs_response_to_fastly_response(response)
+        }
         Some(PresetContent::ToBeSigned { url, payload, .. }) => {
             fallback_url = Url::parse(&url).map_err(Error::new)?;
-            sxg_payload = fetcher::from_http_response(payload);
+            sxg_payload = sxg_rs_response_to_fastly_response(payload)?;
             get_req_header_fields(&req, AcceptFilter::AcceptsSxg)?;
         }
         None => {
@@ -133,7 +144,7 @@ fn handle_request(req: Request) -> Result<Response> {
 }
 
 #[fastly::main]
-fn main(req: Request) -> Result<Response, FastlyError> {
+fn main(req: Request) -> Result<Response, std::convert::Infallible> {
     let response = handle_request(req).unwrap_or_else(|msg| {
         text_response(&format!("A message is gracefully thrown.\n{:?}", msg))
     });

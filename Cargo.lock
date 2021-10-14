@@ -1246,6 +1246,7 @@ dependencies = [
  "base64 0.13.0",
  "fastly",
  "futures",
+ "http",
  "log 0.4.14",
  "log-fastly",
  "once_cell",
@@ -1639,9 +1640,9 @@ dependencies = [
 
 [[package]]
 name = "http"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "527e8c9ac747e28542699a951517aa9a6945af506cd1f2e1b53a576c17b6cc11"
+checksum = "1323096b05d41827dadeaee54c9981958c0f94e670bc94ed80037d1a7b8b186b"
 dependencies = [
  "bytes 1.0.1",
  "fnv",
@@ -3321,6 +3322,7 @@ dependencies = [
  "der-parser",
  "futures",
  "getrandom 0.2.3",
+ "http",
  "js-sys",
  "nom 7.0.0",
  "once_cell",

@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::{anyhow, Error, Result};
+use anyhow::{Error, Result};
 use async_trait::async_trait;
 use fastly::{Request as FastlyRequest, Response as FastlyResponse};
-use std::io::Read;
+use std::convert::TryInto;
 use sxg_rs::{
     fetcher::Fetcher,
-    http::{HttpRequest, HttpResponse, Method},
+    http::{HttpRequest, HttpResponse},
 };
 
 /// A [`Fetcher`] implemented by
@@ -40,62 +40,15 @@ impl FastlyFetcher {
 #[async_trait(?Send)]
 impl Fetcher for FastlyFetcher {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse> {
-        let request = from_http_request(request);
+        let request: ::http::request::Request<Vec<u8>> = request.try_into()?;
+        let request = request.map(fastly::Body::from);
+        let request: FastlyRequest = request.try_into()?;
         let response: FastlyResponse = request
             .send(self.backend_name)
             .map_err(|e| Error::new(e).context("Failed to fetch from backend."))?;
-        into_http_response(response)
-    }
-}
 
-fn from_http_request(http_request: HttpRequest) -> FastlyRequest {
-    let method = match http_request.method {
-        Method::Get => "GET",
-        Method::Post => "POST",
-    };
-    let mut fastly_request = FastlyRequest::new(method, http_request.url);
-    for (name, value) in http_request.headers {
-        fastly_request.append_header(name, value)
+        let response: ::http::response::Response<fastly::Body> = response.into();
+        let response = response.map(|body| body.into_bytes());
+        response.try_into()
     }
-    fastly_request.set_body(http_request.body);
-    fastly_request
-}
-
-pub fn from_http_response(input: HttpResponse) -> FastlyResponse {
-    let mut output = FastlyResponse::new();
-    output.set_status(input.status);
-    for (name, value) in input.headers {
-        output.append_header(name, value)
-    }
-    output.set_body(input.body);
-    output
-}
-
-fn into_http_response(response: FastlyResponse) -> Result<HttpResponse> {
-    let mut header_fields = vec![];
-    for name in response.get_header_names() {
-        for value in response.get_header_all(name) {
-            let value = value.to_str().map_err(|_| {
-                Error::msg(format!(r#"Header "{}" contains non-ASCII value."#, name))
-            })?;
-            header_fields.push((name.as_str().to_string(), value.to_string()));
-        }
-    }
-    let status = response.get_status().as_u16();
-    let mut body_bytes = vec![];
-    // SXGs larger than 8MB are not accepted by
-    // https://github.com/google/webpackager/blob/main/docs/cache_requirements.md.
-    const MAX_BYTES: usize = 8_000_000;
-    response
-        .into_body()
-        .take(MAX_BYTES as u64 + 1)
-        .read_to_end(&mut body_bytes)?;
-    if body_bytes.len() > MAX_BYTES {
-        return Err(anyhow!("Body is larger than {} bytes.", MAX_BYTES));
-    }
-    Ok(HttpResponse {
-        body: body_bytes,
-        headers: header_fields,
-        status,
-    })
 }
