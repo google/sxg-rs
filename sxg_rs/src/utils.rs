@@ -20,6 +20,16 @@ use anyhow::{anyhow, Result};
 use std::collections::BTreeSet;
 use url::Url;
 
+#[cfg(all(target_family = "wasm", feature = "wasm"))]
+pub fn console_log(msg: &str) {
+    web_sys::console::log_1(&msg.into());
+}
+
+#[cfg(not(all(target_family = "wasm", feature = "wasm")))]
+pub fn console_log(msg: &str) {
+    println!("{}", msg);
+}
+
 pub fn get_sha(bytes: &[u8]) -> Vec<u8> {
     use ::sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();

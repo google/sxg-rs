@@ -16,7 +16,7 @@ use crate::fetcher::{Fetcher, NULL_FETCHER};
 use crate::headers::Headers;
 use crate::http::{HttpRequest, HttpResponse, Method};
 use crate::http_cache::{HttpCache, NullCache};
-use crate::utils::{get_sha, signed_headers_and_payload};
+use crate::utils::{console_log, get_sha, signed_headers_and_payload};
 use anyhow::{anyhow, Error, Result};
 use async_trait::async_trait;
 use once_cell::sync::Lazy;
@@ -169,16 +169,6 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
             Err(anyhow!("{}", String::from_utf8_lossy(&response.body)))
         }
     }
-}
-
-#[cfg(all(target_family = "wasm", feature = "wasm"))]
-fn console_log(msg: &str) {
-    web_sys::console::log_1(&msg.into());
-}
-
-#[cfg(not(all(target_family = "wasm", feature = "wasm")))]
-fn console_log(msg: &str) {
-    println!("{}", msg);
 }
 
 #[cfg(test)]
