@@ -83,7 +83,7 @@ async function readIntoArray(inputStream: ReadableStream | null, maxSize: number
   }
 }
 
-function teeResponse(response: Response) {
+function teeResponse(response: Response): [Response, Response] {
   const {
     body,
     headers,
@@ -93,7 +93,7 @@ function teeResponse(response: Response) {
   return [
       new Response(body1, { headers, status }),
       new Response(body2, { headers, status }),
-  ] as const;
+  ];
 }
 
 // Fetches latest OCSP from the CA, and writes it into key-value store.
@@ -214,19 +214,18 @@ async function handleRequest(request: Request) {
       ));
     }
     let response = await generateSxgResponse(fallbackUrl, certOrigin, sxgPayload);
-    if (fallback.body) {
-      fallback.body.cancel();
-    }
+    fallback.body?.cancel();
     return response;
-  } catch (e) {
-    if (sxgPayload && sxgPayload.body) {
-      sxgPayload.body.cancel();
+  } catch (e: any) {
+    sxgPayload?.body?.cancel();
+    if (!fallback) {
+        // The error occurs before fetching from origin server, hence we need to
+        // fetch now. Since we are not generating SXG anyway in this case, we
+        // simply use all http headers from the user.
+        fallback = await fetch(request);
     }
-    if (worker.shouldRespondDebugInfo()) {
-      let message = JSON.stringify(e);
-      if (!fallback) {
-        fallback = new Response(message);
-      }
+    if (worker.shouldRespondDebugInfo() && e.toString) {
+      let message = e.toString();
       return new Response(
         fallback.body,
         {
@@ -238,16 +237,7 @@ async function handleRequest(request: Request) {
         },
       );
     } else {
-      if (fallback) {
-        // The error occurs after fetching from origin server, hence we reuse
-        // the response of that fetch.
-        return fallback;
-      } else {
-        // The error occurs before fetching from origin server, hence we need to
-        // fetch now. Since we are not generating SXG anyway in this case, we
-        // simply use all http headers from the user.
-        return fetch(request);
-      }
+      return fallback;
     }
   }
 }
