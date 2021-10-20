@@ -48,39 +48,78 @@ async function wasmFromResponse(response: Response): Promise<WasmResponse> {
   };
 }
 
-/**
- * Consumes the input stream, and returns an byte array containing the data in
- * the input stream. If the input stream contains more bytes than `maxSize`,
- * returns null.
- * @param {ReadableStream | null} inputStream
- * @param {number} maxSize
- * @returns {Promise<Uint8Array | null>}
- */
-async function readIntoArray(inputStream: ReadableStream | null, maxSize: number) {
+// Calls process for each chunk from inputStream, up to maxSize. The last chunk
+// may extend beyond maxSize; process should handle this case.
+//
+// Returns true if inputStream's total byte length is <= maxSize. After the
+// promise resolves, the inputStream is closed and need not be canceled.
+//
+// (This function could be genericized to all TypedArrays, but no such
+// interface exists in TypeScript, and not all uses of it below could be
+// generalized.)
+async function streamFrom(inputStream: ReadableStream, maxSize: number,
+                          process?: (currentPos: number, value: Uint8Array) => void): Promise<boolean> {
+  const reader = inputStream.getReader();
+  let receivedSize = 0;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (value) {
+      process?.(receivedSize, value);
+      receivedSize += value.byteLength;
+      if (receivedSize > maxSize) {
+        reader.releaseLock();
+        inputStream.cancel();
+        return false;
+      }
+    }
+    if (done) {
+      // This implies closed per
+      // https://streams.spec.whatwg.org/#default-reader-read.
+      return true;
+    }
+  }
+}
+
+// Consumes up to maxSize bytes of inputStream, discarding the bytes.
+async function consumeBytes(inputStream: ReadableStream<Uint8Array> | null, maxSize: number): Promise<void> {
+  if (inputStream === null) {
+    return;
+  }
+  await streamFrom(inputStream, maxSize);
+}
+
+// Consumes the input stream, and returns a byte array containing the first
+// size bytes, or null if there aren't enough bytes.
+async function readArrayPrefix(inputStream: ReadableStream<Uint8Array> | null, size: number): Promise<Uint8Array | null> {
   if (inputStream === null) {
     return new Uint8Array([]);
   }
-  const reader = inputStream.getReader();
-  const received = new Uint8Array(maxSize);
-  let receivedSize = 0;
-  while (true) {
-    const {
-      value,
-      done,
-    } = await reader.read();
-    if (value) {
-      if (receivedSize + value.byteLength > maxSize) {
-        reader.releaseLock();
-        inputStream.cancel();
-        return null;
-      }
-      received.set(value, receivedSize);
-      receivedSize += value.byteLength;
+  const received = new Uint8Array(size);
+  let reachedEOS = await streamFrom(inputStream, size, (currentPos, value) => {
+    if (currentPos + value.byteLength > size) {
+      value = value.subarray(0, size - currentPos);
     }
-    if (done) {
-      return received.subarray(0, receivedSize);
-    }
+    received.set(value, currentPos);
+  });
+  return reachedEOS ? null : received;
+}
+
+// Consumes the input stream, and returns a byte array containing the data in
+// the input stream. If the input stream contains more bytes than `maxSize`,
+// returns null.
+async function readIntoArray(inputStream: ReadableStream<Uint8Array> | null, maxSize: number): Promise<Uint8Array | null> {
+  if (inputStream === null) {
+    return new Uint8Array([]);
   }
+  const received = new Uint8Array(maxSize);
+  let size = 0;
+  let reachedEOS = await streamFrom(inputStream, maxSize, (currentPos, value) => {
+    if (currentPos + value.byteLength <= maxSize) {
+      received.set(value, currentPos);
+      size = currentPos + value.byteLength;
+    }
+  });
+  return reachedEOS ? received.subarray(0, size) : null;
 }
 
 function teeResponse(response: Response): [Response, Response] {
@@ -213,6 +252,7 @@ async function handleRequest(request: Request) {
         }
       ));
     }
+    sxgPayload = await promoteLinkTagsToHeaders(sxgPayload);
     let response = await generateSxgResponse(fallbackUrl, certOrigin, sxgPayload);
     fallback.body?.cancel();
     return response;
@@ -242,11 +282,127 @@ async function handleRequest(request: Request) {
   }
 }
 
+const PAYLOAD_SIZE_LIMIT = 8000000;
+
+// https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.6
+const TOKEN = /^[!#$%&'*+.^_`|~0-9a-zA-Z-]+$/;
+
+// Matcher for HTML with either UTF-8 or unspecified character encoding.
+// Capture group 1 indicates that charset=utf-8 was explicitly stated.
+//
+// https://datatracker.ietf.org/doc/html/rfc7231#section-3.1.1.5
+//
+// The list of aliases for UTF-8 is codified in
+// https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/platform/wtf/text/text_codec_utf8.cc;l=52-68;drc=984c3018ecb2ff818e900fdb7c743fc00caf7efe
+// and https://encoding.spec.whatwg.org/#concept-encoding-get.
+// These are not currently supported, but could be if desired.
+const HTML = /^text\/html([ \t]*;[ \t]*charset=(utf-8|"utf-8"))?$/i;
+
+// If any <link rel=preload>s are found, they are promoted to Link headers.
+// Later, generateSxgResponse will further modify the link header to support SXG
+// preloading of eligible subresources.
+//
+// Out of an abundance of caution, this is limited to documents that are
+// explicitly labeled as UTF-8 via Content-Type or <meta>. This could be
+// expanded in the future, as the risk of misinterpreting type or encoding is
+// rare and low-impact: producing `Link: rel=preload` headers for incorrect
+// refs, which would waste bytes.
+async function promoteLinkTagsToHeaders(payload: Response): Promise<Response> {
+  if (!payload.body) {
+    return payload;
+  }
+
+  let known_utf8 = false;
+
+  // Only run HTMLRewriter if the content is HTML.
+  const content_type_match = payload.headers.get('content-type')?.match(HTML);
+  if (!content_type_match) {
+    return payload;
+  }
+  if (content_type_match[1]) {
+    known_utf8 = true;
+  }
+
+  // A temporary response.
+  let toConsume;
+
+  // Check for UTF-16 BOM, which overrides the <meta> tag, per the implementation at
+  // https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/html/parser/text_resource_decoder.cc;l=394;drc=7a0b88f6d5c015fd3c280b58c7a99d8e1dca28ac
+  // and the spec at
+  // https://html.spec.whatwg.org/multipage/parsing.html#encoding-sniffing-algorithm.
+  [payload, toConsume] = teeResponse(payload);
+  const bom = await readArrayPrefix(toConsume.body, 2);
+  if (bom &&
+      (bom[0] == 0xFE && bom[1] == 0xFF || bom[0] == 0xFF && bom[1] == 0xFE)) {
+    // Somebody set up us the BOM.
+    return payload;
+  }
+
+  // Tee the original payload to be sure that HTMLRewriter doesn't make any
+  // breaking modifications to the HTML. This is especially likely if the
+  // document is in a non-ASCII-compatible encoding like UTF-16.
+  [payload, toConsume] = teeResponse(payload);
+
+  let link_tags: {href: string, as: string}[] = [];
+  toConsume = new HTMLRewriter()
+    .on('link[rel~="preload" i][href][as]', {
+      element: (link: Element) => {
+        const href = link.getAttribute('href');
+        const as = link.getAttribute('as');
+        // Ensure the values can be placed inside a Link header without
+        // escaping or quoting.
+        if (href && !href.includes('>') && as?.match(TOKEN)) {
+          link_tags.push({href, as});
+        }
+      },
+    })
+    // Parse the meta tag, per the implementation in HTMLMetaCharsetParser::CheckForMetaCharset:
+    // https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/html/parser/html_meta_charset_parser.cc;l=62-125;drc=7a0b88f6d5c015fd3c280b58c7a99d8e1dca28ac.
+    // This differs slightly from what's described at https://github.com/whatwg/html/issues/6962, and
+    // differs drastically from what's specified in
+    // https://html.spec.whatwg.org/multipage/parsing.html#prescan-a-byte-stream-to-determine-its-encoding.
+    .on('meta', {
+      element: (meta: Element) => {
+        // EncodingFromMetaAttributes:
+        // https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/html/parser/html_parser_idioms.cc;l=362-393;drc=7a0b88f6d5c015fd3c280b58c7a99d8e1dca28ac
+        let value = meta.getAttribute('charset');
+        if (value) {
+          if (value.toLowerCase() === 'utf-8') {
+            known_utf8 = true;
+          }
+        } else if (meta.getAttribute('http-equiv')?.toLowerCase() === 'content-type' &&
+                   meta.getAttribute('content')?.match(HTML)?.[1]) {
+          // https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/html/parser/html_parser_idioms.cc;l=308-354;drc=984c3018ecb2ff818e900fdb7c743fc00caf7efe
+          // https://html.spec.whatwg.org/multipage/urls-and-fetching.html#extracting-character-encodings-from-meta-elements
+          // HTMLRewriter doesn't appear to decode HTML entities inside
+          // attribute values, so a tag like
+          //   <meta http-equiv=content-type content="text/html;charset=&quot;utf-8&quot;">
+          // won't work. This could be supported in the future.
+          known_utf8 = true;
+        }
+      },
+    })
+    .transform(toConsume);
+  await consumeBytes(toConsume.body, PAYLOAD_SIZE_LIMIT);
+
+  // NOTE: It's also possible for a <?xml encoding="utf-16"?> directive to
+  // override <meta>, per
+  // https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/html/parser/text_resource_decoder.cc;l=427-441;drc=7a0b88f6d5c015fd3c280b58c7a99d8e1dca28ac.
+  // (This differs from the specification, which prioritizes <meta> over
+  // <?xml?>.) However, the case is very rare, and HTMLRewriter doesn't have a
+  // handler for XML declarations, so we skip the check.
+
+  if (known_utf8 && link_tags.length) {
+    const link = link_tags.map(({href, as}) => `<${href}>;rel=preload;as=${as}`).join(',');
+    payload.headers.append('Link', link);
+  }
+  return payload;
+}
+
 async function generateSxgResponse(fallbackUrl: string, certOrigin: string, payload: Response) {
   let worker = await workerPromise;
   const payloadHeaders = Array.from(payload.headers);
   worker.validatePayloadHeaders(payloadHeaders);
-  const PAYLOAD_SIZE_LIMIT = 8000000;
   const payloadBody = await readIntoArray(payload.body, PAYLOAD_SIZE_LIMIT);
   if (!payloadBody) {
     throw `The size of payload exceeds the limit ${PAYLOAD_SIZE_LIMIT}`;

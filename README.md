@@ -44,23 +44,48 @@ the results.
 ### Preload subresources
 
 LCP can be further improved by instructing Google Search to prefetch
-render-critical subresources for the page. To do so, add a `Link:
-</foo>;rel=preload;as=bar` HTTP header for each same-origin subresource `/foo`,
-with the `as` parameter set to the [appropriate
-destination](https://fetch.spec.whatwg.org/#concept-request-destination).
+render-critical subresources for the page.
 
-Behind the scenes, SXG uses an extended form of subresource integrity that
-includes response headers; ensure that this `header-integrity` will remain
-constant over multiple features by running this:
+#### Same-origin
 
-``` bash
-$ go install github.com/WICG/webpackage/go/signedexchange/cmd/dump-signedexchange@latest
-$ dump-signedexchange -uri $URL -headerIntegrity
-$ dump-signedexchange -uri $URL -headerIntegrity  # verify it's the same
+Add a preload link tag to the page, such as:
+
+```
+<link rel=preload as=image href="/foo.png">
 ```
 
-If it doesn't, eliminate frequently changing headers from the upstream
-response by adding them to the `strip_response_headers` config param.
+The page must also be declared as UTF-8, either via `Content-Type: text/html;
+charset=utf-8` or via `<meta charset="utf-8">`.
+
+sxg-rs will automatically convert these link tags into Link headers as needed for [SXG
+subresource
+substitution](https://github.com/WICG/webpackage/blob/main/explainers/signed-exchange-subresource-substitution.md).
+This uses a form of subresource integrity that includes HTTP headers. sxg-rs
+tries to ensure a static integrity value by stripping many noisy HTTP headers
+(like Date) for signed subresources, but you may need to list additional ones
+in the `strip_response_headers` config param.
+
+To confirm it is working, run:
+
+```bash
+$ go install github.com/WICG/webpackage/go/signedexchange/cmd/dump-signedexchange@latest
+$ dump-signedexchange -uri "$HTML_URL" -payload=false | grep Link
+```
+
+and verify that there is a `rel=allowed-alt-sxg` whose `header-integrity`
+matches the output of:
+
+```bash
+$ dump-signedexchange -uri "$SUBRESOURCE_URL" -headerIntegrity
+```
+
+#### Cross-origin
+
+SXG preloading requires that the subresource is also an SXG. This worker
+assumes only same-origin resources are SXG, so its automatic logic is limited
+to those. You can manually support cross-origin subresources by adding the
+appropriate Link header as
+[specified](https://github.com/WICG/webpackage/blob/main/explainers/signed-exchange-subresource-substitution.md).
 
 ### Preview in Chrome
 
