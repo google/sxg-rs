@@ -48,8 +48,12 @@ async function wasmFromResponse(response: Response): Promise<WasmResponse> {
   };
 }
 
+// Calls process for each chunk from inputStream, up to maxSize. The last chunk
+// may extend beyond maxSize; process should handle this case.
+//
 // Returns true if inputStream's total byte length is <= maxSize. After the
 // promise resolves, the inputStream is closed and need not be canceled.
+//
 // (This function could be genericized to all TypedArrays, but no such
 // interface exists in TypeScript, and not all uses of it below could be
 // generalized.)
