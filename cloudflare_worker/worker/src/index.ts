@@ -48,7 +48,8 @@ async function wasmFromResponse(response: Response): Promise<WasmResponse> {
   };
 }
 
-// Returns true if inputStream's total byte length is <= maxSize.
+// Returns true if inputStream's total byte length is <= maxSize. After the
+// promise resolves, the inputStream is closed and need not be canceled.
 // (This function could be genericized to all TypedArrays, but no such
 // interface exists in TypeScript, and not all uses of it below could be
 // generalized.)
@@ -68,6 +69,8 @@ async function streamFrom(inputStream: ReadableStream, maxSize: number,
       }
     }
     if (done) {
+      // This implies closed per
+      // https://streams.spec.whatwg.org/#default-reader-read.
       return true;
     }
   }
@@ -81,10 +84,8 @@ async function consumeBytes(inputStream: ReadableStream<Uint8Array> | null, maxS
   await streamFrom(inputStream, maxSize);
 }
 
-/**
- * Consumes the input stream, and returns an byte array containing the first
- * size bytes, or null if there aren't enough bytes.
- */
+// Consumes the input stream, and returns a byte array containing the first
+// size bytes, or null if there aren't enough bytes.
 async function readArrayPrefix(inputStream: ReadableStream<Uint8Array> | null, size: number): Promise<Uint8Array | null> {
   if (inputStream === null) {
     return new Uint8Array([]);
@@ -99,11 +100,9 @@ async function readArrayPrefix(inputStream: ReadableStream<Uint8Array> | null, s
   return reachedEOS ? null : received;
 }
 
-/**
- * Consumes the input stream, and returns an byte array containing the data in
- * the input stream. If the input stream contains more bytes than `maxSize`,
- * returns null.
- */
+// Consumes the input stream, and returns a byte array containing the data in
+// the input stream. If the input stream contains more bytes than `maxSize`,
+// returns null.
 async function readIntoArray(inputStream: ReadableStream<Uint8Array> | null, maxSize: number): Promise<Uint8Array | null> {
   if (inputStream === null) {
     return new Uint8Array([]);
@@ -329,7 +328,6 @@ async function promoteLinkTagsToHeaders(payload: Response): Promise<Response> {
   // https://html.spec.whatwg.org/multipage/parsing.html#encoding-sniffing-algorithm.
   [payload, toConsume] = teeResponse(payload);
   const bom = await readArrayPrefix(toConsume.body, 2);
-  toConsume.body?.cancel();
   if (bom &&
       (bom[0] == 0xFE && bom[1] == 0xFF || bom[0] == 0xFF && bom[1] == 0xFE)) {
     // Somebody set up us the BOM.
@@ -342,7 +340,7 @@ async function promoteLinkTagsToHeaders(payload: Response): Promise<Response> {
   [payload, toConsume] = teeResponse(payload);
 
   let link_tags: {href: string, as: string}[] = [];
-  let newPayload = new HTMLRewriter()
+  toConsume = new HTMLRewriter()
     .on('link[rel~="preload" i][href][as]', {
       element: (link: Element) => {
         const href = link.getAttribute('href');
@@ -381,10 +379,7 @@ async function promoteLinkTagsToHeaders(payload: Response): Promise<Response> {
       },
     })
     .transform(toConsume);
-  await consumeBytes(newPayload.body, PAYLOAD_SIZE_LIMIT);
-  // toConsume has been partially consumed by HTMLRewriter; free its resources
-  // and return payload instead.
-  toConsume.body?.cancel();
+  await consumeBytes(toConsume.body, PAYLOAD_SIZE_LIMIT);
 
   // NOTE: It's also possible for a <?xml encoding="utf-16"?> directive to
   // override <meta>, per
