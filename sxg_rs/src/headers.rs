@@ -102,7 +102,7 @@ impl Headers {
             if DONT_SIGN_RESPONSE_HEADERS.contains(k.as_str()) {
                 return Err(anyhow!(r#"A stateful header "{}" is found."#, k));
             }
-            if CACHE_CONTROL_HEADERS.contains(k.as_str()) {
+            if CACHE_CONTROL_HEADERS_SET.contains(k.as_str()) {
                 // `private` and `no-store` are disallowed by
                 // https://github.com/google/webpackager/blob/master/docs/cache_requirements.md#user-content-google-sxg-cache,
                 // while the other two are signals that the document is not usually cached and reused.
@@ -252,7 +252,12 @@ impl Headers {
     // How long the signature should last, or error if the response shouldn't be signed.
     pub(crate) fn signature_duration(&self) -> Result<Duration> {
         // Default to 7 days unless a cache-control directive lowers it.
-        if let Some(value) = self.0.get("cache-control") {
+        // Only look at the most specific cache-control header present. This follows the requirement
+        // in https://datatracker.ietf.org/doc/html/draft-cdn-control-header-01#section-2.1.
+        let value = CACHE_CONTROL_HEADERS
+            .iter()
+            .find_map(|name| self.0.get(*name));
+        if let Some(value) = value {
             if let Ok(duration) = parse_cache_control_header(value) {
                 // https://github.com/google/webpackager/blob/main/docs/cache_requirements.md
                 const MIN_DURATION: Duration = Duration::from_secs(120);
@@ -339,19 +344,23 @@ static DONT_SIGN_RESPONSE_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     .collect()
 });
 
-static CACHE_CONTROL_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+// Cache-Control headers to respect, ordered from most to least specific.
+static CACHE_CONTROL_HEADERS: Lazy<Vec<&'static str>> = Lazy::new(|| {
     vec![
-        // https://datatracker.ietf.org/doc/html/rfc7234#section-5.2
-        "cache-control",
         // https://developers.cloudflare.com/cache/about/cdn-cache-control
-        "cdn-cache-control",
         "cloudflare-cdn-cache-control",
         // https://developer.fastly.com/reference/http-headers/Surrogate-Control/
+        // https://datatracker.ietf.org/doc/html/draft-nottingham-surrogates-00#section-3.6.2
         "surrogate-control",
+        // https://datatracker.ietf.org/doc/html/draft-cdn-control-header-01
+        "cdn-cache-control",
+        // https://datatracker.ietf.org/doc/html/rfc7234#section-5.2
+        "cache-control",
     ]
-    .into_iter()
-    .collect()
 });
+
+static CACHE_CONTROL_HEADERS_SET: Lazy<HashSet<&'static str>> =
+    Lazy::new(|| CACHE_CONTROL_HEADERS.clone().into_iter().collect());
 
 // Checks whether to serve SXG based on the Accept header of the HTTP request.
 // Returns Ok iff the input string has a `application/signed-exchange;v=b3`,
@@ -697,6 +706,27 @@ mod tests {
                 .signature_duration()
                 .unwrap(),
             Duration::from_secs(3600)
+        );
+    }
+    #[test]
+    fn signature_duration_most_specific() {
+        assert_eq!(
+            headers(vec![
+                ("cache-control", "max-age=0"),
+                ("cdn-cache-control", "max-age=3600"),
+            ])
+            .signature_duration()
+            .unwrap(),
+            Duration::from_secs(3600)
+        );
+        assert_eq!(
+            headers(vec![
+                ("cache-control", "max-age=3600"),
+                ("surrogate-control", "must-revalidate"),
+            ])
+            .signature_duration()
+            .unwrap(),
+            Duration::MAX
         );
     }
     #[test]
