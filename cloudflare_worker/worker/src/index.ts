@@ -250,6 +250,7 @@ async function handleRequest(request: Request) {
     }
     sxgPayload = await processHTML(sxgPayload, [
       new PromoteLinkTagsToHeaders,
+      new SXGOnly(true),
     ]);
     let response = await generateSxgResponse(fallbackUrl, certOrigin, sxgPayload);
     fallback.body?.cancel();
@@ -262,6 +263,9 @@ async function handleRequest(request: Request) {
         // simply use all http headers from the user.
         fallback = await fetch(request);
     }
+    fallback = await processHTML(fallback, [
+      new SXGOnly(false),
+    ]);
     if (worker.shouldRespondDebugInfo() && e.toString) {
       let message = e.toString();
       return new Response(
@@ -299,9 +303,8 @@ const HTML = /^text\/html([ \t]*;[ \t]*charset=(utf-8|"utf-8"))?$/i;
 interface HTMLProcessor {
   register(rewriter: HTMLRewriter): void;
   // Returns true iff the processor modified the HTML body. processHTML uses
-  // the rewritten HTML body iff one of the processors returns true. This
-  // function should not have any side-effects; it might not run.
-  modified(): boolean;
+  // the rewritten HTML body iff one of the processors returns true.
+  modified: boolean;
   onEnd(payload: Response): void;
 }
 
@@ -309,6 +312,7 @@ interface HTMLProcessor {
 // Later, generateSxgResponse will further modify the link header to support
 // SXG preloading of eligible subresources.
 class PromoteLinkTagsToHeaders implements HTMLProcessor {
+  modified: boolean = false;
   link_tags: {href: string, as: string}[] = [];
   register(rewriter: HTMLRewriter): void {
     rewriter.on('link[rel~="preload" i][href][as]', {
@@ -323,14 +327,47 @@ class PromoteLinkTagsToHeaders implements HTMLProcessor {
       },
     });
   }
-  modified(): boolean {
-    return false;
-  }
   onEnd(payload: Response): void {
     if (this.link_tags.length) {
       const link = this.link_tags.map(({href, as}) => `<${href}>;rel=preload;as=${as}`).join(',');
       payload.headers.append('Link', link);
     }
+  }
+}
+
+// Provides two syntaxes for SXG-only behavior:
+//
+// For `<template data-sxg-only>` elements:
+// - If SXG, they are "unwrapped" (i.e. their children promoted out of the <teplate>).
+// - Else, they are deleted.
+//
+// For `<meta name=declare-issxg-var>` elements, they are replaced with
+// `<script>window.isSXG=...</script>`, where `...` is true or false.
+class SXGOnly {
+  isSXG: boolean;
+  modified: boolean = false;
+  constructor(isSXG: boolean) {
+    this.isSXG = isSXG;
+  }
+  register(rewriter: HTMLRewriter): void {
+    rewriter.on('meta[name=declare-issxg-var]', {
+      element: (meta: Element) => {
+        meta.replace(`<script>window.isSXG=${this.isSXG}</script>`,
+                     {html: true});
+        this.modified = true;
+      },
+    }).on('template[data-sxg-only]', {
+      element: (template: Element) => {
+        if (this.isSXG) {
+          template.removeAndKeepContent();
+        } else {
+          template.remove();
+        }
+        this.modified = true;
+      },
+    });
+  }
+  onEnd(_payload: Response): void {
   }
 }
 
@@ -419,7 +456,7 @@ async function processHTML(payload: Response, processors: HTMLProcessor[]): Prom
   // handler for XML declarations, so we skip the check.
 
   if (known_utf8) {
-    if (processors.some((p) => p.modified())) {
+    if (processors.some((p) => p.modified)) {
       payload = new Response(modifiedBody, {
         status: payload.status,
         statusText: payload.statusText,
