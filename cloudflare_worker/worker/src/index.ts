@@ -103,8 +103,8 @@ async function readIntoArray(inputStream: ReadableStream<Uint8Array> | null, max
   if (inputStream === null) {
     return new Uint8Array([]);
   }
-  // TODO: As a performance optimization, maybe have a smaller initial buffer
-  // and resize exponentially.
+  // TODO: As a performance optimization, maybe start with a `Content-Length`
+  // sized buffer and resize exponentially if necessary.
   const received = new Uint8Array(maxSize);
   let size = 0;
   let reachedEOS = await streamFrom(inputStream, maxSize, (currentPos, value) => {
