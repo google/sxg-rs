@@ -298,9 +298,9 @@ const HTML = /^text\/html([ \t]*;[ \t]*charset=(utf-8|"utf-8"))?$/i;
 
 interface HTMLProcessor {
   register(rewriter: HTMLRewriter): void;
-  // Returns true iff the processor modified the HTML. processHTML uses the
-  // rewritten HTML iff one of the processors returns true. This function
-  // should not have any side-effects; it might not run.
+  // Returns true iff the processor modified the HTML body. processHTML uses
+  // the rewritten HTML body iff one of the processors returns true. This
+  // function should not have any side-effects; it might not run.
   modified(): boolean;
   onEnd(payload: Response): void;
 }
