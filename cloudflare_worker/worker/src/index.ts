@@ -80,14 +80,6 @@ async function streamFrom(inputStream: ReadableStream, maxSize: number,
   }
 }
 
-// Consumes up to maxSize bytes of inputStream, discarding the bytes.
-async function consumeBytes(inputStream: ReadableStream<Uint8Array> | null, maxSize: number): Promise<void> {
-  if (inputStream === null) {
-    return;
-  }
-  await streamFrom(inputStream, maxSize);
-}
-
 // Consumes the input stream, and returns a byte array containing the first
 // size bytes, or null if there aren't enough bytes.
 async function readArrayPrefix(inputStream: ReadableStream<Uint8Array> | null, size: number): Promise<Uint8Array | null> {
@@ -252,7 +244,9 @@ async function handleRequest(request: Request) {
         }
       ));
     }
-    sxgPayload = await promoteLinkTagsToHeaders(sxgPayload);
+    sxgPayload = await processHTML(sxgPayload, [
+      new PromoteLinkTagsToHeaders,
+    ]);
     let response = await generateSxgResponse(fallbackUrl, certOrigin, sxgPayload);
     fallback.body?.cancel();
     return response;
@@ -298,16 +292,52 @@ const TOKEN = /^[!#$%&'*+.^_`|~0-9a-zA-Z-]+$/;
 // These are not currently supported, but could be if desired.
 const HTML = /^text\/html([ \t]*;[ \t]*charset=(utf-8|"utf-8"))?$/i;
 
+interface HTMLProcessor {
+  register(rewriter: HTMLRewriter): void;
+  // Returns true iff the processor modified the HTML. processHTML uses the
+  // rewritten HTML iff one of the processors returns true. This function
+  // should not have any side-effects; it might not run.
+  modified(): boolean;
+  onEnd(payload: Response): void;
+}
+
 // If any <link rel=preload>s are found, they are promoted to Link headers.
-// Later, generateSxgResponse will further modify the link header to support SXG
-// preloading of eligible subresources.
+// Later, generateSxgResponse will further modify the link header to support
+// SXG preloading of eligible subresources.
+class PromoteLinkTagsToHeaders implements HTMLProcessor {
+  link_tags: {href: string, as: string}[] = [];
+  register(rewriter: HTMLRewriter): void {
+    rewriter.on('link[rel~="preload" i][href][as]', {
+      element: (link: Element) => {
+        const href = link.getAttribute('href');
+        const as = link.getAttribute('as');
+        // Ensure the values can be placed inside a Link header without
+        // escaping or quoting.
+        if (href && !href.includes('>') && as?.match(TOKEN)) {
+          this.link_tags.push({href, as});
+        }
+      },
+    });
+  }
+  modified(): boolean {
+    return false;
+  }
+  onEnd(payload: Response): void {
+    if (this.link_tags.length) {
+      const link = this.link_tags.map(({href, as}) => `<${href}>;rel=preload;as=${as}`).join(',');
+      payload.headers.append('Link', link);
+    }
+  }
+}
+
+// Processes HTML using the given processors.
 //
 // Out of an abundance of caution, this is limited to documents that are
 // explicitly labeled as UTF-8 via Content-Type or <meta>. This could be
 // expanded in the future, as the risk of misinterpreting type or encoding is
 // rare and low-impact: producing `Link: rel=preload` headers for incorrect
 // refs, which would waste bytes.
-async function promoteLinkTagsToHeaders(payload: Response): Promise<Response> {
+async function processHTML(payload: Response, processors: HTMLProcessor[]): Promise<Response> {
   if (!payload.body) {
     return payload;
   }
@@ -343,19 +373,7 @@ async function promoteLinkTagsToHeaders(payload: Response): Promise<Response> {
   // document is in a non-ASCII-compatible encoding like UTF-16.
   [payload, toConsume] = teeResponse(payload);
 
-  let link_tags: {href: string, as: string}[] = [];
-  toConsume = new HTMLRewriter()
-    .on('link[rel~="preload" i][href][as]', {
-      element: (link: Element) => {
-        const href = link.getAttribute('href');
-        const as = link.getAttribute('as');
-        // Ensure the values can be placed inside a Link header without
-        // escaping or quoting.
-        if (href && !href.includes('>') && as?.match(TOKEN)) {
-          link_tags.push({href, as});
-        }
-      },
-    })
+  let rewriter = new HTMLRewriter()
     // Parse the meta tag, per the implementation in HTMLMetaCharsetParser::CheckForMetaCharset:
     // https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/html/parser/html_meta_charset_parser.cc;l=62-125;drc=7a0b88f6d5c015fd3c280b58c7a99d8e1dca28ac.
     // This differs slightly from what's described at https://github.com/whatwg/html/issues/6962, and
@@ -381,9 +399,13 @@ async function promoteLinkTagsToHeaders(payload: Response): Promise<Response> {
           known_utf8 = true;
         }
       },
-    })
-    .transform(toConsume);
-  await consumeBytes(toConsume.body, PAYLOAD_SIZE_LIMIT);
+    });
+  processors.forEach((p) => p.register(rewriter));
+  toConsume = rewriter.transform(toConsume);
+  const modifiedBody = await readIntoArray(toConsume.body, PAYLOAD_SIZE_LIMIT);
+  if (!modifiedBody) {
+    throw `The size of payload exceeds the limit ${PAYLOAD_SIZE_LIMIT}`;
+  }
 
   // NOTE: It's also possible for a <?xml encoding="utf-16"?> directive to
   // override <meta>, per
@@ -392,9 +414,18 @@ async function promoteLinkTagsToHeaders(payload: Response): Promise<Response> {
   // <?xml?>.) However, the case is very rare, and HTMLRewriter doesn't have a
   // handler for XML declarations, so we skip the check.
 
-  if (known_utf8 && link_tags.length) {
-    const link = link_tags.map(({href, as}) => `<${href}>;rel=preload;as=${as}`).join(',');
-    payload.headers.append('Link', link);
+  if (known_utf8) {
+    if (processors.some((p) => p.modified())) {
+      payload = new Response(modifiedBody, {
+        status: payload.status,
+        statusText: payload.statusText,
+        headers: payload.headers,
+      });
+      // TODO: This modifiedBody is later extracted again via the readIntoArray
+      // call in generateSxgResponse. Is this a significant performance hit? If
+      // so, return the array from this function.
+    }
+    processors.forEach((p) => p.onEnd(payload));
   }
   return payload;
 }
