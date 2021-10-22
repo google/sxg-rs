@@ -350,10 +350,9 @@ class SXGOnly {
     this.isSXG = isSXG;
   }
   register(rewriter: HTMLRewriter): void {
-    rewriter.on('meta[name=declare-issxg-var]', {
-      element: (meta: Element) => {
-        meta.replace(`<script>window.isSXG=${this.isSXG}</script>`,
-                     {html: true});
+    rewriter.on('script[data-issxg-var]', {
+      element: (script: Element) => {
+        script.setInnerContent(`window.isSXG=${this.isSXG}`);
         this.modified = true;
       },
     }).on('template[data-sxg-only]', {
