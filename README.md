@@ -87,6 +87,29 @@ to those. You can manually support cross-origin subresources by adding the
 appropriate Link header as
 [specified](https://github.com/WICG/webpackage/blob/main/explainers/signed-exchange-subresource-substitution.md).
 
+### SXG-only behavior
+
+There are two syntaxes for behavior that happens only when the page is viewed
+as an SXG. If you write:
+
+```html
+<script data-issxg-var>window.isSXG=false</script>
+```
+
+then its inner content will be replaced by `window.isSXG=true` in an SXG. This
+could be used as a custom dimension by which to slice web analytics.
+
+If you write:
+
+```html
+<template data-sxg-only>...</template>
+```
+
+then in an SXG, its inner content will be "unwrapped" out of the template and
+thus activated, and when non-SXG it will be deleted. Since SXGs can't Vary by
+Cookie, this could be used to add lazy-loaded personalization to the SXG, while
+not adding unnecesary bytes to the non-SXG.
+
 ### Preview in Chrome
 
 Optionally, preview the results in the browser:
