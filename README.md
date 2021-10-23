@@ -34,8 +34,7 @@ After installing, take the following steps.
 
 ### Verify and monitor
 
-This code was released in July 2021 and thus hasn't yet had a lot of real-world
-testing. After installing, please
+After installing, you may want to
 [verify](https://developers.google.com/search/docs/advanced/experience/signed-exchange#verify-sxg-setup)
 and
 [monitor](https://developers.google.com/search/docs/advanced/experience/signed-exchange#monitor-and-debug-sxg)
