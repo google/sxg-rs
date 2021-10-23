@@ -41,21 +41,32 @@ and
 [monitor](https://developers.google.com/search/docs/advanced/experience/signed-exchange#monitor-and-debug-sxg)
 the results.
 
-### Preload subresources
+### HTML processing
+
+The worker contains some HTML processors. To activate them, explicitly label the character encoding as UTF-8, either via:
+
+```http
+Content-Type: text/html;charset=utf-8
+```
+
+or via:
+
+```html
+<meta charset=utf-8>
+```
+
+#### Preload subresources
 
 LCP can be further improved by instructing Google Search to prefetch
 render-critical subresources for the page.
 
-#### Same-origin
+##### Same-origin
 
 Add a preload link tag to the page, such as:
 
 ```
 <link rel=preload as=image href="/foo.png">
 ```
-
-The page must also be declared as UTF-8, either via `Content-Type: text/html;
-charset=utf-8` or via `<meta charset="utf-8">`.
 
 sxg-rs will automatically convert these link tags into Link headers as needed for [SXG
 subresource
@@ -79,7 +90,7 @@ matches the output of:
 $ dump-signedexchange -uri "$SUBRESOURCE_URL" -headerIntegrity
 ```
 
-#### Cross-origin
+##### Cross-origin
 
 SXG preloading requires that the subresource is also an SXG. This worker
 assumes only same-origin resources are SXG, so its automatic logic is limited
@@ -87,7 +98,7 @@ to those. You can manually support cross-origin subresources by adding the
 appropriate Link header as
 [specified](https://github.com/WICG/webpackage/blob/main/explainers/signed-exchange-subresource-substitution.md).
 
-### SXG-only behavior
+#### SXG-only behavior
 
 There are two syntaxes for behavior that happens only when the page is viewed
 as an SXG. If you write:
