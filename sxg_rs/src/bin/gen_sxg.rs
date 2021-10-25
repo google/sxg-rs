@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use clap::Clap;
+use clap::Parser;
 use futures::executor;
 use std::fs;
 use sxg_rs::{fetcher::NULL_FETCHER, http_cache::NullCache, CreateSignedExchangeParams, SxgWorker};
 
 // TODO: Make this binary generally useful, by documenting the flags and giving them names.
 
-#[derive(Clap)]
+#[derive(Parser)]
 struct Opts {
     config_yaml: String,
     cert_pem: String,
