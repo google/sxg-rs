@@ -263,9 +263,18 @@ async function handleRequest(request: Request) {
         // simply use all http headers from the user.
         fallback = await fetch(request);
     }
-    fallback = await processHTML(fallback, [
-      new SXGOnly(false),
-    ]);
+    let fallwayback;
+    [fallback, fallwayback] = teeResponse(fallback);
+    try {
+      // If the body is HTML >8MB, processHTML will fail.
+      fallback = await processHTML(fallback, [
+        new SXGOnly(false),
+      ]);
+      fallwayback.body?.cancel();
+    } catch {
+      fallback.body?.cancel();
+      fallback = fallwayback;
+    }
     if (worker.shouldRespondDebugInfo() && e.toString) {
       let message = e.toString();
       return new Response(
