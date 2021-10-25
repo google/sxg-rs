@@ -623,7 +623,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cloudflare",
- "console 0.14.1",
+ "console 0.15.0",
  "ctrlc",
  "dialoguer",
  "pem",
@@ -678,6 +678,21 @@ dependencies = [
  "encode_unicode",
  "lazy_static",
  "libc",
+ "regex",
+ "terminal_size",
+ "unicode-width",
+ "winapi 0.3.9",
+]
+
+[[package]]
+name = "console"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a28b32d32ca44b70c3e4acd7db1babf555fa026e385fb95f18028f88848b3c31"
+dependencies = [
+ "encode_unicode",
+ "libc",
+ "once_cell",
  "regex",
  "terminal_size",
  "unicode-width",
@@ -955,11 +970,11 @@ dependencies = [
 
 [[package]]
 name = "dialoguer"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9dd058f8b65922819fabb4a41e7d1964e56344042c26efbccd465202c23fa0c"
+checksum = "61579ada4ec0c6031cfac3f86fdba0d195a7ebeb5e36693bd53cb5999a25beeb"
 dependencies = [
- "console 0.14.1",
+ "console 0.15.0",
  "lazy_static",
  "tempfile",
  "zeroize",
@@ -2438,9 +2453,9 @@ checksum = "3cacbb3c4ff353b534a67fb8d7524d00229da4cb1dc8c79f4db96e375ab5b619"
 
 [[package]]
 name = "pem"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f2373df5233932a893d3bc2c78a0bf3f6d12590a1edd546b4fbefcac32c5c0f"
+checksum = "06673860db84d02a63942fa69cd9543f2624a5df3aea7f33173048fa7ad5cf1a"
 dependencies = [
  "base64 0.13.0",
  "once_cell",
@@ -4108,9 +4123,9 @@ dependencies = [
 
 [[package]]
 name = "wrangler"
-version = "1.19.3"
+version = "1.19.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89266eb894f0b611203234a45cfda6250f61b2c640bf94d07803bd4884e5e39e"
+checksum = "ece3ca4877e4eaa86badeb68dcf81a3fd6bd576de2f1ef844dd4179854c22122"
 dependencies = [
  "anyhow",
  "atty",
