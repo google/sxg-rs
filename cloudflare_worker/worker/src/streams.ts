@@ -63,6 +63,10 @@ export async function readArrayPrefix(inputStream: ReadableStream<Uint8Array> | 
   return reachedEOS ? null : received;
 }
 
+// Bytes of contiguous memory to allocate at a time.
+// https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/platform/wtf/shared_buffer.h;l=95;drc=5539ecff898c79b0771340051d62bf81649e448d
+const SEGMENT_SIZE = 0x1000;
+
 // Consumes the input stream, and returns a byte array containing the data in
 // the input stream, not allocating more than maxSize. If the input stream
 // contains more bytes than maxSize, returns null.
@@ -73,23 +77,46 @@ export async function readIntoArray(inputStream: ReadableStream<Uint8Array> | nu
   // https://community.cloudflare.com/t/running-into-unimplemented-functionality/77343.)
   // Therefore, we cannot rely on Response.arrayBuffer() and must re-implement
   // https://streams.spec.whatwg.org/#readablestreamdefaultreader-read-all-bytes.
+  // This is a rough port of ScriptPromise::arrayBuffer
+  // (https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/fetch/body.cc;l=186;drc=5539ecff898c79b0771340051d62bf81649e448d),
+  // on the assumption that its performance has been well-informed. (That may
+  // not be a safe assumption; it looks like its behavior hasn't changed in
+  // quite a while.)
   if (inputStream === null) {
     return new Uint8Array([]);
   }
-  // TODO: As a performance optimization, maybe start with a `Content-Length`
-  // sized buffer and resize exponentially if necessary. Alternatively, use the
-  // limitBytes() transformer in streamFrom, and construct a flyweight Response
-  // object here in order to call arrayBuffer().
-  const received = new Uint8Array(maxSize);
+  let segments: Uint8Array[] = [];
   let size = 0;
-  let reachedEOS = await streamFrom(inputStream, maxSize, (currentPos, value) => {
-    if (currentPos + value.byteLength <= maxSize) {
+  let reachedEOS = await streamFrom(inputStream, maxSize, (currentPos: number, value: Uint8Array) => {
+    //console.log(`iteration [${currentPos}, ${value.length}]`);
+    for (let innerPos = 0; innerPos < value.length;) {
+      // Allocate a new segment if the last one is full (and on first run).
+      const segmentPos = (currentPos + innerPos) % SEGMENT_SIZE;
+      if (segmentPos === 0) {
+        segments.push(new Uint8Array(SEGMENT_SIZE));
+      }
+      // Write the largest contiguous array possible (to the end of value or
+      // segment, whichever's first).
+      const lastSegment = segments[segments.length-1] as Uint8Array;
+      const innerEnd = Math.min(value.length,
+                                innerPos + (lastSegment.length - segmentPos));
       // value must be Uint8Array, or else this set() will overflow:
-      received.set(value, currentPos);
-      size = currentPos + value.byteLength;
+      lastSegment.set(value.subarray(innerPos, innerEnd), segmentPos);
+      innerPos = innerEnd;
     }
+    size = currentPos + value.length;
   });
-  return reachedEOS ? received.subarray(0, size) : null;
+  if (!reachedEOS) {
+    return null;
+  }
+  const buffer = new Uint8Array(size);
+  let bufferPos = 0;
+  segments.forEach((segment) => {
+    const end = Math.min(segment.length, size - bufferPos);
+    buffer.set(segment.subarray(0, end), bufferPos);
+    bufferPos += end;
+  });
+  return buffer;
 }
 
 export function teeResponse(response: Response): [Response, Response] {
