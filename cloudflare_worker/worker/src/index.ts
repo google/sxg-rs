@@ -293,6 +293,8 @@ async function handleRequest(request: Request) {
   }
 }
 
+// SXGs larger than 8MB are not accepted by
+// https://github.com/google/webpackager/blob/main/docs/cache_requirements.md.
 const PAYLOAD_SIZE_LIMIT = 8000000;
 
 // https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.6
@@ -504,9 +506,6 @@ async function generateSxgResponse(fallbackUrl: string, certOrigin: string, payl
   return responseFromWasm(sxg);
 }
 
-// SXGs larger than 8MB are not accepted by
-// https://github.com/google/webpackager/blob/main/docs/cache_requirements.md.
-const MAX_BYTES: number = 8000000;
 async function fetcher(request: WasmRequest): Promise<WasmResponse> {
   let requestInit: RequestInit = {
       headers: request.headers,
@@ -517,32 +516,19 @@ async function fetcher(request: WasmRequest): Promise<WasmResponse> {
   }
   const response = await fetch(request.url, requestInit);
 
-  let body: ArrayBuffer;
+  let body;
   if (response.body) {
-    const bodyReader = response.body.pipeThrough(limitBytes(MAX_BYTES));
-    body = await new Response(bodyReader).arrayBuffer();
+    body = await readIntoArray(response.body, PAYLOAD_SIZE_LIMIT);
+    if (!body) {
+      throw `The size of payload exceeds the limit ${PAYLOAD_SIZE_LIMIT}`;
+    }
   } else {
-    body = new ArrayBuffer(0);
+    body = new Uint8Array(0);
   }
   return await wasmFromResponse(new Response(body, {
     headers: response.headers,
     status: response.status,
   }));
-}
-
-function limitBytes(maxBytes: number): TransformStream {
-  let bytes = 0;
-  return new TransformStream({
-    transform: (chunk: Uint8Array, controller: TransformStreamDefaultController) => {
-      bytes += chunk.byteLength;
-      if (bytes <= maxBytes) {
-        controller.enqueue(chunk);
-      } else {
-        // TODO: Should this be controller.error(...) instead?
-        controller.terminate();
-      }
-    },
-  });
 }
 
 type HttpCache = {
