@@ -55,8 +55,7 @@ async function wasmFromResponse(response: Response): Promise<WasmResponse> {
 // promise resolves, the inputStream is closed and need not be canceled.
 //
 // (This function could be genericized to all TypedArrays, but no such
-// interface exists in TypeScript, and not all uses of it below could be
-// generalized.)
+// interface exists in TypeScript.)
 async function streamFrom(inputStream: ReadableStream, maxSize: number,
                           process?: (currentPos: number, value: Uint8Array) => void): Promise<boolean> {
   const reader = inputStream.getReader();
@@ -65,7 +64,7 @@ async function streamFrom(inputStream: ReadableStream, maxSize: number,
     const { value, done } = await reader.read();
     if (value) {
       process?.(receivedSize, value);
-      receivedSize += value.byteLength;
+      receivedSize += value.length;
       if (receivedSize > maxSize) {
         reader.releaseLock();
         inputStream.cancel();
@@ -87,19 +86,26 @@ async function readArrayPrefix(inputStream: ReadableStream<Uint8Array> | null, s
     return new Uint8Array([]);
   }
   const received = new Uint8Array(size);
-  let reachedEOS = await streamFrom(inputStream, size, (currentPos, value) => {
-    if (currentPos + value.byteLength > size) {
+  let reachedEOS = await streamFrom(inputStream, size, (currentPos: number, value: Uint8Array) => {
+    if (currentPos + value.length > size) {
       value = value.subarray(0, size - currentPos);
     }
+    // value must be Uint8Array, or else this set() will overflow:
     received.set(value, currentPos);
   });
   return reachedEOS ? null : received;
 }
 
 // Consumes the input stream, and returns a byte array containing the data in
-// the input stream. If the input stream contains more bytes than `maxSize`,
-// returns null.
-async function readIntoArray(inputStream: ReadableStream<Uint8Array> | null, maxSize: number): Promise<Uint8Array | null> {
+// the input stream, not allocating more than maxSize. If the input stream
+// contains more bytes than maxSize, returns null.
+async function readIntoArray(inputStream: ReadableStream<Uint8Array> | null,
+                             maxSize: number): Promise<Uint8Array | null> {
+  // NOTE: maxSize could be implemented more simply using TransformStream, but
+  // non-identity TransformStreams don't work on Cloudflare Workers. (See
+  // https://community.cloudflare.com/t/running-into-unimplemented-functionality/77343.)
+  // Therefore, we cannot rely on Response.arrayBuffer() and must re-implement
+  // https://streams.spec.whatwg.org/#readablestreamdefaultreader-read-all-bytes.
   if (inputStream === null) {
     return new Uint8Array([]);
   }
@@ -111,6 +117,7 @@ async function readIntoArray(inputStream: ReadableStream<Uint8Array> | null, max
   let size = 0;
   let reachedEOS = await streamFrom(inputStream, maxSize, (currentPos, value) => {
     if (currentPos + value.byteLength <= maxSize) {
+      // value must be Uint8Array, or else this set() will overflow:
       received.set(value, currentPos);
       size = currentPos + value.byteLength;
     }
@@ -220,6 +227,7 @@ async function handleRequest(request: Request) {
   let worker = await workerPromise;
   let sxgPayload: Response | undefined;
   let fallback: Response | undefined;
+  let response: Response | undefined;
   try {
     const ocsp = await getOcsp();
     const presetContent = worker.servePresetContent(request.url, ocsp);
@@ -252,9 +260,7 @@ async function handleRequest(request: Request) {
       new PromoteLinkTagsToHeaders,
       new SXGOnly(true),
     ]);
-    let response = await generateSxgResponse(fallbackUrl, certOrigin, sxgPayload);
-    fallback.body?.cancel();
-    return response;
+    response = await generateSxgResponse(fallbackUrl, certOrigin, sxgPayload);
   } catch (e: any) {
     sxgPayload?.body?.cancel();
     if (!fallback) {
@@ -291,6 +297,8 @@ async function handleRequest(request: Request) {
       return fallback;
     }
   }
+  fallback.body?.cancel();
+  return response;
 }
 
 // SXGs larger than 8MB are not accepted by
@@ -496,7 +504,7 @@ async function generateSxgResponse(fallbackUrl: string, certOrigin: string, payl
     certOrigin,
     payload.status,
     payloadHeaders,
-    new Uint8Array(payloadBody),
+    payloadBody,
     now_in_seconds,
     signer,
     fetcher,
