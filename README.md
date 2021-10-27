@@ -107,7 +107,8 @@ as an SXG. If you write:
 ```
 
 then its inner content will be replaced by `window.isSXG=true` in an SXG. This
-could be used as a custom dimension by which to slice web analytics.
+could be used as a custom dimension by which to slice web analytics, or as a
+cue to fetch a fresh CSRF token.
 
 If you write:
 
