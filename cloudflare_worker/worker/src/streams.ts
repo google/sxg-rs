@@ -89,9 +89,9 @@ export async function readIntoArray(inputStream: ReadableStream<Uint8Array> | nu
   }
   let segments: Uint8Array[] = [];
   let size = 0;
-  let reachedEOS = await streamFrom(inputStream, maxSize, (currentPos: number, value: Uint8Array) => {
+  let reachedEOS = await streamFrom(inputStream, maxSize, (_currentPos: number, value: Uint8Array) => {
     segments.push(value);
-    size = currentPos + value.length;
+    size += value.length;
   });
   // End-of-stream was not reached before maxSize.
   if (!reachedEOS) {
