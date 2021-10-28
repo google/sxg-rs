@@ -63,13 +63,15 @@ export async function readArrayPrefix(inputStream: ReadableStream<Uint8Array> | 
   return reachedEOS ? null : received;
 }
 
-// Bytes of contiguous memory to allocate at a time.
-// https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/platform/wtf/shared_buffer.h;l=95;drc=5539ecff898c79b0771340051d62bf81649e448d
-const SEGMENT_SIZE = 0x1000;
-
 // Consumes the input stream, and returns a byte array containing the data in
-// the input stream, not allocating more than maxSize. If the input stream
+// the input stream. Allocates about 2x the size of the stream (during the
+// transfer from discontiguous to contiguous memory). If the input stream
 // contains more bytes than maxSize, returns null.
+//
+// TODO: Consider reducing memory usage at the expense of increased CPU, by
+// allocating a contiguous buffer upfront and growing it exponentially as
+// necessary. It would be good to do so with a benchmark and an approximate
+// distribution of body sizes in the wild (e.g. from HTTP Archive).
 export async function readIntoArray(inputStream: ReadableStream<Uint8Array> | null,
                                     maxSize: number): Promise<Uint8Array | null> {
   // NOTE: maxSize could be implemented more simply using TransformStream, but
@@ -77,38 +79,29 @@ export async function readIntoArray(inputStream: ReadableStream<Uint8Array> | nu
   // https://community.cloudflare.com/t/running-into-unimplemented-functionality/77343.)
   // Therefore, we cannot rely on Response.arrayBuffer() and must re-implement
   // https://streams.spec.whatwg.org/#readablestreamdefaultreader-read-all-bytes.
-  // This is a rough port of ScriptPromise::arrayBuffer
+  // This is a rough port of blink::ScriptPromise::arrayBuffer
   // (https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/fetch/body.cc;l=186;drc=5539ecff898c79b0771340051d62bf81649e448d),
-  // on the assumption that its performance has been well-informed. (That may
-  // not be a safe assumption; it looks like its behavior hasn't changed in
-  // quite a while.)
+  // but using the variable-length chunks that the Streams API provides, rather
+  // than 4K segments as defined by WTF::SharedBuffer::kSegmentSize
+  // (https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/platform/wtf/shared_buffer.h;l=95;drc=5539ecff898c79b0771340051d62bf81649e448d).
   if (inputStream === null) {
     return new Uint8Array([]);
   }
   let segments: Uint8Array[] = [];
   let size = 0;
   let reachedEOS = await streamFrom(inputStream, maxSize, (currentPos: number, value: Uint8Array) => {
-    //console.log(`iteration [${currentPos}, ${value.length}]`);
-    for (let innerPos = 0; innerPos < value.length;) {
-      // Allocate a new segment if the last one is full (and on first run).
-      const segmentPos = (currentPos + innerPos) % SEGMENT_SIZE;
-      if (segmentPos === 0) {
-        segments.push(new Uint8Array(SEGMENT_SIZE));
-      }
-      // Write the largest contiguous array possible (to the end of value or
-      // segment, whichever's first).
-      const lastSegment = segments[segments.length-1] as Uint8Array;
-      const innerEnd = Math.min(value.length,
-                                innerPos + (lastSegment.length - segmentPos));
-      // value must be Uint8Array, or else this set() will overflow:
-      lastSegment.set(value.subarray(innerPos, innerEnd), segmentPos);
-      innerPos = innerEnd;
-    }
+    segments.push(value);
     size = currentPos + value.length;
   });
+  // End-of-stream was not reached before maxSize.
   if (!reachedEOS) {
     return null;
   }
+  // Avoid copying to a new buffer if there's no need to concatenate.
+  if (segments.length === 1) {
+    return segments[0] as Uint8Array;
+  }
+  // Concatenate segments into a contiguous buffer.
   const buffer = new Uint8Array(size);
   let bufferPos = 0;
   segments.forEach((segment) => {
