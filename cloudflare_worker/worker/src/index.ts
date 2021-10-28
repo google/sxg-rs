@@ -18,6 +18,11 @@ import {
   signer,
 } from './signer';
 import {
+  readArrayPrefix,
+  readIntoArray,
+  teeResponse,
+} from './streams';
+import {
   arrayBufferToBase64,
 } from './utils';
 import {
@@ -46,89 +51,6 @@ async function wasmFromResponse(response: Response): Promise<WasmResponse> {
     headers: Array.from(response.headers),
     status: response.status,
   };
-}
-
-// Calls process for each chunk from inputStream, up to maxSize. The last chunk
-// may extend beyond maxSize; process should handle this case.
-//
-// Returns true if inputStream's total byte length is <= maxSize. After the
-// promise resolves, the inputStream is closed and need not be canceled.
-//
-// (This function could be genericized to all TypedArrays, but no such
-// interface exists in TypeScript, and not all uses of it below could be
-// generalized.)
-async function streamFrom(inputStream: ReadableStream, maxSize: number,
-                          process?: (currentPos: number, value: Uint8Array) => void): Promise<boolean> {
-  const reader = inputStream.getReader();
-  let receivedSize = 0;
-  while (true) {
-    const { value, done } = await reader.read();
-    if (value) {
-      process?.(receivedSize, value);
-      receivedSize += value.byteLength;
-      if (receivedSize > maxSize) {
-        reader.releaseLock();
-        inputStream.cancel();
-        return false;
-      }
-    }
-    if (done) {
-      // This implies closed per
-      // https://streams.spec.whatwg.org/#default-reader-read.
-      return true;
-    }
-  }
-}
-
-// Consumes the input stream, and returns a byte array containing the first
-// size bytes, or null if there aren't enough bytes.
-async function readArrayPrefix(inputStream: ReadableStream<Uint8Array> | null, size: number): Promise<Uint8Array | null> {
-  if (inputStream === null) {
-    return new Uint8Array([]);
-  }
-  const received = new Uint8Array(size);
-  let reachedEOS = await streamFrom(inputStream, size, (currentPos, value) => {
-    if (currentPos + value.byteLength > size) {
-      value = value.subarray(0, size - currentPos);
-    }
-    received.set(value, currentPos);
-  });
-  return reachedEOS ? null : received;
-}
-
-// Consumes the input stream, and returns a byte array containing the data in
-// the input stream. If the input stream contains more bytes than `maxSize`,
-// returns null.
-async function readIntoArray(inputStream: ReadableStream<Uint8Array> | null, maxSize: number): Promise<Uint8Array | null> {
-  if (inputStream === null) {
-    return new Uint8Array([]);
-  }
-  // TODO: As a performance optimization, maybe start with a `Content-Length`
-  // sized buffer and resize exponentially if necessary. Alternatively, use the
-  // limitBytes() transformer in streamFrom, and construct a flyweight Response
-  // object here in order to call arrayBuffer().
-  const received = new Uint8Array(maxSize);
-  let size = 0;
-  let reachedEOS = await streamFrom(inputStream, maxSize, (currentPos, value) => {
-    if (currentPos + value.byteLength <= maxSize) {
-      received.set(value, currentPos);
-      size = currentPos + value.byteLength;
-    }
-  });
-  return reachedEOS ? received.subarray(0, size) : null;
-}
-
-function teeResponse(response: Response): [Response, Response] {
-  const {
-    body,
-    headers,
-    status,
-  } = response;
-  const [body1, body2] = body?.tee() ?? [null, null];
-  return [
-      new Response(body1, { headers, status }),
-      new Response(body2, { headers, status }),
-  ];
 }
 
 // Fetches latest OCSP from the CA, and writes it into key-value store.
@@ -220,6 +142,7 @@ async function handleRequest(request: Request) {
   let worker = await workerPromise;
   let sxgPayload: Response | undefined;
   let fallback: Response | undefined;
+  let response: Response | undefined;
   try {
     const ocsp = await getOcsp();
     const presetContent = worker.servePresetContent(request.url, ocsp);
@@ -252,9 +175,7 @@ async function handleRequest(request: Request) {
       new PromoteLinkTagsToHeaders,
       new SXGOnly(true),
     ]);
-    let response = await generateSxgResponse(fallbackUrl, certOrigin, sxgPayload);
-    fallback.body?.cancel();
-    return response;
+    response = await generateSxgResponse(fallbackUrl, certOrigin, sxgPayload);
   } catch (e: any) {
     sxgPayload?.body?.cancel();
     if (!fallback) {
@@ -291,6 +212,8 @@ async function handleRequest(request: Request) {
       return fallback;
     }
   }
+  fallback.body?.cancel();
+  return response;
 }
 
 // SXGs larger than 8MB are not accepted by
@@ -496,7 +419,7 @@ async function generateSxgResponse(fallbackUrl: string, certOrigin: string, payl
     certOrigin,
     payload.status,
     payloadHeaders,
-    new Uint8Array(payloadBody),
+    payloadBody,
     now_in_seconds,
     signer,
     fetcher,
