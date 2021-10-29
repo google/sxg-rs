@@ -32,12 +32,15 @@ describe('readIntoArray', () => {
   it('reads a stream with two chunks', async () => {
     const {writable, readable} = new TransformStream;
     const writer = writable.getWriter();
-    for (let i = 0; i < 2; i++) {
-      writer.write(new TextEncoder().encode('hello'));
-    }
-    writer.close();
+    const write = (async() => {
+      for (let i = 0; i < 2; i++) {
+        await writer.write(new TextEncoder().encode('hello'));
+      }
+      await writer.close();
+    })();
     const output = await readIntoArray(readable, 0x1000);
     expect(output).toEqual(new TextEncoder().encode('hellohello'));
+    await write;
   });
   it('errors if stream > maxSize', async () => {
     const input = new Response('hello').body;
@@ -47,11 +50,14 @@ describe('readIntoArray', () => {
   it('errors if second chunk > maxSize', async () => {
     const {writable, readable} = new TransformStream;
     const writer = writable.getWriter();
-    for (let i = 0; i < 2; i++) {
-      writer.write(new TextEncoder().encode('hello'));
-    }
-    writer.close();
+    const write = (async () => {
+      for (let i = 0; i < 2; i++) {
+        await writer.write(new TextEncoder().encode('hello'));
+      }
+      // Don't close the writer; it'll be cancelled by readIntoArray.
+    })();
     const output = await readIntoArray(readable, 7);
     expect(output).toBe(null);
+    await write;
   });
 })
