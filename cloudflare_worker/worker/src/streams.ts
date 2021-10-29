@@ -64,8 +64,14 @@ export async function readArrayPrefix(inputStream: ReadableStream<Uint8Array> | 
 }
 
 // Consumes the input stream, and returns a byte array containing the data in
-// the input stream, not allocating more than maxSize. If the input stream
+// the input stream. Allocates about 2x the size of the stream (during the
+// transfer from discontiguous to contiguous memory). If the input stream
 // contains more bytes than maxSize, returns null.
+//
+// TODO: Consider reducing memory usage at the expense of increased CPU, by
+// allocating a contiguous buffer upfront and growing it exponentially as
+// necessary. It would be good to do so with a benchmark and an approximate
+// distribution of body sizes in the wild (e.g. from HTTP Archive).
 export async function readIntoArray(inputStream: ReadableStream<Uint8Array> | null,
                                     maxSize: number): Promise<Uint8Array | null> {
   // NOTE: maxSize could be implemented more simply using TransformStream, but
@@ -73,23 +79,37 @@ export async function readIntoArray(inputStream: ReadableStream<Uint8Array> | nu
   // https://community.cloudflare.com/t/running-into-unimplemented-functionality/77343.)
   // Therefore, we cannot rely on Response.arrayBuffer() and must re-implement
   // https://streams.spec.whatwg.org/#readablestreamdefaultreader-read-all-bytes.
+  // This is a rough port of blink::ScriptPromise::arrayBuffer
+  // (https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/fetch/body.cc;l=186;drc=5539ecff898c79b0771340051d62bf81649e448d),
+  // but using the variable-length chunks that the Streams API provides, rather
+  // than 4K segments as defined by WTF::SharedBuffer::kSegmentSize
+  // (https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/platform/wtf/shared_buffer.h;l=95;drc=5539ecff898c79b0771340051d62bf81649e448d).
   if (inputStream === null) {
     return new Uint8Array([]);
   }
-  // TODO: As a performance optimization, maybe start with a `Content-Length`
-  // sized buffer and resize exponentially if necessary. Alternatively, use the
-  // limitBytes() transformer in streamFrom, and construct a flyweight Response
-  // object here in order to call arrayBuffer().
-  const received = new Uint8Array(maxSize);
+  let segments: Uint8Array[] = [];
   let size = 0;
-  let reachedEOS = await streamFrom(inputStream, maxSize, (currentPos, value) => {
-    if (currentPos + value.byteLength <= maxSize) {
-      // value must be Uint8Array, or else this set() will overflow:
-      received.set(value, currentPos);
-      size = currentPos + value.byteLength;
-    }
+  let reachedEOS = await streamFrom(inputStream, maxSize, (_currentPos: number, value: Uint8Array) => {
+    segments.push(value);
+    size += value.length;
   });
-  return reachedEOS ? received.subarray(0, size) : null;
+  // End-of-stream was not reached before maxSize.
+  if (!reachedEOS) {
+    return null;
+  }
+  // Avoid copying to a new buffer if there's no need to concatenate.
+  if (segments.length === 1) {
+    return segments[0] as Uint8Array;
+  }
+  // Concatenate segments into a contiguous buffer.
+  const buffer = new Uint8Array(size);
+  let bufferPos = 0;
+  segments.forEach((segment) => {
+    const end = Math.min(segment.length, size - bufferPos);
+    buffer.set(segment.subarray(0, end), bufferPos);
+    bufferPos += end;
+  });
+  return buffer;
 }
 
 export function teeResponse(response: Response): [Response, Response] {
