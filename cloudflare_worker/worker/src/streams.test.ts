@@ -44,4 +44,14 @@ describe('readIntoArray', () => {
     const output = await readIntoArray(input, 2);
     expect(output).toBe(null);
   });
+  it('errors if second chunk > maxSize', async () => {
+    const {writable, readable} = new TransformStream;
+    const writer = writable.getWriter();
+    for (let i = 0; i < 2; i++) {
+      writer.write(new TextEncoder().encode('hello'));
+    }
+    writer.close();
+    const output = await readIntoArray(readable, 7);
+    expect(output).toBe(null);
+  });
 })
