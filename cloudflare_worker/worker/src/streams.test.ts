@@ -31,8 +31,8 @@ describe('readIntoArray', () => {
   });
   it('reads a stream with two chunks', async () => {
     const {writable, readable} = new TransformStream;
-    const writer = writable.getWriter();
     const write = (async() => {
+      const writer = writable.getWriter();
       for (let i = 0; i < 2; i++) {
         await writer.write(new TextEncoder().encode('hello'));
       }
@@ -49,8 +49,8 @@ describe('readIntoArray', () => {
   });
   it('errors if second chunk > maxSize', async () => {
     const {writable, readable} = new TransformStream;
-    const writer = writable.getWriter();
     const write = (async () => {
+      const writer = writable.getWriter();
       for (let i = 0; i < 2; i++) {
         await writer.write(new TextEncoder().encode('hello'));
       }
