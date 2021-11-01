@@ -114,7 +114,7 @@ jobs:
         run: |
           sed "s|private_key_base64: .*|private_key_base64: '$(go run ./credentials/parse_private_key.go <credentials/privkey.pem | tail -1)'|" \
             fastly_compute/config.example.yaml >config.yaml
-          cargo run -p sxg_rs --bin gen_sxg --features=rust_signer -- \
+          cargo run -p tools -- gen-sxg -- \
             config.yaml credentials/cert.pem credentials/issuer.pem \
             test.cert test.sxg
           dump-signedexchange -i test.sxg -cert test.cert -verify

@@ -53,7 +53,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    ```
    All following steps in this `README.md` should be done in this folder.
 
-1. Run `cargo run -p config-generator` and follow the command line prompt.
+1. Run `cargo run -p tools -- gen-config` and follow the command line prompt.
    This command will creates a `wrangler.toml` that can be modified futher if desired.
 
    - To find Cloudflare **account ID** and **zone ID**,
@@ -89,7 +89,7 @@ The certificates need to be renewed every 90 days.
 
 1. Follow [these steps](../credentials/README.md#renew-certificate) to renew
    the certificate.
-1. Run `cargo run -p config-generator`.
+1. Run `cargo run -p tools -- gen-config`.
 1. Run `./publish.sh` to restart the worker.
 
 ## Uninstall
