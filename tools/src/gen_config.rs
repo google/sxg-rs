@@ -152,7 +152,7 @@ fn read_existing_config() -> (WranglerConfig, bool) {
     (wrangler_config, exists)
 }
 
-pub fn main() -> Result<(), std::io::Error> {
+pub fn main() -> Result<()> {
     goto_repository_root()?;
     let (cert_pem, issuer_pem) = read_certificates();
     let (mut wrangler_config, exists) = read_existing_config();

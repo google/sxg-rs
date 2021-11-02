@@ -87,7 +87,7 @@ fn to_url_prefix(dirname: &str) -> String {
     format!("/{}/", dirname.trim_matches('/'))
 }
 
-fn get_der(pem_text: &str, expected_tag: &str) -> Result<Vec<u8>> {
+pub fn get_der(pem_text: &str, expected_tag: &str) -> Result<Vec<u8>> {
     for pem in ::pem::parse_many(pem_text).map_err(Error::new)? {
         if pem.tag == expected_tag {
             return Ok(pem.contents);

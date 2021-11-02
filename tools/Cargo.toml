@@ -21,10 +21,12 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0.44"
+base64 = "0.13.0"
 clap = "3.0.0-beta.5"
 cloudflare = "0.8.7"
 console = "0.15.0"
 ctrlc = "3.2.1"
+der-parser = { version = "6.0.0", features = ["bigint", "serialize"] }
 dialoguer = "0.9.0"
 futures = { version = "0.3.17", features = ["executor"] }
 pem = "1.0.1"
