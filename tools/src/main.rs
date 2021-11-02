@@ -21,6 +21,7 @@ use anyhow::Result;
 use clap::Parser;
 
 #[derive(Parser)]
+#[allow(clippy::enum_variant_names)]
 enum SubCommand {
     GenConfig,
     GenDevCert(gen_dev_cert::Opts),
