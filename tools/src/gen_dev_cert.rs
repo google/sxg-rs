@@ -17,7 +17,8 @@ use clap::Parser;
 use std::fs::write;
 
 use crate::linux_commands::{
-    create_certificate, create_certificate_request_pem, create_private_key_pem, get_public_key_pem,
+    create_certificate, create_certificate_request_pem, create_private_key_pem,
+    get_certificate_sha256, write_new_file,
 };
 
 #[derive(Parser)]
@@ -33,10 +34,8 @@ pub fn main(opts: Opts) -> Result<()> {
     const CERT_FILE: &str = "cert.pem";
     const ISSUER_FILE: &str = "issuer.pem";
     const CERT_SHA256_FILE: &str = "cert_sha256.txt";
-    let private_key_pem = create_private_key_pem()?;
-    write(PRIVKEY_FILE, &private_key_pem)?;
-    let cert_csr = create_certificate_request_pem(&opts.domain, PRIVKEY_FILE)?;
-    write(CERT_CSR_FILE, &cert_csr)?;
+    create_private_key_pem(PRIVKEY_FILE)?;
+    create_certificate_request_pem(&opts.domain, PRIVKEY_FILE, CERT_CSR_FILE)?;
     write(
         EXT_FILE,
         format!(
@@ -44,15 +43,11 @@ pub fn main(opts: Opts) -> Result<()> {
             &opts.domain,
         ),
     )?;
-    let cert_pem = create_certificate(PRIVKEY_FILE, CERT_CSR_FILE, EXT_FILE)?;
-    write(CERT_FILE, &cert_pem)?;
-    write(ISSUER_FILE, &cert_pem)?;
-    let public_key_pem = get_public_key_pem(CERT_FILE)?;
-    let public_key_der = sxg_rs::config::get_der(&public_key_pem, "PUBLIC KEY")?;
-    let cert_sha256 = sxg_rs::utils::get_sha(&public_key_der);
-    write(
+    let cert_pem = create_certificate(PRIVKEY_FILE, CERT_CSR_FILE, EXT_FILE, CERT_FILE)?;
+    write_new_file(ISSUER_FILE, &cert_pem)?;
+    write_new_file(
         CERT_SHA256_FILE,
-        base64::encode_config(&cert_sha256, base64::URL_SAFE_NO_PAD),
+        base64::encode_config(&get_certificate_sha256(CERT_FILE)?, base64::URL_SAFE_NO_PAD),
     )?;
     Ok(())
 }

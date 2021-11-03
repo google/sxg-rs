@@ -93,7 +93,10 @@ pub fn get_der(pem_text: &str, expected_tag: &str) -> Result<Vec<u8>> {
             return Ok(pem.contents);
         }
     }
-    Err(anyhow!("The PEM file does not contains the expected block"))
+    Err(anyhow!(
+        r#"The PEM file does not contains "{}" block"#,
+        expected_tag
+    ))
 }
 
 #[cfg(test)]
