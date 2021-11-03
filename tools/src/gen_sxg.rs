@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use anyhow::Result;
 use clap::Parser;
 use futures::executor;
 use std::fs;
@@ -28,7 +29,7 @@ pub struct Opts {
     out_sxg: String,
 }
 
-pub fn main(opts: Opts) -> Result<(), std::io::Error> {
+pub fn main(opts: Opts) -> Result<()> {
     let worker = SxgWorker::new(
         &fs::read_to_string(opts.config_yaml).unwrap(),
         &fs::read_to_string(opts.cert_pem).unwrap(),

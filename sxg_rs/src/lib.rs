@@ -27,7 +27,7 @@ mod ocsp;
 pub mod signature;
 mod structured_header;
 mod sxg;
-mod utils;
+pub mod utils;
 #[cfg(feature = "wasm")]
 mod wasm_worker;
 
