@@ -20,7 +20,7 @@ use sxg_rs::{fetcher::NULL_FETCHER, http_cache::NullCache, CreateSignedExchangeP
 // TODO: Make this binary generally useful, by documenting the flags and giving them names.
 
 #[derive(Parser)]
-struct Opts {
+pub struct Opts {
     config_yaml: String,
     cert_pem: String,
     issuer_pem: String,
@@ -28,8 +28,7 @@ struct Opts {
     out_sxg: String,
 }
 
-fn main() -> Result<(), std::io::Error> {
-    let opts = Opts::parse();
+pub fn main(opts: Opts) -> Result<(), std::io::Error> {
     let worker = SxgWorker::new(
         &fs::read_to_string(opts.config_yaml).unwrap(),
         &fs::read_to_string(opts.cert_pem).unwrap(),

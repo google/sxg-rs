@@ -1,8 +1,7 @@
 [workspace]
 members = [
   "cloudflare_worker",
-  "config_generator",
   "fastly_compute",
   "sxg_rs",
+  "tools",
 ]
-

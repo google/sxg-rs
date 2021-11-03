@@ -121,7 +121,7 @@ async function getOcsp() {
 // wrangler publish + workers_dev = true:  https://sxg.user.workers.dev/
 // wrangler publish + workers_dev = false: https://my_domain.com/
 //
-// So config-generator sets HTML_HOST = my_domain.com when workers_dev is true.
+// So gen-config tool sets HTML_HOST = my_domain.com when workers_dev is true.
 //
 // For wrangler dev, add CERT_ORIGIN = 'http://localhost:8787' to [vars] in
 // wrangler.toml. Afterwards, set it to '' for production.

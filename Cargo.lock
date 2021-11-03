@@ -618,25 +618,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "config-generator"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cloudflare",
- "console 0.15.0",
- "ctrlc",
- "dialoguer",
- "pem",
- "serde 1.0.130",
- "serde_json",
- "serde_yaml",
- "sxg_rs",
- "toml",
- "url",
- "wrangler",
-]
-
-[[package]]
 name = "console"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3699,6 +3680,27 @@ dependencies = [
  "chrono",
  "combine",
  "linked-hash-map",
+]
+
+[[package]]
+name = "tools"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap 3.0.0-beta.5",
+ "cloudflare",
+ "console 0.15.0",
+ "ctrlc",
+ "dialoguer",
+ "futures",
+ "pem",
+ "serde 1.0.130",
+ "serde_json",
+ "serde_yaml",
+ "sxg_rs",
+ "toml",
+ "url",
+ "wrangler",
 ]
 
 [[package]]
