@@ -14,6 +14,7 @@
 
 mod cbor;
 pub mod config;
+pub mod crypto;
 pub mod fetcher;
 mod header_integrity;
 pub mod headers;

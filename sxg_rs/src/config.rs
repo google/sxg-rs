@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::{anyhow, Error, Result};
+use crate::crypto::get_der_from_pem;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -60,8 +61,8 @@ fn lowercase_all(names: BTreeSet<String>) -> BTreeSet<String> {
 impl Config {
     pub fn new(input_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<Self> {
         let input: ConfigInput = serde_yaml::from_str(input_yaml)?;
-        let cert_der = get_der(cert_pem, "CERTIFICATE")?;
-        let issuer_der = get_der(issuer_pem, "CERTIFICATE")?;
+        let cert_der = get_der_from_pem(cert_pem, "CERTIFICATE")?;
+        let issuer_der = get_der_from_pem(issuer_pem, "CERTIFICATE")?;
         let cert_url_dirname = to_url_prefix(&input.cert_url_dirname);
         let reserved_path = to_url_prefix(&input.reserved_path);
         let validity_url_dirname = to_url_prefix(&input.validity_url_dirname);
@@ -85,18 +86,6 @@ impl Config {
 
 fn to_url_prefix(dirname: &str) -> String {
     format!("/{}/", dirname.trim_matches('/'))
-}
-
-pub fn get_der(pem_text: &str, expected_tag: &str) -> Result<Vec<u8>> {
-    for pem in ::pem::parse_many(pem_text).map_err(Error::new)? {
-        if pem.tag == expected_tag {
-            return Ok(pem.contents);
-        }
-    }
-    Err(anyhow!(
-        r#"The PEM file does not contains "{}" block"#,
-        expected_tag
-    ))
 }
 
 #[cfg(test)]

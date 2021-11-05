@@ -122,6 +122,6 @@ pub fn get_certificate_sha256(certificate_file: impl AsRef<Path>) -> Result<Vec<
             .arg("-in")
             .arg(certificate_file.as_ref().as_os_str()),
     )?;
-    let public_key_der = sxg_rs::config::get_der(&public_key_pem, "PUBLIC KEY")?;
+    let public_key_der = sxg_rs::crypto::get_der_from_pem(&public_key_pem, "PUBLIC KEY")?;
     Ok(sxg_rs::utils::get_sha(&public_key_der))
 }
