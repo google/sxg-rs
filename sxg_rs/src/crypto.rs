@@ -50,7 +50,7 @@ impl EcPublicKey {
         //        by 0x04 and the compressed form is indicated by either 0x02 or
         //        0x03 (see 2.3.3 in [SEC1]).  The public key MUST be rejected if
         //        any other value is included in the first octet.
-        let octets = der_parser::parse_ber(&der)?
+        let octets = der_parser::parse_ber(der)?
             .1
             .as_slice()
             .map_err(|e| Error::new(e).context("Expecting ECPoint to be an OCTET STRING"))?;
@@ -150,7 +150,7 @@ rS6wVo+rtspBMOwa/DK3LJE1W9nS6MqL4Q==
             e9:f2:37:1e:2f:46:61:f2:ea:36:ad:2e:b0:56:8f:
             ab:b6:ca:41:30:ec:1a:fc:32:b7:2c:91:35:5b:d9:
             d2:e8:ca:8b:e1";
-        let private_key = EcPrivateKey::from_sec1_pem(&PRIVKEY_PEM).unwrap();
+        let private_key = EcPrivateKey::from_sec1_pem(PRIVKEY_PEM).unwrap();
         assert_bytes_eq_hex(private_key.d, PRIV_HEX);
         assert_bytes_eq_hex(
             [
