@@ -102,7 +102,7 @@ impl EcPrivateKey {
                 .as_sequence()?
                 .get(3)
                 .ok_or_else(|| Error::msg("Expecting ECPrivateKey to contain at least 4 items"))?
-                .as_slice()?
+                .as_slice()?,
         )?;
         Ok(EcPrivateKey { d, public_key })
     }
