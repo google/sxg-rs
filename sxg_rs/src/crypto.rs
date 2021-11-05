@@ -41,7 +41,9 @@ pub struct EcPrivateKey {
 }
 
 impl EcPublicKey {
-    pub fn from_sec1_der(der: &[u8]) -> Result<Self> {
+    /// Parses public key from DER-encoded
+    /// [SPKI](https://datatracker.ietf.org/doc/html/rfc5480) format.
+    pub fn from_spki_der(der: &[u8]) -> Result<Self> {
         // https://datatracker.ietf.org/doc/html/rfc5480#section-2.2
         //   ECC public keys have the following syntax:
         //     ECPoint ::= OCTET STRING
@@ -79,6 +81,9 @@ impl EcPublicKey {
 }
 
 impl EcPrivateKey {
+    /// Parses private key from DER-encoded
+    /// [SEC1](https://www.secg.org/sec1-v2.pdf) format,
+    /// which is also defined in [RFC5915](https://datatracker.ietf.org/doc/html/rfc5915).
     pub fn from_sec1_der(der: &[u8]) -> Result<Self> {
         let ec_private_key = der_parser::parse_ber(der)?.1;
         // https://datatracker.ietf.org/doc/html/rfc5915#section-3
@@ -97,7 +102,7 @@ impl EcPrivateKey {
             .as_slice()
             .map_err(|e| Error::new(e).context("Expecting privateKey to be an OCTET STRING"))?
             .to_vec();
-        let public_key = EcPublicKey::from_sec1_der(
+        let public_key = EcPublicKey::from_spki_der(
             ec_private_key
                 .as_sequence()?
                 .get(3)
@@ -106,6 +111,8 @@ impl EcPrivateKey {
         )?;
         Ok(EcPrivateKey { d, public_key })
     }
+    /// Parses private key from PEM-encoded
+    /// [SEC1](https://www.secg.org/sec1-v2.pdf) format.
     pub fn from_sec1_pem(pem: &str) -> Result<Self> {
         let der = get_der_from_pem(pem, "EC PRIVATE KEY")?;
         Self::from_sec1_der(&der)
@@ -126,7 +133,7 @@ mod tests {
         assert_eq!(bytes.join(":"), hex);
     }
     #[test]
-    fn it_works() {
+    fn parse_ec_private_key() {
         // Generated with:
         //    KEY=`mktemp`
         //    openssl ecparam -name prime256v1 -genkey -out $KEY
@@ -161,5 +168,18 @@ rS6wVo+rtspBMOwa/DK3LJE1W9nS6MqL4Q==
             .concat(),
             PUB_HEX,
         );
+    }
+    #[test]
+    fn returns_err_on_invalid_input() {
+        const INVALID_PRIVKEY: &str = "
+-----BEGIN EC PARAMETERS-----
+BggqhkjOPQMBBw==
+-----END EC PARAMETERS-----
+-----BEGIN EC PRIVATE KEY-----
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+-----END EC PRIVATE KEY-----";
+        assert_eq!(EcPrivateKey::from_sec1_pem(INVALID_PRIVKEY).is_err(), true);
     }
 }
