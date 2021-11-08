@@ -23,7 +23,7 @@ publish = false
 debug = false
 
 [dependencies]
-anyhow = "1.0.44"
+anyhow = "1.0.45"
 async-trait = "0.1.51"
 base64 = "0.13.0"
 fastly = "^0.8.0"
