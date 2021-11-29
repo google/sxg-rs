@@ -20,7 +20,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.45"
+anyhow = "1.0.51"
 base64 = "0.13.0"
 clap = "3.0.0-beta.5"
 cloudflare = "0.8.7"
@@ -28,10 +28,10 @@ console = "0.15.0"
 ctrlc = "3.2.1"
 der-parser = { version = "6.0.0", features = ["bigint", "serialize"] }
 dialoguer = "0.9.0"
-futures = { version = "0.3.17", features = ["executor"] }
+futures = { version = "0.3.18", features = ["executor"] }
 pem = "1.0.1"
 serde = { version = "1.0.130", features = ["derive"] }
-serde_json = "1.0.70"
+serde_json = "1.0.72"
 serde_yaml = "0.8.21"
 sxg_rs = { path = "../sxg_rs", features = ["rust_signer"] }
 toml = "0.5.8"
