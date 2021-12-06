@@ -552,6 +552,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "cloudflare"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c17127dbdf8ba8654a984ed7eb7d5077e137c30e34d8c0a4212753426ea6f1b"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64",
+ "cfg-if 0.1.10",
+ "chrono",
+ "http",
+ "percent-encoding 1.0.1",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_qs",
+ "serde_with",
+ "slog",
+ "slog-term",
+ "sloggers",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "cloudflare_worker"
 version = "0.1.0"
 dependencies = [
@@ -3605,7 +3630,7 @@ dependencies = [
  "anyhow",
  "base64",
  "clap 3.0.0-beta.5",
- "cloudflare",
+ "cloudflare 0.9.0",
  "console 0.15.0",
  "ctrlc",
  "der-parser",
@@ -4056,7 +4081,7 @@ dependencies = [
  "chrome-devtools-rs",
  "chrono",
  "clap 2.33.3",
- "cloudflare",
+ "cloudflare 0.8.7",
  "colored_json",
  "config",
  "console 0.14.1",
