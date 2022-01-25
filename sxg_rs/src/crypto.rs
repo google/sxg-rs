@@ -36,6 +36,8 @@ pub struct EcPublicKey {
 }
 
 pub struct EcPrivateKey {
+    // Only used when --feature=rust_signer.
+    #[allow(dead_code)]
     d: Vec<u8>,
     pub public_key: EcPublicKey,
 }
