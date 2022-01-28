@@ -79,7 +79,7 @@ impl WasmWorker {
     }
     #[wasm_bindgen(js_name=validatePayloadHeaders)]
     pub fn validate_payload_headers(&self, fields: JsValue) -> Result<(), JsValue> {
-        let fields = fields.into_serde().map_err(to_js_error)?;
+        let fields: Vec<(String, String)> = fields.into_serde().map_err(to_js_error)?;
         self.0
             .transform_payload_headers(fields)
             .map_err(to_js_error)?;
@@ -102,7 +102,7 @@ impl WasmWorker {
     ) -> JsPromise {
         let worker = self.0.clone();
         future_to_promise(async move {
-            let payload_headers = payload_headers.into_serde().map_err(to_js_error)?;
+            let payload_headers: Vec<(String, String)> = payload_headers.into_serde().map_err(to_js_error)?;
             let payload_headers = worker
                 .transform_payload_headers(payload_headers)
                 .map_err(to_js_error)?;

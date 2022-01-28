@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "main": "dist/index.js",
   "scripts": {
-    "build": "rollup -c rollup.config.js",
+    "build": "rollup -c --failAfterWarnings rollup.config.js",
     "test": "karma start --single-run"
   },
   "dependencies": {},

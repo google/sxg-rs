@@ -31,7 +31,7 @@ import {
   WasmRequest,
 } from './wasmFunctions';
 
-addEventListener('fetch', (event) => {
+addEventListener('fetch', (event: FetchEvent) => {
   event.respondWith(handleRequest(event.request))
 })
 
@@ -197,7 +197,7 @@ async function handleRequest(request: Request) {
       fallback = fallwayback;
     }
     if (worker.shouldRespondDebugInfo() && e.toString) {
-      let message = e.toString();
+      let message: string = e.toString();
       return new Response(
         fallback.body,
         {
@@ -406,7 +406,7 @@ async function processHTML(payload: Response, processors: HTMLProcessor[]): Prom
 
 async function generateSxgResponse(fallbackUrl: string, certOrigin: string, payload: Response) {
   let worker = await workerPromise;
-  const payloadHeaders = Array.from(payload.headers);
+  const payloadHeaders: Array<[string, string]> = Array.from(payload.headers);
   worker.validatePayloadHeaders(payloadHeaders);
   const payloadBody = await readIntoArray(payload.body, PAYLOAD_SIZE_LIMIT);
   if (!payloadBody) {
