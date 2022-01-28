@@ -102,7 +102,8 @@ impl WasmWorker {
     ) -> JsPromise {
         let worker = self.0.clone();
         future_to_promise(async move {
-            let payload_headers: Vec<(String, String)> = payload_headers.into_serde().map_err(to_js_error)?;
+            let payload_headers: Vec<(String, String)> =
+                payload_headers.into_serde().map_err(to_js_error)?;
             let payload_headers = worker
                 .transform_payload_headers(payload_headers)
                 .map_err(to_js_error)?;
