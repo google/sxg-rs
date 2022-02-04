@@ -70,12 +70,10 @@ pub(crate) async fn process_link_header(
             stream::iter(preloads)
                 .for_each_concurrent(None, |link| async {
                     let link = link;
-                    if let Ok(mut directives) = directives.try_borrow_mut() {
-                        directives.push(link.clone());
-                    }
                     match allowed_alt_sxgs.get(&link.uri) {
                         Some(allowed_alt_sxg) => {
                             if let Ok(mut directives) = directives.try_borrow_mut() {
+                                directives.push(link.clone());
                                 directives.push(allowed_alt_sxg.clone());
                             }
                         }
@@ -85,6 +83,7 @@ pub(crate) async fn process_link_header(
                                     header_integrity_fetcher.fetch(&link.uri).await
                                 {
                                     if let Ok(mut directives) = directives.try_borrow_mut() {
+                                        directives.push(link.clone());
                                         directives.push(Link {
                                             uri: link.uri.clone(),
                                             params: vec![
@@ -148,12 +147,12 @@ mod tests {
         let url = Url::parse("https://foo.com").unwrap();
         assert_eq!(
             process_link_header(
-                r#"<https://foo.com/> ; rel = "preload""#,
+                r#"<https://foo.com/> ; rel = "preload",</>;rel=allowed-alt-sxg;header-integrity=blah"#,
                 &url,
                 &mut null_integrity_fetcher()
             )
             .await,
-            "<https://foo.com/>;rel=preload"
+            "<https://foo.com/>;rel=preload,<https://foo.com/>;rel=allowed-alt-sxg;header-integrity=blah"
         );
 
         let preloads: Vec<String> = (0..21)
@@ -161,12 +160,7 @@ mod tests {
             .collect();
         assert_eq!(
             process_link_header(&preloads.join(","), &url, &mut null_integrity_fetcher()).await,
-            preloads
-                .iter()
-                .take(20)
-                .cloned()
-                .collect::<Vec<String>>()
-                .join(",")
+            ""
         );
         let allowed_alt_sxgs: Vec<String> = (0..20).map(|n|
             format!(r#"<https://foo.com/{}.js>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#, n)).collect();
@@ -186,21 +180,21 @@ mod tests {
         );
 
         assert_eq!(
-            process_link_header("</foo>;rel=preload", &url, &mut null_integrity_fetcher()).await,
-            "<https://foo.com/foo>;rel=preload"
+            process_link_header("</foo>;rel=preload,<https://foo.com/foo>;rel=allowed-alt-sxg;header-integrity=blah", &url, &mut null_integrity_fetcher()).await,
+            "<https://foo.com/foo>;rel=preload,<https://foo.com/foo>;rel=allowed-alt-sxg;header-integrity=blah"
         );
         assert_eq!(
             process_link_header(
-                "<../quux>;rel=preload",
+                "<../quux>;rel=preload,<../quux>;rel=allowed-alt-sxg;header-integrity=blah",
                 &url.join("/bar/baz/").unwrap(),
                 &mut null_integrity_fetcher()
             )
             .await,
-            "<https://foo.com/bar/quux>;rel=preload"
+            "<https://foo.com/bar/quux>;rel=preload,<https://foo.com/bar/quux>;rel=allowed-alt-sxg;header-integrity=blah"
         );
         assert_eq!(
             process_link_header(
-                "<https://foo.com/>;rel=prefetch",
+                "<https://foo.com/>;rel=prefetch,<https://foo.com/>;rel=allowed-alt-sxg;header-integrity=blah",
                 &url,
                 &mut null_integrity_fetcher()
             )
@@ -222,21 +216,21 @@ mod tests {
         );
         assert_eq!(
             process_link_header(
-                "<https://foo.com/>;rel=preload,<https://foo.com/>;rel=prefetch",
+                "<https://foo.com/>;rel=preload,<https://foo.com/>;rel=prefetch,<https://foo.com/>;rel=allowed-alt-sxg;header-integrity=blah",
                 &url,
                 &mut null_integrity_fetcher()
             )
             .await,
-            "<https://foo.com/>;rel=preload"
+            "<https://foo.com/>;rel=preload,<https://foo.com/>;rel=allowed-alt-sxg;header-integrity=blah"
         );
         assert_eq!(
             process_link_header(
-                r#"<img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset="img.jpg 800w""#,
+                r#"<img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset="img.jpg 800w",<img.jpg>;rel=allowed-alt-sxg;header-integrity=blah"#,
                 &url,
                 &mut null_integrity_fetcher()
             )
             .await,
-            r#"<https://foo.com/img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset="img.jpg 800w""#
+            r#"<https://foo.com/img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset="img.jpg 800w",<https://foo.com/img.jpg>;rel=allowed-alt-sxg;header-integrity=blah"#
         );
     }
     #[async_std::test]
@@ -294,8 +288,8 @@ mod tests {
         assert_eq!(
             process_link_header("</a>;rel=preload,</b>;rel=preload", &url, &mut fetcher).await,
             concat!(
-                r#"<https://foo.com/a>;rel=preload,"#,
                 r#"<https://foo.com/b>;rel=preload,<https://foo.com/b>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=","#,
+                r#"<https://foo.com/a>;rel=preload,"#,
                 r#"<https://foo.com/a>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#
             ),
         );
@@ -306,7 +300,7 @@ mod tests {
         let url = Url::parse("https://foo.com").unwrap();
         assert_eq!(
             process_link_header("</>;rel=preload", &url, &mut fetcher).await,
-            "<https://foo.com/>;rel=preload"
+            ""
         );
         assert_eq!(process_link_header(r#"</>;rel=preload,</>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#,
         &url, &mut fetcher).await,
