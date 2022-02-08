@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// TODO(antiphoton) No longer allow unused_unit when a new version wasm_bindgen is released with
+// https://github.com/rustwasm/wasm-bindgen/pull/2778
+#![allow(clippy::unused_unit)]
+
 use crate::headers::AcceptFilter;
 use crate::http::HttpResponse;
 use crate::utils::to_js_error;

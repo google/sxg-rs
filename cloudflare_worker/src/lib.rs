@@ -11,6 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// TODO(antiphoton) No longer allow unused_unit when a new version wasm_bindgen is released with
+// https://github.com/rustwasm/wasm-bindgen/pull/2778
+#![allow(clippy::unused_unit)]
+
 use wasm_bindgen::prelude::wasm_bindgen;
 
 extern crate sxg_rs;
