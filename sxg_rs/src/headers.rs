@@ -804,7 +804,7 @@ mod tests {
         assert_eq!(
             headers(vec![
                 ("content-type", "text/html"),
-                ("link", "<https://foo.com/>;rel=preload")
+                ("link", "</foo>;rel=preload,</foo>;rel=allowed-alt-sxg;header-integrity=blah")
             ])
             .get_signed_headers::<HashMap<String, String>, _>(
                 &url,
@@ -816,7 +816,7 @@ mod tests {
             .await,
             header_fields::<HashMap<String, String>>(vec![
                 ("content-type", "text/html"),
-                ("link", "<https://foo.com/>;rel=preload"),
+                ("link", "<https://foo.com/foo>;rel=preload,<https://foo.com/foo>;rel=allowed-alt-sxg;header-integrity=blah"),
                 (":status", "200"),
                 ("content-encoding", "mi-sha256-03"),
                 ("digest", "mi-sha256-03=")
@@ -825,7 +825,7 @@ mod tests {
         assert_eq!(
             headers(vec![
                 ("content-type", "text/html"),
-                ("link", r#"</foo>;rel=prefetch"#)
+                ("link", r#"</foo>;rel=preload"#)
             ])
             .get_signed_headers::<HashMap<String, String>, _>(
                 &url,
