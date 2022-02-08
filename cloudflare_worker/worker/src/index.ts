@@ -220,6 +220,11 @@ async function handleRequest(request: Request) {
 // https://github.com/google/webpackager/blob/main/docs/cache_requirements.md.
 const PAYLOAD_SIZE_LIMIT = 8000000;
 
+// Approximate matcher for a valid URL; that it only contains characters
+// allowed by https://datatracker.ietf.org/doc/html/rfc3986#appendix-A.
+const URL_CHARS = /^[%A-Za-z0-9._~:/?#[\]@!$&'()*+,;=-]*$/;
+
+
 // https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.6
 const TOKEN = /^[!#$%&'*+.^_`|~0-9a-zA-Z-]+$/;
 
@@ -249,13 +254,13 @@ class PromoteLinkTagsToHeaders implements HTMLProcessor {
   modified: boolean = false;
   link_tags: {href: string, as: string}[] = [];
   register(rewriter: HTMLRewriter): void {
-    rewriter.on('link[rel~="preload" i][href][as]', {
+    rewriter.on('link[rel~="preload" i][href][as]:not([data-sxg-no-header])', {
       element: (link: Element) => {
         const href = link.getAttribute('href');
         const as = link.getAttribute('as');
         // Ensure the values can be placed inside a Link header without
         // escaping or quoting.
-        if (href && !href.includes('>') && as?.match(TOKEN)) {
+        if (href?.match(URL_CHARS) && as?.match(TOKEN)) {
           this.link_tags.push({href, as});
         }
       },
