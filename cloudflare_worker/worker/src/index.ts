@@ -23,7 +23,9 @@ import {
   teeResponse,
 } from './streams';
 import {
+  TOKEN,
   arrayBufferToBase64,
+  escapeLinkParamValue,
 } from './utils';
 import {
   WasmResponse,
@@ -224,10 +226,6 @@ const PAYLOAD_SIZE_LIMIT = 8000000;
 // allowed by https://datatracker.ietf.org/doc/html/rfc3986#appendix-A.
 const URL_CHARS = /^[%A-Za-z0-9._~:/?#[\]@!$&'()*+,;=-]*$/;
 
-
-// https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.6
-const TOKEN = /^[!#$%&'*+.^_`|~0-9a-zA-Z-]+$/;
-
 // Matcher for HTML with either UTF-8 or unspecified character encoding.
 // Capture group 1 indicates that charset=utf-8 was explicitly stated.
 //
@@ -238,6 +236,10 @@ const TOKEN = /^[!#$%&'*+.^_`|~0-9a-zA-Z-]+$/;
 // and https://encoding.spec.whatwg.org/#concept-encoding-get.
 // These are not currently supported, but could be if desired.
 const HTML = /^text\/html([ \t]*;[ \t]*charset=(utf-8|"utf-8"))?$/i;
+
+// Attributes allowed on Link headers by
+// https://github.com/google/webpackager/blob/main/docs/cache_requirements.md.
+const ALLOWED_LINK_ATTRS = new Set(['as', 'header-integrity', 'media', 'rel', 'imagesrcset', 'imagesizes', 'crossorigin']);
 
 interface HTMLProcessor {
   register(rewriter: HTMLRewriter): void;
@@ -252,7 +254,7 @@ interface HTMLProcessor {
 // SXG preloading of eligible subresources.
 class PromoteLinkTagsToHeaders implements HTMLProcessor {
   modified: boolean = false;
-  link_tags: {href: string, as: string}[] = [];
+  link_tags: {href: string, attrs: string[][]}[] = [];
   register(rewriter: HTMLRewriter): void {
     rewriter.on('link[rel~="preload" i][href][as]:not([data-sxg-no-header])', {
       element: (link: Element) => {
@@ -261,14 +263,24 @@ class PromoteLinkTagsToHeaders implements HTMLProcessor {
         // Ensure the values can be placed inside a Link header without
         // escaping or quoting.
         if (href?.match(URL_CHARS) && as?.match(TOKEN)) {
-          this.link_tags.push({href, as});
+          // link.attributes is somehow being mistyped as an Attr[], per the
+          // definition of Attr from typescript/lib/lib.dom.d.ts. Not sure why;
+          // @cloudflare/workers-types/index.d.ts says it's a string[][].
+          const attrs = [...(link.attributes as unknown as string[][])].
+              filter(([name, _value]) => name && ALLOWED_LINK_ATTRS.has(name));
+          this.link_tags.push({href, attrs});
         }
       },
     });
   }
   onEnd(payload: Response): void {
     if (this.link_tags.length) {
-      const link = this.link_tags.map(({href, as}) => `<${href}>;rel=preload;as=${as}`).join(',');
+      const link = this.link_tags.map(({href, attrs}) => {
+        return `<${href}>` + attrs.map(([name, value]) => {
+          const escaped = value ? escapeLinkParamValue(value) : null;
+          return escaped ? `;${name}=${escaped}` : '';
+        }).join('')
+      }).join(',');
       payload.headers.append('Link', link);
     }
   }
