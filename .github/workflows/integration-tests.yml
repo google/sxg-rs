@@ -75,7 +75,7 @@ jobs:
         working-directory: credentials
         run: |
           cargo run -p tools -- gen-dev-cert --domain example.org
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: '>=1.16'
       - run: go install github.com/WICG/webpackage/go/signedexchange/cmd/dump-signedexchange@latest
