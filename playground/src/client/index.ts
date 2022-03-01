@@ -14,5 +14,15 @@ export async function startClient({
         ],
     });
     const page = (await browser.pages())[0]!;
+
+    const slow3g = puppeteer.networkConditions['Slow 3G']!;
+    const cdpSession = await page.target().createCDPSession()
+    await cdpSession.send('Network.emulateNetworkConditions', {
+        offline: false,
+        downloadThroughput: slow3g.download,
+        uploadThroughput: slow3g.upload,
+        latency: slow3g.latency,
+    });
+
     await page.goto(`https://localhost:8443/srp/${encodeURIComponent(url)}`);
 }
