@@ -1,0 +1,120 @@
+import assert from 'assert';
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+
+import Fastify from 'fastify';
+
+import {
+    fetcher,
+} from './fetcher';
+import {
+    fromJwk as createSignerFromJwk,
+} from './signer';
+import {
+    WasmResponse,
+    createWorker,
+} from './wasmFunctions';
+
+const wasmBuffer = fs.readFileSync(path.resolve(__dirname, '..', '..', 'cloudflare_worker', 'pkg', 'cloudflare_worker_bg.wasm'));
+
+async function headerIntegrityGet(_url: string): Promise<WasmResponse> {
+    return {
+        body: [],
+        headers: [],
+        status: 404,
+    };
+}
+
+async function headerIntegrityPut() {
+}
+
+function createSrp(outerUrl: string, innerUrl: string) {
+    return `
+        <link rel=prefetch href="${outerUrl}">
+        <p>${innerUrl}<p>
+        <a href="${outerUrl}">SXG</a>
+        <a href="${innerUrl}">Non-SXG</a>
+    `
+}
+
+export const SXG_CONFIG = `
+cert_url_dirname: ".well-known/sxg-certs"
+forward_request_headers:
+  - user-agent
+  - cf-ipcountry
+reserved_path: ".sxg"
+respond_debug_info: false
+strip_request_headers: []
+strip_response_headers:
+  - set-cookie
+  - strict-transport-security
+validity_url_dirname: ".well-known/sxg-validity"
+`;
+export async function startSxgServer({
+    certificatePem,
+    privateKeyJwk,
+    privateKeyPem,
+}: {
+    certificatePem: string,
+    privateKeyJwk: Object,
+    privateKeyPem: string,
+}) {
+    const signer = createSignerFromJwk((crypto.webcrypto as any).subtle, privateKeyJwk);
+    const worker = await createWorker(wasmBuffer, SXG_CONFIG, certificatePem, certificatePem);
+    const sxgList: WasmResponse[] = [];
+    async function createSxgIntoList(innerUrl: string, certOrigin: string) {
+        const sxgPayload = await(fetcher({
+            url: innerUrl,
+            body: [],
+            method: 'Get',
+            headers: [],
+        }));
+        const sxg = await worker.createSignedExchange(
+            innerUrl,
+            certOrigin,
+            sxgPayload.status,
+            sxgPayload.headers,
+            new Uint8Array(sxgPayload.body),
+            Date.now() / 1000,
+            signer,
+            fetcher,
+            headerIntegrityGet,
+            headerIntegrityPut,
+        );
+        sxgList.push(sxg);
+        return sxgList.length - 1;
+    }
+
+    const fastify = Fastify({
+        logger: false,
+        https: {
+            key: privateKeyPem,
+            cert: certificatePem,
+        }
+    });
+    fastify.get('/srp/:url', async (request, reply) => {
+        const sxgInnerUrl: string = (request.params as any).url;
+        let sxgId: number;
+        try {
+            sxgId = await createSxgIntoList(sxgInnerUrl, `https://${request.hostname}`);
+        } catch (e) {
+            return `Failed to create SXG. ${e}`
+        }
+        reply.header('content-type', 'text/html');
+        return createSrp(`/sxg/${sxgId}`, sxgInnerUrl);
+    });
+    fastify.get('/.well-known/sxg-certs/*', async (request, reply) => {
+        const x = worker.servePresetContent(`https://localhost:8443${request.url}`, 'abcd');
+        assert(x?.kind === 'direct');
+        x.headers.forEach(([k, v]) => reply.header(k, v));
+        return Buffer.from(x.body);
+    });
+    fastify.get('/sxg/:id', async (request, reply) => {
+        const params = request.params as {id: string};
+        const sxg = sxgList[parseInt(params.id)]!;
+        sxg.headers.forEach(([k, v]) => reply.header(k, v));
+        return Buffer.from(sxg.body);
+    });
+    fastify.listen(8443, '0.0.0.0', () => {});
+}
