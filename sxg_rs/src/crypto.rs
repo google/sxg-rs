@@ -15,6 +15,7 @@
 #[cfg(feature = "rust_signer")]
 use crate::signature::rust_signer::RustSigner;
 use anyhow::{anyhow, Error, Result};
+use serde::{Deserialize, Serialize};
 
 pub fn get_der_from_pem(pem_text: &str, expected_tag: &str) -> Result<Vec<u8>> {
     for pem in ::pem::parse_many(pem_text).map_err(Error::new)? {
@@ -28,10 +29,13 @@ pub fn get_der_from_pem(pem_text: &str, expected_tag: &str) -> Result<Vec<u8>> {
     ))
 }
 
+#[derive(Deserialize, Serialize)]
 pub struct EcPublicKey {
     pub kty: String,
     pub crv: String,
+    #[serde(with = "crate::serde_helpers::base64")]
     pub x: Vec<u8>,
+    #[serde(with = "crate::serde_helpers::base64")]
     pub y: Vec<u8>,
 }
 
