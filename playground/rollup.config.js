@@ -25,13 +25,13 @@ import typescript from '@rollup/plugin-typescript';
 
 import pkg from './package.json';
 
-const wasmBuffer = fs.readFileSync(path.resolve(__dirname, '..', 'cloudflare_worker', 'pkg', 'cloudflare_worker.js'));
+const sxgRsBinary = fs.readFileSync(path.resolve(__dirname, '..', 'cloudflare_worker', 'pkg', 'cloudflare_worker.js'));
 
 export default [
   {
     input: 'src/index.ts',
     output: {
-      banner: wasmBuffer,
+      banner: sxgRsBinary,
       dir: 'dist',
       format: 'commonjs',
     },
