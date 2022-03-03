@@ -86,6 +86,7 @@ export async function startSxgServer({
             method: 'Get',
             headers: [],
         }));
+        // TODO(PR#157): Use `handleRequest` function in `cloudflare_worker/worker/src/index.ts`.
         const sxg = await worker.createSignedExchange(
             innerUrl,
             certOrigin,

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// TODO(PR#157): Combine this file with `cloudflare_worker/worker/src/wasmFunctions.ts`.
+
 // `wrangler` uses `wasm-pack build --target no-modules` [^1] to build wasm.
 // When the target is `no-modules`, `wasm-bindgen` declares a global variable
 // to initialize wasm [^2].
