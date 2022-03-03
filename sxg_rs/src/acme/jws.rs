@@ -15,7 +15,7 @@
 //! This module implements
 //! [JSON Web Signature (JWS)](https://datatracker.ietf.org/doc/html/rfc7515).
 //! [ACME spec](https://datatracker.ietf.org/doc/html/rfc8555#:~:text=payload%20in%20a%20JSON%20Web%20Signature)
-//! requires the request body to be encapsulated in JWS format for authenication.
+//! requires the request body to be encapsulated in JWS format for authentication.
 
 use crate::crypto::EcPublicKey;
 use crate::signature::Signer;
