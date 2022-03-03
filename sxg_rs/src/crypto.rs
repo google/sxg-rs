@@ -84,6 +84,12 @@ impl EcPublicKey {
             y,
         })
     }
+    /// Calculates the JWK thumbprint defined by
+    /// [RFC7638](https://datatracker.ietf.org/doc/html/rfc7638#section-3).
+    pub fn get_jwk_thumbprint(&self) -> Result<Vec<u8>> {
+        let message = serde_json::to_string(&self)?;
+        Ok(crate::utils::get_sha(message.as_bytes()))
+    }
 }
 
 impl EcPrivateKey {
