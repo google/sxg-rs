@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-import {
-  arrayBufferToBase64,
-  escapeLinkParamValue,
-} from './utils';
+import {arrayBufferToBase64, escapeLinkParamValue} from './utils';
 
 describe('arrayBufferToBase64', () => {
   it('works', () => {
@@ -36,13 +33,15 @@ describe('escapeLinkParamValue', () => {
   it('quotes non-tokens', () => {
     expect(escapeLinkParamValue('hello world')).toEqual('"hello world"');
   });
-  it('escapes \"', () => {
-    expect(escapeLinkParamValue('hello, "world"'))
-        .toEqual(String.raw`"hello, \"world\""`);
+  it('escapes "', () => {
+    expect(escapeLinkParamValue('hello, "world"')).toEqual(
+      String.raw`"hello, \"world\""`
+    );
   });
   it('escapes \\', () => {
-    expect(escapeLinkParamValue(String.raw`hello\world`))
-        .toEqual(String.raw`"hello\\world"`);
+    expect(escapeLinkParamValue(String.raw`hello\world`)).toEqual(
+      String.raw`"hello\\world"`
+    );
   });
   it('returns null for non-representable strings', () => {
     expect(escapeLinkParamValue('👋🌎')).toEqual(null);

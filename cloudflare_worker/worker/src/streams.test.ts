@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-import {
-  readIntoArray,
-} from './streams';
+import {readIntoArray} from './streams';
 
 describe('readIntoArray', () => {
   it('reads a stream <= maxSize', async () => {
@@ -30,8 +28,8 @@ describe('readIntoArray', () => {
     expect(output).toEqual(new TextEncoder().encode(''));
   });
   it('reads a stream with two chunks', async () => {
-    const {writable, readable} = new TransformStream;
-    const write = (async() => {
+    const {writable, readable} = new TransformStream();
+    const write = (async () => {
       const writer = writable.getWriter();
       for (let i = 0; i < 2; i++) {
         await writer.write(new TextEncoder().encode('hello'));
@@ -48,7 +46,7 @@ describe('readIntoArray', () => {
     expect(output).toBe(null);
   });
   it('errors if second chunk > maxSize', async () => {
-    const {writable, readable} = new TransformStream;
+    const {writable, readable} = new TransformStream();
     const write = (async () => {
       const writer = writable.getWriter();
       for (let i = 0; i < 2; i++) {
@@ -60,4 +58,4 @@ describe('readIntoArray', () => {
     expect(output).toBe(null);
     await write;
   });
-})
+});

@@ -1,4 +1,4 @@
 /dist
 /generated
-/node_modules
+/rollup.config.js
 /worker.js

@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "rollup -c --failAfterWarnings rollup.config.js",
-    "test": "karma start --single-run"
+    "test": "karma start --single-run",
+    "lint": "gts lint"
   },
   "dependencies": {},
   "devDependencies": {
@@ -19,6 +20,11 @@
     "karma-jasmine": "4.0.1",
     "rollup": "2.68.0",
     "tslib": "2.3.1",
-    "typescript": "4.5.5"
+    "typescript": "4.5.5",
+    "gts": "^3.1.0",
+    "@types/node": "^14.11.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   }
 }

@@ -25,17 +25,18 @@
 // [^2] https://github.com/rustwasm/wasm-bindgen/blob/dc9141e7ccd143e67a282cfa73717bb165049169/crates/cli/src/bin/wasm-bindgen.rs#L27
 // [^3] https://github.com/rustwasm/wasm-bindgen/blob/dc9141e7ccd143e67a282cfa73717bb165049169/crates/cli-support/src/lib.rs#L208
 // [^4] https://rustwasm.github.io/docs/wasm-bindgen/examples/without-a-bundler.html#using-the-older---target-no-modules
-declare var wasm_bindgen: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare let wasm_bindgen: any;
 
 type HeaderFields = Array<[string, string]>;
 
 export type AcceptFilter = 'PrefersSxg' | 'AcceptsSxg';
 
 export interface WasmRequest {
-  body: number[],
-  headers: HeaderFields,
-  method: 'Get' | 'Post',
-  url: string,
+  body: number[];
+  headers: HeaderFields;
+  method: 'Get' | 'Post';
+  url: string;
 }
 
 export interface WasmResponse {
@@ -44,16 +45,22 @@ export interface WasmResponse {
   status: number;
 }
 
-export type PresetContent = ({ kind: 'direct' } & WasmResponse) | {
-  kind: 'toBeSigned',
-  url: string,
-  payload: WasmResponse,
-  fallback: WasmResponse,
-}
+export type PresetContent =
+  | ({kind: 'direct'} & WasmResponse)
+  | {
+      kind: 'toBeSigned';
+      url: string;
+      payload: WasmResponse;
+      fallback: WasmResponse;
+    };
 
 export interface WasmWorker {
-  new(configYaml: string, certPem: string, issuerPem: string): WasmWorker;
-  createRequestHeaders(accept_filter: AcceptFilter, fields: HeaderFields): HeaderFields;
+  // eslint-disable-next-line @typescript-eslint/no-misused-new
+  new (configYaml: string, certPem: string, issuerPem: string): WasmWorker;
+  createRequestHeaders(
+    accept_filter: AcceptFilter,
+    fields: HeaderFields
+  ): HeaderFields;
   createSignedExchange(
     fallbackUrl: string,
     certOrigin: string,
@@ -64,26 +71,30 @@ export interface WasmWorker {
     signer: (input: Uint8Array) => Promise<Uint8Array>,
     subresourceFetcher: (request: WasmRequest) => Promise<WasmResponse>,
     headerIntegrityGet: (url: string) => Promise<WasmResponse>,
-    headerIntegrityPut: (url: string, response: WasmResponse) => Promise<void>,
-  ): WasmResponse,
-  fetchOcspFromCa(fetcher: (request: WasmRequest) => Promise<WasmResponse>): Uint8Array,
+    headerIntegrityPut: (url: string, response: WasmResponse) => Promise<void>
+  ): WasmResponse;
+  fetchOcspFromCa(
+    fetcher: (request: WasmRequest) => Promise<WasmResponse>
+  ): Uint8Array;
   getLastErrorMessage(): string;
   servePresetContent(url: string, ocsp: string): PresetContent | undefined;
   shouldRespondDebugInfo(): boolean;
-  validatePayloadHeaders(fields: HeaderFields): void,
+  validatePayloadHeaders(fields: HeaderFields): void;
 }
 
 interface WasmFunctions {
-  init: () => void,
-  WasmWorker: WasmWorker,
+  init: () => void;
+  WasmWorker: WasmWorker;
 }
 
-export async function createWorker(wasmBytes: Buffer, configYaml: string, certPem: string, issuerPem: string) {
+export async function createWorker(
+  wasmBytes: Buffer,
+  configYaml: string,
+  certPem: string,
+  issuerPem: string
+) {
   await wasm_bindgen(wasmBytes);
-  const {
-    init,
-    WasmWorker,
-  } = wasm_bindgen as WasmFunctions;
+  const {init, WasmWorker} = wasm_bindgen as WasmFunctions;
   init();
   return new WasmWorker(configYaml, certPem, issuerPem);
-};
+}

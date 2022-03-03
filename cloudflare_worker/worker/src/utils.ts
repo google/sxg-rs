@@ -34,9 +34,13 @@ export function escapeLinkParamValue(value: string): string | null {
   if (value.match(TOKEN)) {
     return value;
   } else if (value.match(ALLOWED_QUOTED_STRING_VALUE)) {
-    return '"' + [...value].map((char) =>
-      (char === '\\' || char === '"') ? '\\' + char : char
-    ).join('') + '"';
+    return (
+      '"' +
+      [...value]
+        .map(char => (char === '\\' || char === '"' ? '\\' + char : char))
+        .join('') +
+      '"'
+    );
   } else {
     return null;
   }
