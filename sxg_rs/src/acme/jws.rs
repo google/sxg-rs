@@ -127,7 +127,7 @@ mod tests {
         )
         .unwrap();
         let signer = crate::signature::rust_signer::RustSigner::new(&private_key).unwrap();
-        let jws = JsonWebSignature::new_from_serialized(&protected_header, &payload, &signer)
+        let jws = JsonWebSignature::new_from_serialized(protected_header, payload, &signer)
             .await
             .unwrap();
         assert_eq!(jws.protected, "eyJhbGciOiJFUzI1NiJ9");
