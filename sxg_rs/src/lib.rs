@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub mod acme;
 mod cbor;
 pub mod config;
 pub mod crypto;
@@ -25,6 +26,7 @@ mod id_headers;
 mod link;
 mod mice;
 mod ocsp;
+pub mod serde_helpers;
 pub mod signature;
 mod structured_header;
 mod sxg;
