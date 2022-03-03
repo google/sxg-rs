@@ -12,14 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// https://datatracker.ietf.org/doc/html/rfc7515
+//! This module implements
+//! [JSON Web Signature (JWS)](https://datatracker.ietf.org/doc/html/rfc7515).
+//! [ACME spec](https://datatracker.ietf.org/doc/html/rfc8555#:~:text=payload%20in%20a%20JSON%20Web%20Signature)
+//! requires the request body to be encapsulated in JWS format for authenication.
 
 use crate::crypto::EcPublicKey;
 use crate::signature::Signer;
 use anyhow::{Error, Result};
 use serde::Serialize;
 
-pub async fn create_request_body<S: Signer, P: Serialize>(
+pub async fn create_acme_request_body<S: Signer, P: Serialize>(
     jwk: Option<&EcPublicKey>,
     kid: Option<&str>,
     nonce: String,
@@ -27,7 +30,7 @@ pub async fn create_request_body<S: Signer, P: Serialize>(
     payload: P,
     signer: &S,
 ) -> Result<Vec<u8>> {
-    let protected_header = ProtectedHeader {
+    let protected_header = AcmeProtectedHeader {
         alg: "ES256",
         nonce,
         url,
@@ -38,8 +41,10 @@ pub async fn create_request_body<S: Signer, P: Serialize>(
     serde_json::to_vec(&jws).map_err(|e| Error::new(e).context("Failed to serialize JWS"))
 }
 
+/// The protected headers which is used authentication ACME request
+/// [(ACME spec)](https://datatracker.ietf.org/doc/html/rfc8555#:~:text=The%20JWS%20Protected%20Header%20MUST%20include%20the%20following%20fields).
 #[derive(Serialize)]
-struct ProtectedHeader<'a> {
+struct AcmeProtectedHeader<'a> {
     // https://datatracker.ietf.org/doc/html/rfc7518#section-3.1
     alg: &'static str,
     nonce: String,
@@ -48,6 +53,7 @@ struct ProtectedHeader<'a> {
     kid: Option<&'a str>,
 }
 
+/// [JSON Web Signature](https://datatracker.ietf.org/doc/html/rfc7515).
 #[derive(Debug, Serialize)]
 struct JsonWebSignature {
     protected: String,
@@ -69,6 +75,7 @@ fn parse_asn1_sig(asn1: &[u8]) -> Result<Vec<u8>> {
 }
 
 impl JsonWebSignature {
+    /// Constructs a signature from serialiable header and payload.
     async fn new<H: Serialize, P: Serialize, S: Signer>(
         protected_header: H,
         payload: P,
@@ -80,6 +87,7 @@ impl JsonWebSignature {
             .map_err(|e| Error::new(e).context("Failed to serialize payload."))?;
         Self::new_from_serialized(&protected_header, &payload, signer).await
     }
+    /// Constructs a signature from strings of serialized header and payload.
     async fn new_from_serialized<S: Signer>(
         protected_header: &str,
         payload: &str,
