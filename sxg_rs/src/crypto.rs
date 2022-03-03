@@ -31,8 +31,8 @@ pub fn get_der_from_pem(pem_text: &str, expected_tag: &str) -> Result<Vec<u8>> {
 
 #[derive(Deserialize, Serialize)]
 pub struct EcPublicKey {
-    pub kty: String,
     pub crv: String,
+    pub kty: String,
     #[serde(with = "crate::serde_helpers::base64")]
     pub x: Vec<u8>,
     #[serde(with = "crate::serde_helpers::base64")]
@@ -193,5 +193,22 @@ AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
 -----END EC PRIVATE KEY-----";
         assert!(EcPrivateKey::from_sec1_pem(INVALID_PRIVKEY).is_err());
+    }
+    // According to https://datatracker.ietf.org/doc/html/rfc7638#section-3,
+    // to generate valid thumbprint, the seralization of JWK must be
+    //   1. containing no whitespace or line breaks
+    //   2. with the required members ordered lexicographically
+    #[test]
+    fn jwk_serialization() {
+        let k = EcPublicKey {
+            kty: "EC".to_string(),
+            crv: "".to_string(),
+            x: vec![],
+            y: vec![],
+        };
+        assert_eq!(
+            serde_json::to_string(&k).unwrap(),
+            r#"{"crv":"","kty":"EC","x":"","y":""}"#
+        );
     }
 }
