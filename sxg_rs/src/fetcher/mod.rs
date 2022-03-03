@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub mod hyper_fetcher;
 #[cfg(feature = "wasm")]
 pub mod js_fetcher;
 
@@ -23,6 +24,16 @@ use async_trait::async_trait;
 #[async_trait(?Send)]
 pub trait Fetcher {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse>;
+    async fn get<T: ToString>(&self, url: T) -> Result<Vec<u8>> {
+        let request = HttpRequest {
+            body: vec![],
+            headers: vec![],
+            method: crate::http::Method::Get,
+            url: url.to_string(),
+        };
+        let response = self.fetch(request).await?;
+        Ok(response.body)
+    }
 }
 
 pub const NULL_FETCHER: NullFetcher = NullFetcher {};
