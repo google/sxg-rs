@@ -42,7 +42,7 @@ export async function createSelfSignedCredentials(domain: string) {
         stdout: certificateRequestPem,
     } = await execFile(
         'openssl',
-        ['req', '-new', '-sha256', '-key', privateKeyFile, '-subj', `/CN=${domain}/OTest/C=US`],
+        ['req', '-new', '-sha256', '-key', privateKeyFile, '-subj', `/CN=${domain}`],
     );
     await fs.writeFile(certificateRequestFile, certificateRequestPem);
     const certificateExtensionFile = path.join(certDir, 'ext.txt');
