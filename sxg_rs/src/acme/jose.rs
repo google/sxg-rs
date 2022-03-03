@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC
+// Copyright 2022 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,6 +55,19 @@ struct JsonWebSignature {
     signature: String,
 }
 
+// Parses an asn1 format signature and returns the raw 64 bytes data.
+// This is the inverse function of `crate::signature::js_signer::raw_sig_to_asn1`.
+// We need this funciton because the SXG uses asn1 signature,
+// however JSON WebSignature needs a raw 64 bytes signature.
+// TODO: refactor `crate::signature::Signer` to return both formats.
+fn parse_asn1_sig(asn1: &[u8]) -> Result<Vec<u8>> {
+    let signature = der_parser::parse_ber(asn1)?.1;
+    let numbers = signature.as_sequence()?;
+    let r = numbers[0].as_bigint()?.to_bytes_be();
+    let s = numbers[1].as_bigint()?.to_bytes_be();
+    Ok([r.1, s.1].concat())
+}
+
 impl JsonWebSignature {
     async fn new<H: Serialize, P: Serialize, S: Signer>(
         protected_header: H,
@@ -80,6 +93,7 @@ impl JsonWebSignature {
             .sign(message.as_bytes())
             .await
             .map_err(|e| e.context("Failed to sign message"))?;
+        let signature = parse_asn1_sig(&signature)?;
         let signature = base64::encode_config(&signature, base64::URL_SAFE_NO_PAD);
         Ok(JsonWebSignature {
             protected: protected_header,
@@ -114,13 +128,13 @@ mod tests {
             "eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFt\
             cGxlLmNvbS9pc19yb290Ijp0cnVlfQ"
         );
-        if (2 > 1) {
-            return ;
-        }
         assert_eq!(
             jws.signature,
-            "DtEhU3ljbEg8L38VWAfUAqOyKAM6-Xx-F4GawxaepmXFCgfTjDxw5djxLa8ISlSA\
-            pmWQxfKTUJqPP3-Kg6NU1Q"
+            // Although this signature is not the same as RFC 7515, it is still
+            // a valid signature, because ECDSA uses a random number.
+            // TODO: add code to test it.
+            "e4ZrhZdbFQ7630Tq51E6RQiJaae9bFNGJszIhtusEwzvO21rzH76Wer6yRn2Zb34V\
+            jIm3cVRl0iQctbf4uBY3w"
         );
     }
 }
