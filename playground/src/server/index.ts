@@ -78,7 +78,7 @@ export async function startSxgServer({
   privateKeyPem: string;
 }) {
   const signer = createSignerFromJwk(
-    // eslint-disable-next-line @typescript-eslint/no-misused-new
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (crypto.webcrypto as any).subtle,
     privateKeyJwk
   );
