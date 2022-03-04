@@ -18,6 +18,8 @@ use chrono::offset::FixedOffset;
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
+pub const LETSENCRYPT_STAGING: &str = "https://acme-staging-v02.api.letsencrypt.org/directory";
+
 /// The URLs for each operation on a ACME server.
 // https://datatracker.ietf.org/doc/html/rfc8555#section-7.1.1
 #[derive(Debug, Deserialize)]
@@ -103,7 +105,7 @@ pub struct Authorization {
 }
 
 // https://datatracker.ietf.org/doc/html/rfc8555#section-8.3
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Challenge {
     pub r#type: String,
@@ -120,7 +122,7 @@ pub struct FinalizeRequest<'a> {
 }
 
 // https://datatracker.ietf.org/doc/html/rfc8555#section-7.1.6
-#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Status {
     Pending,

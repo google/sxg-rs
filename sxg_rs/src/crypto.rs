@@ -29,7 +29,7 @@ pub fn get_der_from_pem(pem_text: &str, expected_tag: &str) -> Result<Vec<u8>> {
     ))
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct EcPublicKey {
     pub crv: String,
     pub kty: String,

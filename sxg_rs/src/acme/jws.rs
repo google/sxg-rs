@@ -27,7 +27,7 @@ pub async fn create_acme_request_body<S: Signer, P: Serialize>(
     kid: Option<&str>,
     nonce: String,
     url: &str,
-    payload: P,
+    payload: Option<P>,
     signer: &S,
 ) -> Result<Vec<u8>> {
     let protected_header = AcmeProtectedHeader {
@@ -76,15 +76,20 @@ fn parse_asn1_sig(asn1: &[u8]) -> Result<Vec<u8>> {
 
 impl JsonWebSignature {
     /// Constructs a signature from serialiable header and payload.
+    /// If the given `payload` is `None`, it will be seralized as an empty string.
     async fn new<H: Serialize, P: Serialize, S: Signer>(
         protected_header: H,
-        payload: P,
+        payload: Option<P>,
         signer: &S,
     ) -> Result<Self> {
         let protected_header = serde_json::to_string(&protected_header)
             .map_err(|e| Error::new(e).context("Failed to serialize protected header."))?;
-        let payload = serde_json::to_string(&payload)
-            .map_err(|e| Error::new(e).context("Failed to serialize payload."))?;
+        let payload = if let Some(payload) = payload {
+            serde_json::to_string(&payload)
+                .map_err(|e| Error::new(e).context("Failed to serialize payload."))?
+        } else {
+            "".to_string()
+        };
         Self::new_from_serialized(&protected_header, &payload, signer).await
     }
     /// Constructs a signature from strings of serialized header and payload.

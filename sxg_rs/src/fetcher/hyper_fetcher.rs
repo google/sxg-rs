@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use hyper::{
-    Client,
-    client::connect::HttpConnector,
-};
+use hyper::{client::connect::HttpConnector, Client};
 use hyper_tls::HttpsConnector;
 
 use super::Fetcher;
