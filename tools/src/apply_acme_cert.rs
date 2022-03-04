@@ -16,6 +16,7 @@ use anyhow::Result;
 use clap::Parser;
 use warp::Filter;
 
+use crate::hyper_fetcher::HyperFetcher;
 use crate::linux_commands::{create_certificate_request_pem, create_private_key_pem};
 
 #[derive(Debug, Parser)]
@@ -58,7 +59,7 @@ pub async fn main(opts: Opts) -> Result<()> {
         sxg_rs::crypto::get_der_from_pem(&cert_request_pem, "CERTIFICATE REQUEST")?
     };
     let signer = acme_private_key.create_signer()?;
-    let fetcher = sxg_rs::fetcher::hyper_fetcher::HyperFetcher::new();
+    let fetcher = HyperFetcher::new();
     let ongoing_certificate_request = sxg_rs::acme::create_request_and_get_challenge_answer(
         &opts.acme_server,
         &opts.email,

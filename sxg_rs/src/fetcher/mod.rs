@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod hyper_fetcher;
 #[cfg(feature = "wasm")]
 pub mod js_fetcher;
 

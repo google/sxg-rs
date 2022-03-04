@@ -15,11 +15,11 @@
 use hyper::{client::connect::HttpConnector, Client};
 use hyper_tls::HttpsConnector;
 
-use super::Fetcher;
-use crate::http::{HttpRequest as SxgRsRequest, HttpResponse as SxgRsResponse};
 use anyhow::{Error, Result};
 use async_trait::async_trait;
 use std::convert::TryInto;
+use sxg_rs::fetcher::Fetcher;
+use sxg_rs::http::{HttpRequest as SxgRsRequest, HttpResponse as SxgRsResponse};
 
 /// A [`Fetcher`] implemented by the external `hyper` crate.
 pub struct HyperFetcher {

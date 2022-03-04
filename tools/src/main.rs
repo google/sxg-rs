@@ -16,6 +16,7 @@ mod apply_acme_cert;
 mod gen_config;
 mod gen_dev_cert;
 mod gen_sxg;
+mod hyper_fetcher;
 mod linux_commands;
 
 use anyhow::Result;

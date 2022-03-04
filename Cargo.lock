@@ -3473,8 +3473,6 @@ dependencies = [
  "futures",
  "getrandom 0.2.4",
  "http",
- "hyper",
- "hyper-tls",
  "js-sys",
  "nom 7.1.0",
  "once_cell",
@@ -3857,6 +3855,7 @@ name = "tools"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "base64",
  "clap 3.0.14",
  "cloudflare",
@@ -3865,6 +3864,9 @@ dependencies = [
  "der-parser",
  "dialoguer",
  "futures",
+ "http",
+ "hyper",
+ "hyper-tls",
  "pem",
  "serde",
  "serde_json",
