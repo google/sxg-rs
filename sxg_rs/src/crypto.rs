@@ -195,7 +195,7 @@ AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
         assert!(EcPrivateKey::from_sec1_pem(INVALID_PRIVKEY).is_err());
     }
     // According to https://datatracker.ietf.org/doc/html/rfc7638#section-3,
-    // to generate valid thumbprint, the seralization of JWK must be
+    // to generate valid thumbprint, the serialization of JWK must be
     //   1. containing no whitespace or line breaks
     //   2. with the required members ordered lexicographically
     #[test]
