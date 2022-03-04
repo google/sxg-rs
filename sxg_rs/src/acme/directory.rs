@@ -20,8 +20,6 @@ use chrono::offset::FixedOffset;
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
-pub const LETSENCRYPT_STAGING: &str = "https://acme-staging-v02.api.letsencrypt.org/directory";
-
 /// The URLs for each operation on a ACME server.
 // https://datatracker.ietf.org/doc/html/rfc8555#section-7.1.1
 #[derive(Debug, Deserialize)]

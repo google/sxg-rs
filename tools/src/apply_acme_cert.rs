@@ -13,22 +13,18 @@
 // limitations under the License.
 
 use anyhow::Result;
-use clap::{ArgEnum, Parser};
+use clap::Parser;
 use warp::Filter;
 
 use crate::linux_commands::{create_certificate_request_pem, create_private_key_pem};
-
-#[derive(ArgEnum, Clone, Debug, Parser)]
-enum AcmeServer {
-    LetsencryptStaging,
-}
 
 #[derive(Debug, Parser)]
 pub struct Opts {
     #[clap(long)]
     port: u16,
-    #[clap(arg_enum, long)]
-    server: AcmeServer,
+    /// Directory URL of ACME server
+    #[clap(long)]
+    acme_server: String,
     #[clap(long)]
     email: String,
     #[clap(long)]
@@ -48,9 +44,6 @@ fn start_warp_server(port: u16, answer: String) -> tokio::sync::oneshot::Sender<
 }
 
 pub async fn main(opts: Opts) -> Result<()> {
-    let server_directory_url = match opts.server {
-        AcmeServer::LetsencryptStaging => sxg_rs::acme::directory::LETSENCRYPT_STAGING,
-    };
     let acme_private_key = {
         let private_key_file = "acme_account_private_key.pem";
         let private_key_pem = create_private_key_pem(private_key_file)?;
@@ -67,7 +60,7 @@ pub async fn main(opts: Opts) -> Result<()> {
     let signer = acme_private_key.create_signer()?;
     let fetcher = sxg_rs::fetcher::hyper_fetcher::HyperFetcher::new();
     let ongoing_certificate_request = sxg_rs::acme::create_request_and_get_challenge_answer(
-        server_directory_url,
+        &opts.acme_server,
         &opts.email,
         &opts.domain,
         acme_private_key.public_key,
