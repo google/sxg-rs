@@ -30,6 +30,12 @@ pub struct Opts {
     email: String,
     #[clap(long)]
     domain: String,
+    #[clap(long, default_value_t=String::from("acme_account_private_key.pem"))]
+    acme_account_private_key_file: String,
+    #[clap(long, default_value_t=String::from("privkey.pem"))]
+    sxg_private_key_file: String,
+    #[clap(long, default_value_t=String::from("cert.csr"))]
+    sxg_cert_request_file: String,
 }
 
 fn start_warp_server(port: u16, answer: String) -> tokio::sync::oneshot::Sender<()> {
@@ -46,16 +52,16 @@ fn start_warp_server(port: u16, answer: String) -> tokio::sync::oneshot::Sender<
 
 pub async fn main(opts: Opts) -> Result<()> {
     let acme_private_key = {
-        let private_key_file = "acme_account_private_key.pem";
-        let private_key_pem = create_private_key_pem(private_key_file)?;
+        let private_key_pem = create_private_key_pem(&opts.acme_account_private_key_file)?;
         sxg_rs::crypto::EcPrivateKey::from_sec1_pem(&private_key_pem)?
     };
     let sxg_cert_request_der = {
-        let private_key_file = "privkey.pem";
-        let cert_request_file = "cert.csr";
-        create_private_key_pem(private_key_file)?;
-        let cert_request_pem =
-            create_certificate_request_pem(&opts.domain, private_key_file, cert_request_file)?;
+        create_private_key_pem(&opts.sxg_private_key_file)?;
+        let cert_request_pem = create_certificate_request_pem(
+            &opts.domain,
+            &opts.sxg_private_key_file,
+            &opts.sxg_cert_request_file,
+        )?;
         sxg_rs::crypto::get_der_from_pem(&cert_request_pem, "CERTIFICATE REQUEST")?
     };
     let signer = acme_private_key.create_signer()?;
