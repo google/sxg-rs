@@ -27,26 +27,26 @@ use directory::{
     NewAccountRequestPayload, NewAccountResponsePayload, NewOrderRequestPayload, Order, Status,
 };
 
-pub struct OngoingCertificateRequest {
+pub struct OngoingCertificateRequest<F: Fetcher, S: Signer> {
     account_url: String,
     authorization_url: String,
     cert_request_der: Vec<u8>,
     challenge: Challenge,
     pub challenge_answer: String,
-    client: Client,
+    client: Client<F, S>,
     order: Order,
 }
 
-pub async fn apply_certificate_and_get_challenge_answer(
+pub async fn apply_certificate_and_get_challenge_answer<F: Fetcher, S: Signer>(
     directory_url: &str,
     email: &str,
     domain: impl ToString,
     public_key: EcPublicKey,
     cert_request_der: Vec<u8>,
-    fetcher: &impl Fetcher,
-    signer: &impl Signer,
-) -> Result<OngoingCertificateRequest> {
-    let mut client = Client::new(directory_url, public_key, fetcher).await?;
+    fetcher: F,
+    signer: S,
+) -> Result<OngoingCertificateRequest<F, S>> {
+    let mut client = Client::new(directory_url, public_key, fetcher, signer).await?;
     let account_url: String = {
         let request_payload = NewAccountRequestPayload {
             contact: vec![format!("mailto:{}", email)],
@@ -57,8 +57,6 @@ pub async fn apply_certificate_and_get_challenge_answer(
                 AuthMethod::JsonWebKey,
                 client.directory.new_account.clone(),
                 request_payload,
-                fetcher,
-                signer,
             )
             .await?;
         let rsp_paylod: NewAccountResponsePayload = serde_json::from_slice(&response.body)
@@ -82,8 +80,6 @@ pub async fn apply_certificate_and_get_challenge_answer(
                 AuthMethod::KeyId(&account_url),
                 client.directory.new_order.clone(),
                 request_payload,
-                fetcher,
-                signer,
             )
             .await?;
         serde_json::from_slice(&response.body)
@@ -95,14 +91,7 @@ pub async fn apply_certificate_and_get_challenge_answer(
         .next()
         .ok_or_else(|| Error::msg("The order response does not contain authorizations"))?
         .to_owned();
-    let challenge = get_http_challenge(
-        &mut client,
-        &account_url,
-        &authorization_url,
-        fetcher,
-        signer,
-    )
-    .await?;
+    let challenge = get_http_challenge(&mut client, &account_url, &authorization_url).await?;
 
     // https://datatracker.ietf.org/doc/html/rfc8555#section-8.1
     let challenge_answer = format!(
@@ -124,10 +113,8 @@ pub async fn apply_certificate_and_get_challenge_answer(
     })
 }
 
-pub async fn continue_challenge_validation_and_get_certificate(
-    ongoing_certificate_request: OngoingCertificateRequest,
-    fetcher: &impl Fetcher,
-    signer: &impl Signer,
+pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Signer>(
+    ongoing_certificate_request: OngoingCertificateRequest<F, S>,
 ) -> Result<String> {
     let OngoingCertificateRequest {
         account_url,
@@ -147,21 +134,11 @@ pub async fn continue_challenge_validation_and_get_certificate(
             AuthMethod::KeyId(&account_url),
             challenge.url,
             serde_json::Map::new(),
-            fetcher,
-            signer,
         )
         .await?;
-    // tokio::time::sleep(std::time::Duration::from_secs(3)).await;
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        let challenge = get_http_challenge(
-            &mut client,
-            &account_url,
-            &authorization_url,
-            fetcher,
-            signer,
-        )
-        .await?;
+        let challenge = get_http_challenge(&mut client, &account_url, &authorization_url).await?;
         if challenge.status == Status::Valid {
             break;
         }
@@ -174,8 +151,6 @@ pub async fn continue_challenge_validation_and_get_certificate(
                 FinalizeRequest {
                     csr: &base64::encode_config(cert_request_der, base64::URL_SAFE_NO_PAD),
                 },
-                fetcher,
-                signer,
             )
             .await?;
         serde_json::from_slice(&response.body)
@@ -183,30 +158,21 @@ pub async fn continue_challenge_validation_and_get_certificate(
     };
     let certificate_url = order.certificate.unwrap();
     let certificate = client
-        .post_as_get(
-            AuthMethod::KeyId(&account_url),
-            certificate_url,
-            fetcher,
-            signer,
-        )
+        .post_as_get(AuthMethod::KeyId(&account_url), certificate_url)
         .await?;
     let certificate = String::from_utf8(certificate.body).unwrap();
     Ok(certificate)
 }
 
-async fn get_http_challenge(
-    client: &mut Client,
+async fn get_http_challenge<F: Fetcher, S: Signer>(
+    client: &mut Client<F, S>,
     account_url: &str,
     authorization_url: &str,
-    fetcher: &impl Fetcher,
-    signer: &impl Signer,
 ) -> Result<Challenge> {
     let response = client
         .post_as_get(
             AuthMethod::KeyId(&account_url),
             authorization_url.to_string(),
-            fetcher,
-            signer,
         )
         .await?;
     let authorization: Authorization = serde_json::from_slice(&response.body)

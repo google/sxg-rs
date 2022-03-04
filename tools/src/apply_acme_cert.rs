@@ -72,8 +72,8 @@ pub async fn main(opts: Opts) -> Result<()> {
         &opts.domain,
         acme_private_key.public_key,
         sxg_cert_request_der,
-        &fetcher,
-        &signer,
+        fetcher,
+        signer,
     )
     .await?;
     let tx = start_warp_server(
@@ -83,8 +83,6 @@ pub async fn main(opts: Opts) -> Result<()> {
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     let certificate_pem = sxg_rs::acme::continue_challenge_validation_and_get_certificate(
         ongoing_certificate_request,
-        &fetcher,
-        &signer,
     )
     .await?;
     let _ = tx.send(());

@@ -20,10 +20,12 @@ use crate::signature::Signer;
 use anyhow::{anyhow, Result};
 use serde::Serialize;
 
-pub struct Client {
+pub struct Client<F: Fetcher, S: Signer> {
     pub public_key: EcPublicKey,
     pub directory: Directory,
     nonce: Option<String>,
+    fetcher: F,
+    signer: S,
 }
 
 #[derive(PartialEq, Eq)]
@@ -32,56 +34,52 @@ pub enum AuthMethod<'a> {
     KeyId(&'a str),
 }
 
-impl Client {
-    pub async fn new<F: Fetcher>(
+impl<F: Fetcher, S: Signer> Client<F, S> {
+    pub async fn new(
         directory_url: &str,
         public_key: EcPublicKey,
-        fetcher: &F,
+        fetcher: F,
+        signer: S,
     ) -> Result<Self> {
-        let directory = Directory::new(directory_url, fetcher).await?;
+        let directory = Directory::new(directory_url, &fetcher).await?;
         Ok(Client {
             public_key,
             directory,
             nonce: None,
+            fetcher,
+            signer,
         })
     }
-    pub async fn post_as_get<F: Fetcher, S: Signer>(
+    pub async fn post_as_get(
         &mut self,
         auth_method: AuthMethod<'_>,
         url: String,
-        fetcher: &F,
-        signer: &S,
     ) -> Result<HttpResponse> {
         let payload: Option<()> = None;
-        self.post_impl(auth_method, url, payload, fetcher, signer)
-            .await
+        self.post_impl(auth_method, url, payload).await
     }
-    pub async fn post_with_payload<F: Fetcher, S: Signer, P: Serialize>(
+    pub async fn post_with_payload<P: Serialize>(
         &mut self,
         auth_method: AuthMethod<'_>,
         url: String,
         payload: P,
-        fetcher: &F,
-        signer: &S,
     ) -> Result<HttpResponse> {
-        self.post_impl(auth_method, url, Some(payload), fetcher, signer)
-            .await
+        self.post_impl(auth_method, url, Some(payload)).await
     }
-    async fn post_impl<F: Fetcher, S: Signer, P: Serialize>(
+    async fn post_impl<P: Serialize>(
         &mut self,
         auth_method: AuthMethod<'_>,
         url: String,
         payload: Option<P>,
-        fetcher: &F,
-        signer: &S,
     ) -> Result<HttpResponse> {
-        let nonce = self.take_nonce(fetcher).await?;
+        let nonce = self.take_nonce().await?;
         let (jwk, key_id) = match auth_method {
             AuthMethod::JsonWebKey => (Some(&self.public_key), None),
             AuthMethod::KeyId(key_id) => (None, Some(key_id)),
         };
         let request_body =
-            super::jws::create_acme_request_body(jwk, key_id, nonce, &url, payload, signer).await?;
+            super::jws::create_acme_request_body(jwk, key_id, nonce, &url, payload, &self.signer)
+                .await?;
         let request = HttpRequest {
             url: url.clone(),
             method: Method::Post,
@@ -91,26 +89,26 @@ impl Client {
             )],
             body: request_body,
         };
-        let response = fetcher.fetch(request).await?;
+        let response = self.fetcher.fetch(request).await?;
         if let Ok(nonce) = find_header(&response, "Replay-Nonce") {
             let _ = self.nonce.insert(nonce);
         }
         Ok(response)
     }
-    async fn take_nonce<F: Fetcher>(&mut self, fetcher: &F) -> Result<String> {
+    async fn take_nonce(&mut self) -> Result<String> {
         match self.nonce.take() {
             Some(nonce) => Ok(nonce),
-            None => self.fetch_new_nonce(fetcher).await,
+            None => self.fetch_new_nonce().await,
         }
     }
-    async fn fetch_new_nonce<F: Fetcher>(&self, fetcher: &F) -> Result<String> {
+    async fn fetch_new_nonce(&self) -> Result<String> {
         let request = HttpRequest {
             method: Method::Get,
             headers: vec![],
             url: self.directory.new_nonce.clone(),
             body: vec![],
         };
-        let response = fetcher.fetch(request).await?;
+        let response = self.fetcher.fetch(request).await?;
         find_header(&response, "Replay-Nonce")
     }
 }
