@@ -87,8 +87,7 @@ pub async fn apply_certificate_and_get_challenge_answer<F: Fetcher, S: Signer>(
     };
     let authorization_url: String = order
         .authorizations
-        .iter()
-        .next()
+        .get(0)
         .ok_or_else(|| Error::msg("The order response does not contain authorizations"))?
         .to_owned();
     let challenge = get_http_challenge(&mut client, &account_url, &authorization_url).await?;
@@ -171,7 +170,7 @@ async fn get_http_challenge<F: Fetcher, S: Signer>(
 ) -> Result<Challenge> {
     let response = client
         .post_as_get(
-            AuthMethod::KeyId(&account_url),
+            AuthMethod::KeyId(account_url),
             authorization_url.to_string(),
         )
         .await?;

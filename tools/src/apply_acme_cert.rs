@@ -37,8 +37,8 @@ pub struct Opts {
 
 fn start_warp_server(port: u16, answer: String) -> tokio::sync::oneshot::Sender<()> {
     let (tx, rx) = tokio::sync::oneshot::channel();
-    let routes = warp::path!(".well-known" / "acme-challenge" / String)
-        .map(move |_name| format!("{}", answer));
+    let routes =
+        warp::path!(".well-known" / "acme-challenge" / String).map(move |_name| answer.to_string());
     let (_addr, server) =
         warp::serve(routes).bind_with_graceful_shutdown(([127, 0, 0, 1], port), async {
             rx.await.ok();

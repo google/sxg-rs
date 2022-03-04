@@ -35,6 +35,12 @@ impl HyperFetcher {
     }
 }
 
+impl Default for HyperFetcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait(?Send)]
 impl Fetcher for HyperFetcher {
     async fn fetch(&self, request: SxgRsRequest) -> Result<SxgRsResponse> {
