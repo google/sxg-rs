@@ -22,12 +22,15 @@
 //
 // (This function could be genericized to all TypedArrays, but no such
 // interface exists in TypeScript.)
-async function streamFrom(inputStream: ReadableStream, maxSize: number,
-                          process?: (currentPos: number, value: Uint8Array) => void): Promise<boolean> {
+async function streamFrom(
+  inputStream: ReadableStream,
+  maxSize: number,
+  process?: (currentPos: number, value: Uint8Array) => void
+): Promise<boolean> {
   const reader = inputStream.getReader();
   let receivedSize = 0;
-  while (true) {
-    const { value, done } = await reader.read();
+  for (;;) {
+    const {value, done} = await reader.read();
     if (value) {
       process?.(receivedSize, value);
       receivedSize += value.length;
@@ -47,19 +50,25 @@ async function streamFrom(inputStream: ReadableStream, maxSize: number,
 
 // Consumes the input stream, and returns a byte array containing the first
 // size bytes, or null if there aren't enough bytes.
-export async function readArrayPrefix(inputStream: ReadableStream<Uint8Array> | null,
-                                      size: number): Promise<Uint8Array | null> {
+export async function readArrayPrefix(
+  inputStream: ReadableStream<Uint8Array> | null,
+  size: number
+): Promise<Uint8Array | null> {
   if (inputStream === null) {
     return new Uint8Array([]);
   }
   const received = new Uint8Array(size);
-  let reachedEOS = await streamFrom(inputStream, size, (currentPos: number, value: Uint8Array) => {
-    if (currentPos + value.length > size) {
-      value = value.subarray(0, size - currentPos);
+  const reachedEOS = await streamFrom(
+    inputStream,
+    size,
+    (currentPos: number, value: Uint8Array) => {
+      if (currentPos + value.length > size) {
+        value = value.subarray(0, size - currentPos);
+      }
+      // value must be Uint8Array, or else this set() will overflow:
+      received.set(value, currentPos);
     }
-    // value must be Uint8Array, or else this set() will overflow:
-    received.set(value, currentPos);
-  });
+  );
   return reachedEOS ? null : received;
 }
 
@@ -72,8 +81,10 @@ export async function readArrayPrefix(inputStream: ReadableStream<Uint8Array> | 
 // allocating a contiguous buffer upfront and growing it exponentially as
 // necessary. It would be good to do so with a benchmark and an approximate
 // distribution of body sizes in the wild (e.g. from HTTP Archive).
-export async function readIntoArray(inputStream: ReadableStream<Uint8Array> | null,
-                                    maxSize: number): Promise<Uint8Array | null> {
+export async function readIntoArray(
+  inputStream: ReadableStream<Uint8Array> | null,
+  maxSize: number
+): Promise<Uint8Array | null> {
   // NOTE: maxSize could be implemented more simply using TransformStream, but
   // non-identity TransformStreams don't work on Cloudflare Workers. (See
   // https://community.cloudflare.com/t/running-into-unimplemented-functionality/77343.)
@@ -87,12 +98,16 @@ export async function readIntoArray(inputStream: ReadableStream<Uint8Array> | nu
   if (inputStream === null) {
     return new Uint8Array([]);
   }
-  let segments: Uint8Array[] = [];
+  const segments: Uint8Array[] = [];
   let size = 0;
-  let reachedEOS = await streamFrom(inputStream, maxSize, (_currentPos: number, value: Uint8Array) => {
-    segments.push(value);
-    size += value.length;
-  });
+  const reachedEOS = await streamFrom(
+    inputStream,
+    maxSize,
+    (_currentPos: number, value: Uint8Array) => {
+      segments.push(value);
+      size += value.length;
+    }
+  );
   // End-of-stream was not reached before maxSize.
   if (!reachedEOS) {
     return null;
@@ -104,7 +119,7 @@ export async function readIntoArray(inputStream: ReadableStream<Uint8Array> | nu
   // Concatenate segments into a contiguous buffer.
   const buffer = new Uint8Array(size);
   let bufferPos = 0;
-  segments.forEach((segment) => {
+  segments.forEach(segment => {
     const end = Math.min(segment.length, size - bufferPos);
     buffer.set(segment.subarray(0, end), bufferPos);
     bufferPos += end;
@@ -113,14 +128,10 @@ export async function readIntoArray(inputStream: ReadableStream<Uint8Array> | nu
 }
 
 export function teeResponse(response: Response): [Response, Response] {
-  const {
-    body,
-    headers,
-    status,
-  } = response;
+  const {body, headers, status} = response;
   const [body1, body2] = body?.tee() ?? [null, null];
   return [
-      new Response(body1, { headers, status }),
-      new Response(body2, { headers, status }),
+    new Response(body1, {headers, status}),
+    new Response(body2, {headers, status}),
   ];
 }

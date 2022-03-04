@@ -16,29 +16,29 @@
 
 const privateKeyPromise = (async function initPrivateKey() {
   if (typeof PRIVATE_KEY_JWK === 'undefined') {
-    throw `The wrangler secret PRIVATE_KEY_JWK is not set.`;
+    throw 'The wrangler secret PRIVATE_KEY_JWK is not set.';
   }
   return await crypto.subtle.importKey(
-      "jwk",
-      JSON.parse(PRIVATE_KEY_JWK),
-      {
-        name: "ECDSA",
-        namedCurve: 'P-256',
-      },
-      /*extractable=*/false,
-      ['sign'],
+    'jwk',
+    JSON.parse(PRIVATE_KEY_JWK),
+    {
+      name: 'ECDSA',
+      namedCurve: 'P-256',
+    },
+    /*extractable=*/ false,
+    ['sign']
   );
 })();
 
 export async function signer(message: Uint8Array): Promise<Uint8Array> {
   const privateKey = await privateKeyPromise;
   const signature = await crypto.subtle.sign(
-      {
-        name: "ECDSA",
-        hash: 'SHA-256',
-      },
-      privateKey,
-      message,
+    {
+      name: 'ECDSA',
+      hash: 'SHA-256',
+    },
+    privateKey,
+    message
   );
   return new Uint8Array(signature);
 }

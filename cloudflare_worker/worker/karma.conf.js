@@ -14,18 +14,16 @@
  * limitations under the License.
  */
 
-module.exports = function(config) {
+module.exports = function (config) {
   config.set({
     basePath: '',
     frameworks: ['jasmine'],
-    files: [
-      'dist/**/*.test.js'
-    ],
+    files: ['dist/**/*.test.js'],
     colors: true,
     logLevel: config.LOG_INFO,
     autoWatch: false,
     browsers: ['ChromeHeadless'],
     singleRun: false,
-    concurrency: Infinity
-  })
-}
+    concurrency: Infinity,
+  });
+};

@@ -17,11 +17,11 @@
 export {};
 
 declare global {
-  const CERT_ORIGIN: string
-  const CERT_PEM: string
-  const HTML_HOST: string
-  const ISSUER_PEM: string
-  const OCSP: KVNamespace
-  const PRIVATE_KEY_JWK: string
-  const SXG_CONFIG: string
+  const CERT_ORIGIN: string;
+  const CERT_PEM: string;
+  const HTML_HOST: string;
+  const ISSUER_PEM: string;
+  const OCSP: KVNamespace;
+  const PRIVATE_KEY_JWK: string;
+  const SXG_CONFIG: string;
 }
