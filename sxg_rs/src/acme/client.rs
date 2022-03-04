@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! An ACME client handles authenication with the ACME server.
+
 use super::directory::Directory;
 use crate::crypto::EcPublicKey;
 use crate::fetcher::Fetcher;
@@ -50,6 +52,12 @@ impl<F: Fetcher, S: Signer> Client<F, S> {
             signer,
         })
     }
+    /// Fetches a server resource at given URL using
+    /// [POST-as-GET](https://datatracker.ietf.org/doc/html/rfc8555#section-6.3)
+    /// method. `POST-as-GET` is a `POST` request with no request payload. This
+    /// function is useful because an ACME server always returns error code
+    /// `405` for `GET` requests, which don't contain request body for
+    /// authenication.
     pub async fn post_as_get(
         &mut self,
         auth_method: AuthMethod<'_>,
@@ -58,6 +66,8 @@ impl<F: Fetcher, S: Signer> Client<F, S> {
         let payload: Option<()> = None;
         self.post_impl(auth_method, url, payload).await
     }
+    /// Fetches a server resource at given URL using `POST` method with a
+    /// request payload.
     pub async fn post_with_payload<P: Serialize>(
         &mut self,
         auth_method: AuthMethod<'_>,
@@ -66,6 +76,8 @@ impl<F: Fetcher, S: Signer> Client<F, S> {
     ) -> Result<HttpResponse> {
         self.post_impl(auth_method, url, Some(payload)).await
     }
+    /// Encapsulates the payload in JWS for authenication, connects to the ACME
+    /// server, saves `nonce` for next request, and returns the sever response.
     async fn post_impl<P: Serialize>(
         &mut self,
         auth_method: AuthMethod<'_>,
@@ -95,12 +107,15 @@ impl<F: Fetcher, S: Signer> Client<F, S> {
         }
         Ok(response)
     }
+    /// If `self.nonce` exsists, deletes and returns it;
+    /// if there is no `nonce`, fetches a new one and returns it.
     async fn take_nonce(&mut self) -> Result<String> {
         match self.nonce.take() {
             Some(nonce) => Ok(nonce),
             None => self.fetch_new_nonce().await,
         }
     }
+    /// Fetches a new `nonce` from the server.
     async fn fetch_new_nonce(&self) -> Result<String> {
         let request = HttpRequest {
             method: Method::Get,

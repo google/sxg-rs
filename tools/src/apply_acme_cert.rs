@@ -66,7 +66,7 @@ pub async fn main(opts: Opts) -> Result<()> {
     };
     let signer = acme_private_key.create_signer()?;
     let fetcher = sxg_rs::fetcher::hyper_fetcher::HyperFetcher::new();
-    let ongoing_certificate_request = sxg_rs::acme::apply_certificate_and_get_challenge_answer(
+    let ongoing_certificate_request = sxg_rs::acme::create_request_and_get_challenge_answer(
         server_directory_url,
         &opts.email,
         &opts.domain,

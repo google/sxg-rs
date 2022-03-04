@@ -12,6 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! This module includes tools to communicate with an ACME server.
+//! It takes three steps to request a certificate.
+//! 1. Call this module's `create_request_and_get_challenge_answer`. An HTTP
+//!    challenge is created with the answer.
+//! 1. Use some other methods to set up an HTTP service to serve the HTTP
+//!    challenge answer.
+//! 1. Call this module's `continue_challenge_validation_and_get_certificate`.
+
 pub mod client;
 pub mod directory;
 pub mod jws;
@@ -27,6 +35,8 @@ use directory::{
     NewAccountRequestPayload, NewAccountResponsePayload, NewOrderRequestPayload, Order, Status,
 };
 
+/// The runtime context of an ongoing ACME certificate request, which is
+/// waiting for HTTP challenge.
 pub struct OngoingCertificateRequest<F: Fetcher, S: Signer> {
     account_url: String,
     authorization_url: String,
@@ -37,7 +47,9 @@ pub struct OngoingCertificateRequest<F: Fetcher, S: Signer> {
     order: Order,
 }
 
-pub async fn apply_certificate_and_get_challenge_answer<F: Fetcher, S: Signer>(
+/// Connects to ACME server to request a certificate, stops after generating
+/// HTTP challenge answer, and returns the running context of this application.
+pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
     directory_url: &str,
     email: &str,
     domain: impl ToString,
@@ -112,6 +124,8 @@ pub async fn apply_certificate_and_get_challenge_answer<F: Fetcher, S: Signer>(
     })
 }
 
+/// Notifies the server to validate HTTP challenge, polls the request status
+/// until it is ready, and returns the certificate in PEM format.
 pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Signer>(
     ongoing_certificate_request: OngoingCertificateRequest<F, S>,
 ) -> Result<String> {
@@ -163,6 +177,7 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
     Ok(certificate)
 }
 
+/// Fetches `authorization_url` and returns the first `HTTP-01` challenge.
 async fn get_http_challenge<F: Fetcher, S: Signer>(
     client: &mut Client<F, S>,
     account_url: &str,

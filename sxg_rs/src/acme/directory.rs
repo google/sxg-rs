@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! This module includes the URL, request and response of the ACME operations.
+
 use crate::fetcher::Fetcher;
 use anyhow::{Error, Result};
 use chrono::offset::FixedOffset;
