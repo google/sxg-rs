@@ -260,6 +260,7 @@ class PromoteLinkTagsToHeaders implements HTMLProcessor {
           // definition of Attr from typescript/lib/lib.dom.d.ts. Not sure why;
           // @cloudflare/workers-types/index.d.ts says it's a string[][].
           const attrs = [...(link.attributes as unknown as string[][])].filter(
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             ([name, _value]) => name && ALLOWED_LINK_ATTRS.has(name)
           );
           this.link_tags.push({href, attrs});
@@ -320,6 +321,7 @@ class SXGOnly {
         },
       });
   }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onEnd(_payload: Response): void {}
 }
 

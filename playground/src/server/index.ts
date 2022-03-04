@@ -36,6 +36,7 @@ const wasmBuffer = fs.readFileSync(
   )
 );
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function headerIntegrityGet(_url: string): Promise<WasmResponse> {
   return {
     body: [],
