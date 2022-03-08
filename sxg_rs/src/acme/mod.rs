@@ -189,7 +189,6 @@ async fn get_http_challenge<F: Fetcher, S: Signer>(
             authorization_url.to_string(),
         )
         .await?;
-    println!("{}", String::from_utf8(response.body.clone()).unwrap());
     let authorization: Authorization = serde_json::from_slice(&response.body)
         .map_err(|e| Error::new(e).context("Failed to parse authorization response"))?;
     let challenge: &Challenge = authorization
@@ -220,7 +219,6 @@ mod tests {
             x: vec![1],
             y: vec![2],
         };
-        println!("{}", serde_json::to_string_pretty(&public_key).unwrap());
         let client_thread = async {
             let signer = crate::signature::mock_signer::MockSigner;
             let ongoing_certificate_request = create_request_and_get_challenge_answer(
@@ -253,15 +251,13 @@ mod tests {
             let res = HttpResponse {
                 status: 200,
                 headers: vec![],
-                body: r#"
-                      {
-                        "keyChange": "https://acme.server/key-change",
-                        "newAccount": "https://acme.server/new-acct",
-                        "newNonce": "https://acme.server/new-nonce",
-                        "newOrder": "https://acme.server/new-order",
-                        "revokeCert": "https://acme.server/revoke-cert"
-                      }
-                    "#
+                body: r#"{
+                    "keyChange": "https://acme.server/key-change",
+                    "newAccount": "https://acme.server/new-acct",
+                    "newNonce": "https://acme.server/new-nonce",
+                    "newOrder": "https://acme.server/new-order",
+                    "revokeCert": "https://acme.server/revoke-cert"
+                }"#
                 .to_string()
                 .into_bytes(),
             };
@@ -381,22 +377,22 @@ mod tests {
                     "expires": "2022-03-15T19:38:31Z",
                     "challenges": [
                         {
-                        "type": "http-01",
-                        "status": "pending",
-                        "url": "https://acme.server/chall-v3/1866692048/oFAcwQ",
-                        "token": "0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o"
+                            "type": "http-01",
+                            "status": "pending",
+                            "url": "https://acme.server/chall-v3/1866692048/oFAcwQ",
+                            "token": "0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o"
                         },
                         {
-                        "type": "dns-01",
-                        "status": "pending",
-                        "url": "https://acme.server/chall-v3/1866692048/G_sfog",
-                        "token": "0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o"
+                            "type": "dns-01",
+                            "status": "pending",
+                            "url": "https://acme.server/chall-v3/1866692048/G_sfog",
+                            "token": "0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o"
                         },
                         {
-                        "type": "tls-alpn-01",
-                        "status": "pending",
-                        "url": "https://acme.server/chall-v3/1866692048/O-NVtg",
-                        "token": "0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o"
+                            "type": "tls-alpn-01",
+                            "status": "pending",
+                            "url": "https://acme.server/chall-v3/1866692048/O-NVtg",
+                            "token": "0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o"
                         }
                     ]
                 }"#
@@ -464,7 +460,6 @@ mod tests {
                             "validated": "2022-03-08T19:38:32Z"
                         }
                     ]
-
                 }"#
                 .to_string()
                 .into_bytes(),
