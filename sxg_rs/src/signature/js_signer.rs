@@ -15,7 +15,6 @@
 use super::Signer;
 use anyhow::{Error, Result};
 use async_trait::async_trait;
-use der_parser::ber::{BerObject, BerObjectContent};
 use js_sys::{Function as JsFunction, Uint8Array};
 use wasm_bindgen::JsValue;
 
@@ -72,40 +71,8 @@ impl Signer for JsSigner {
         let sig = sig.to_vec();
         let sig = match self.js_sig_format {
             SigFormat::Asn1 => sig,
-            SigFormat::Raw => raw_sig_to_asn1(sig)?,
+            SigFormat::Raw => super::raw_sig_to_asn1(sig)?,
         };
         Ok(sig)
-    }
-}
-
-fn raw_sig_to_asn1(raw: Vec<u8>) -> Result<Vec<u8>> {
-    const NUMBER_LENGTH: usize = 32; // 256 bit is 32 bytes.
-    const SIG_LENGTH: usize = NUMBER_LENGTH * 2; // A signature contains two numbers;
-    if raw.len() != SIG_LENGTH {
-        return Err(Error::msg(format!(
-            "Expecting signature length to be {}, found {}.",
-            SIG_LENGTH,
-            raw.len()
-        )));
-    }
-    let mut r = raw;
-    let mut s = r.split_off(NUMBER_LENGTH);
-    ensure_positive(&mut r);
-    ensure_positive(&mut s);
-    let asn1 = BerObject::from_obj(BerObjectContent::Sequence(vec![
-        BerObject::from_obj(BerObjectContent::Integer(&r)),
-        BerObject::from_obj(BerObjectContent::Integer(&s)),
-    ]));
-    asn1.to_vec()
-        .map_err(|e| Error::new(e).context("Failed to serialize asn1 BER Object"))
-}
-
-// Prepend the big-endian integer with leading zeros if needed, in order to
-// make it a positive integer. For example, when the input is 0xffff,
-// it will be parsed as a negative number, hence we need to change it to
-// 0x00ffff.
-fn ensure_positive(a: &mut Vec<u8>) {
-    if a[0] >= 0x80 {
-        a.insert(0, 0x00);
     }
 }

@@ -14,6 +14,7 @@
 
 #[cfg(feature = "wasm")]
 pub mod js_fetcher;
+pub mod mock_fetcher;
 
 use crate::http::{HttpRequest, HttpResponse};
 use anyhow::{anyhow, Result};

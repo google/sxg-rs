@@ -55,7 +55,7 @@ struct AcmeProtectedHeader<'a> {
 
 /// [JSON Web Signature](https://datatracker.ietf.org/doc/html/rfc7515).
 #[derive(Debug, Serialize)]
-struct JsonWebSignature {
+pub struct JsonWebSignature {
     protected: String,
     payload: String,
     signature: String,
@@ -94,7 +94,7 @@ impl JsonWebSignature {
         Self::new_from_serialized(&protected_header, &payload, signer).await
     }
     /// Constructs a signature from strings of serialized header and payload.
-    async fn new_from_serialized<S: Signer>(
+    pub async fn new_from_serialized<S: Signer>(
         protected_header: &str,
         payload: &str,
         signer: &S,
