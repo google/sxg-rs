@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! A ['Fetcher`] returning pre-defined responses, to be used in unit testing.
+
 use super::Fetcher;
 use crate::http::{HttpRequest, HttpResponse};
 use anyhow::{anyhow, Result};
@@ -100,6 +102,8 @@ impl MockServer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // The server side calls `handle_next_request` for each `fetch` at client
+    // side.
     #[tokio::test]
     async fn it_works() {
         let (fetcher, mut server) = create();
@@ -108,7 +112,7 @@ mod tests {
                 body: vec![],
                 method: crate::http::Method::Get,
                 headers: vec![],
-                url: "https://foo.com".to_string(),
+                url: "https://foo.com/1".to_string(),
             };
             let response = HttpResponse {
                 status: 200,
@@ -119,11 +123,37 @@ mod tests {
                 .handle_next_request(expected_request, response)
                 .await
                 .unwrap();
+
+            let expected_request = HttpRequest {
+                body: vec![],
+                method: crate::http::Method::Get,
+                headers: vec![],
+                url: "https://foo.com/2".to_string(),
+            };
+            let response = HttpResponse {
+                status: 200,
+                headers: vec![],
+                body: vec![7, 8, 9],
+            };
+            server
+                .handle_next_request(expected_request, response)
+                .await
+                .unwrap();
         };
-        let client_thread =
-            async { assert_eq!(fetcher.get("https://foo.com").await.unwrap(), vec![1, 2, 3],) };
+        let client_thread = async {
+            assert_eq!(
+                fetcher.get("https://foo.com/1").await.unwrap(),
+                vec![1, 2, 3]
+            );
+            assert_eq!(
+                fetcher.get("https://foo.com/2").await.unwrap(),
+                vec![7, 8, 9]
+            );
+        };
         tokio::join!(server_thread, client_thread);
     }
+    // In the case client side actual request does not match against server
+    // side expected request, both server and client will get an error.
     #[tokio::test]
     async fn req_mismatch() {
         let (fetcher, mut server) = create();

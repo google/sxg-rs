@@ -210,6 +210,7 @@ mod tests {
     use super::*;
     use crate::http::{HttpRequest, HttpResponse, Method};
     use jws::JsonWebSignature;
+    // Tests basic workflow of requesting certificate using ACME protocol.
     #[tokio::test]
     async fn workflow() {
         let (fetcher, mut server) = crate::fetcher::mock_fetcher::create();
@@ -219,6 +220,7 @@ mod tests {
             x: vec![1],
             y: vec![2],
         };
+        // The client is handled by the code in `sxg_rs::acme`.
         let client_thread = async {
             let signer = crate::signature::mock_signer::MockSigner;
             let ongoing_certificate_request = create_request_and_get_challenge_answer(
@@ -239,6 +241,7 @@ mod tests {
                     .unwrap();
             assert_eq!(certificate_pem, "content of certificate");
         };
+        // The server side is mocked by directly putting all HTTP requests and responses.
         let server_thread = async {
             let signer = crate::signature::mock_signer::MockSigner;
 
