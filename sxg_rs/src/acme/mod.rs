@@ -296,7 +296,7 @@ mod tests {
                         "Location".to_string(),
                         "https://acme.server/acct/123456".to_string(),
                     ),
-                    ("Replay-Nonce".to_string(), "1".to_string()),
+                    ("Replay-Nonce".to_string(), "2".to_string()),
                 ],
                 body: r#"{
                     "key": {
@@ -319,7 +319,7 @@ mod tests {
 
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
-                    r#"{"alg":"ES256","nonce":"1","url":"https://acme.server/new-order","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
+                    r#"{"alg":"ES256","nonce":"2","url":"https://acme.server/new-order","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
                     r#"{"identifiers":[{"type":"dns","value":"example.com"}],"notBefore":null,"notAfter":null}"#,
                     &signer,
                 ).await.unwrap()).unwrap(),
@@ -332,7 +332,7 @@ mod tests {
             };
             let res = HttpResponse {
                 status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "1".to_string())],
+                headers: vec![("Replay-Nonce".to_string(), "3".to_string())],
                 body: r#"{
                     "status": "pending",
                     "expires": "2022-03-15T19:38:31Z",
@@ -354,7 +354,7 @@ mod tests {
 
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
-                    r#"{"alg":"ES256","nonce":"1","url":"https://acme.server/authz-v3/1866692048","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
+                    r#"{"alg":"ES256","nonce":"3","url":"https://acme.server/authz-v3/1866692048","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
                     "",
                     &signer,
                 ).await.unwrap()).unwrap(),
@@ -367,7 +367,7 @@ mod tests {
             };
             let res = HttpResponse {
                 status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "1".to_string())],
+                headers: vec![("Replay-Nonce".to_string(), "4".to_string())],
                 body: r#"{
                     "identifier": {
                         "type": "dns",
@@ -403,7 +403,7 @@ mod tests {
 
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
-                    r#"{"alg":"ES256","nonce":"1","url":"https://acme.server/chall-v3/1866692048/oFAcwQ","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
+                    r#"{"alg":"ES256","nonce":"4","url":"https://acme.server/chall-v3/1866692048/oFAcwQ","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
                     "{}",
                     &signer,
                 ).await.unwrap()).unwrap(),
@@ -416,7 +416,7 @@ mod tests {
             };
             let res = HttpResponse {
                 status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "1".to_string())],
+                headers: vec![("Replay-Nonce".to_string(), "5".to_string())],
                 body: r#"{
                     "type": "http-01",
                     "status": "pending",
@@ -430,7 +430,7 @@ mod tests {
 
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
-                    r#"{"alg":"ES256","nonce":"1","url":"https://acme.server/authz-v3/1866692048","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
+                    r#"{"alg":"ES256","nonce":"5","url":"https://acme.server/authz-v3/1866692048","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
                     "",
                     &signer,
                 ).await.unwrap()).unwrap(),
@@ -443,7 +443,7 @@ mod tests {
             };
             let res = HttpResponse {
                 status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "1".to_string())],
+                headers: vec![("Replay-Nonce".to_string(), "6".to_string())],
                 body: r#"{
                     "identifier": {
                         "type": "dns",
@@ -468,7 +468,7 @@ mod tests {
 
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
-                    r#"{"alg":"ES256","nonce":"1","url":"https://acme.server/finalize/46540038/1977802858","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
+                    r#"{"alg":"ES256","nonce":"6","url":"https://acme.server/finalize/46540038/1977802858","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
                     r#"{"csr":"Y3NyIGNvbnRlbnQ"}"#,
                     &signer,
                 ).await.unwrap()).unwrap(),
@@ -481,7 +481,7 @@ mod tests {
             };
             let res = HttpResponse {
                 status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "1".to_string())],
+                headers: vec![("Replay-Nonce".to_string(), "7".to_string())],
                 body: r#"{
                     "status": "valid",
                     "expires": "2022-03-15T19:38:31Z",
@@ -504,7 +504,7 @@ mod tests {
 
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
-                    r#"{"alg":"ES256","nonce":"1","url":"https://acme.server/cert/fa7af446e23117a13137f4cf64f24c3cdb5b","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
+                    r#"{"alg":"ES256","nonce":"7","url":"https://acme.server/cert/fa7af446e23117a13137f4cf64f24c3cdb5b","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
                     "",
                     &signer,
                 ).await.unwrap()).unwrap(),
@@ -517,7 +517,7 @@ mod tests {
             };
             let res = HttpResponse {
                 status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "1".to_string())],
+                headers: vec![("Replay-Nonce".to_string(), "8".to_string())],
                 body: "content of certificate".to_string().into_bytes(),
             };
             server.handle_next_request(req, res).await.unwrap();
