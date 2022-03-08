@@ -242,6 +242,8 @@ mod tests {
             assert_eq!(certificate_pem, "content of certificate");
         };
         // The server side is mocked by directly putting all HTTP requests and responses.
+        // For each pair (`req`, `res`) variables in the following code block, we expect the client
+        // thread to fetch `req`, and we will return `res` to client side.
         let server_thread = async {
             let signer = crate::signature::mock_signer::MockSigner;
 
