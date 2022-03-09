@@ -272,7 +272,8 @@ impl Headers {
     }
 }
 
-// These headers are always stripped before signing.
+// These headers are always stripped before signing, but preserved when serving unsigned (e.g.
+// direct or same-origin navigations, or non-prefetched subresources).
 static STRIP_RESPONSE_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     vec![
         // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#name-uncached-header-fields
@@ -282,6 +283,11 @@ static STRIP_RESPONSE_HEADERS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         "trailer",
         "transfer-encoding",
         "upgrade",
+        // Include the HSTS header from
+        // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#stateful-headers
+        // because it is an origin-wide (not URL-specific) header and origins shouldn't have to
+        // choose between HSTS and SXG. (We shouldn't create an artificial reason to disable HSTS.)
+        "strict-transport-security",
         // These headers are reserved for SXG
         ":status",
         "content-encoding",
