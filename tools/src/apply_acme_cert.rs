@@ -68,19 +68,19 @@ pub async fn main(opts: Opts) -> Result<()> {
     };
     let signer = acme_private_key.create_signer()?;
     let fetcher = HyperFetcher::new();
-    let external_account_binding = None; // TODO: Add EAB to CLI params.
-    let ongoing_certificate_request = sxg_rs::acme::create_request_and_get_challenge_answer(
-        &opts.acme_server,
-        &opts.agreed_terms_of_service,
-        external_account_binding,
-        &opts.email,
-        &opts.domain,
-        acme_private_key.public_key,
-        sxg_cert_request_der,
-        fetcher,
-        signer,
-    )
-    .await?;
+    let ongoing_certificate_request =
+        sxg_rs::acme::create_request_and_get_challenge_answer(sxg_rs::acme::AcmeStartupParams {
+            directory_url: &opts.acme_server,
+            agreed_terms_of_service: &opts.agreed_terms_of_service,
+            external_account_binding: None, // TODO: Add EAB to CLI params.
+            email: &opts.email,
+            domain: &opts.domain,
+            public_key: acme_private_key.public_key,
+            cert_request_der: sxg_cert_request_der,
+            fetcher,
+            signer,
+        })
+        .await?;
     let tx = start_warp_server(
         opts.port,
         ongoing_certificate_request.challenge_answer.clone(),

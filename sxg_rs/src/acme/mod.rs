@@ -47,30 +47,39 @@ pub struct OngoingCertificateRequest<F: Fetcher, S: Signer> {
     order: Order,
 }
 
+pub struct AcmeStartupParams<'a, F: Fetcher, S: Signer> {
+    pub directory_url: &'a str,
+    /// This must be the same as what required by ACME server.
+    pub agreed_terms_of_service: &'a str,
+    pub external_account_binding: Option<jws::JsonWebSignature>,
+    pub email: &'a str,
+    pub domain: &'a str,
+    pub public_key: EcPublicKey,
+    pub cert_request_der: Vec<u8>,
+    pub fetcher: F,
+    pub signer: S,
+}
+
 /// Connects to ACME server to request a certificate, stops after generating
 /// HTTP challenge answer, and returns the running context of this application.
-/// If `agreed_terms_of_service` parameter is not the same as what required by
-/// server, the certificate application will be sent.
 pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
-    directory_url: &str,
-    agreed_terms_of_service: &str,
-    external_account_binding: Option<jws::JsonWebSignature>,
-    email: &str,
-    domain: impl ToString,
-    public_key: EcPublicKey,
-    cert_request_der: Vec<u8>,
-    fetcher: F,
-    signer: S,
+    params: AcmeStartupParams<'_, F, S>,
 ) -> Result<OngoingCertificateRequest<F, S>> {
-    let mut client = Client::new(directory_url, public_key, fetcher, signer).await?;
-    if agreed_terms_of_service != client.directory.meta.terms_of_service {
+    let mut client = Client::new(
+        params.directory_url,
+        params.public_key,
+        params.fetcher,
+        params.signer,
+    )
+    .await?;
+    if params.agreed_terms_of_service != client.directory.meta.terms_of_service {
         return Err(anyhow!(
             "Please read and include the terms of service {}",
             &client.directory.meta.terms_of_service
         ));
     }
     if client.directory.meta.external_account_required == Some(true)
-        && external_account_binding.is_none()
+        && params.external_account_binding.is_none()
     {
         return Err(anyhow!(
             "External Acount Binding information is required by server but not provided by client"
@@ -78,8 +87,8 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
     }
     let account_url: String = {
         let request_payload = NewAccountRequestPayload {
-            contact: vec![format!("mailto:{}", email)],
-            external_account_binding,
+            contact: vec![format!("mailto:{}", params.email)],
+            external_account_binding: params.external_account_binding,
             terms_of_service_agreed: true,
         };
         let response = client
@@ -100,7 +109,7 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
         let request_payload = NewOrderRequestPayload {
             identifiers: vec![Identifier {
                 r#type: IdentifierType::Dns,
-                value: domain.to_string(),
+                value: params.domain.to_string(),
             }],
             not_before: None,
             not_after: None,
@@ -134,7 +143,7 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
     Ok(OngoingCertificateRequest {
         account_url,
         authorization_url,
-        cert_request_der,
+        cert_request_der: params.cert_request_der,
         challenge,
         challenge_answer,
         client,
@@ -241,19 +250,20 @@ mod tests {
         // The client is handled by the code in `sxg_rs::acme`.
         let client_thread = async {
             let signer = crate::signature::mock_signer::MockSigner;
-            let ongoing_certificate_request = create_request_and_get_challenge_answer(
-                "https://acme.server/",
-                "https://acme.server/terms_of_service.pdf",
-                None,
-                "admin@example.com",
-                "example.com",
-                public_key,
-                "csr content".to_string().into_bytes(),
-                fetcher,
-                signer,
-            )
-            .await
-            .unwrap();
+            let ongoing_certificate_request =
+                create_request_and_get_challenge_answer(AcmeStartupParams {
+                    directory_url: "https://acme.server/",
+                    agreed_terms_of_service: "https://acme.server/terms_of_service.pdf",
+                    external_account_binding: None,
+                    email: "admin@example.com",
+                    domain: "example.com",
+                    public_key,
+                    cert_request_der: "csr content".to_string().into_bytes(),
+                    fetcher,
+                    signer,
+                })
+                .await
+                .unwrap();
             assert_eq!(&ongoing_certificate_request.challenge_answer, "0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.CmzeuaSxxfG8gIKRU_AgBzPa16nTt0H64JD7q1sZUUY");
             let certificate_pem =
                 continue_challenge_validation_and_get_certificate(ongoing_certificate_request)
