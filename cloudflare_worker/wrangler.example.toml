@@ -40,6 +40,5 @@ respond_debug_info: false
 strip_request_headers: []
 strip_response_headers:
   - set-cookie
-  - strict-transport-security
 validity_url_dirname: ".well-known/sxg-validity"
 '''
