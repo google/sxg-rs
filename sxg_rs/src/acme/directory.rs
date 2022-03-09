@@ -52,12 +52,15 @@ impl Directory {
 #[serde(rename_all = "camelCase")]
 pub struct MetaData {
     pub terms_of_service: String,
+    pub external_account_required: Option<bool>,
 }
 
+// https://datatracker.ietf.org/doc/html/rfc8555#section-7.1.2
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NewAccountRequestPayload {
     pub contact: Vec<String>,
+    pub external_account_binding: Option<super::jws::JsonWebSignature>,
     pub terms_of_service_agreed: bool,
 }
 

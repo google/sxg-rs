@@ -68,9 +68,11 @@ pub async fn main(opts: Opts) -> Result<()> {
     };
     let signer = acme_private_key.create_signer()?;
     let fetcher = HyperFetcher::new();
+    let external_account_binding = None; // TODO: Add EAB to CLI params.
     let ongoing_certificate_request = sxg_rs::acme::create_request_and_get_challenge_answer(
         &opts.acme_server,
         &opts.agreed_terms_of_service,
+        external_account_binding,
         &opts.email,
         &opts.domain,
         acme_private_key.public_key,

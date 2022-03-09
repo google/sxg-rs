@@ -54,6 +54,7 @@ pub struct OngoingCertificateRequest<F: Fetcher, S: Signer> {
 pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
     directory_url: &str,
     agreed_terms_of_service: &str,
+    external_account_binding: Option<jws::JsonWebSignature>,
     email: &str,
     domain: impl ToString,
     public_key: EcPublicKey,
@@ -68,9 +69,17 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
             &client.directory.meta.terms_of_service
         ));
     }
+    if client.directory.meta.external_account_required == Some(true)
+        && external_account_binding.is_none()
+    {
+        return Err(anyhow!(
+            "External Acount Binding information is required by server but not provided by client"
+        ));
+    }
     let account_url: String = {
         let request_payload = NewAccountRequestPayload {
             contact: vec![format!("mailto:{}", email)],
+            external_account_binding,
             terms_of_service_agreed: true,
         };
         let response = client
@@ -235,6 +244,7 @@ mod tests {
             let ongoing_certificate_request = create_request_and_get_challenge_answer(
                 "https://acme.server/",
                 "https://acme.server/terms_of_service.pdf",
+                None,
                 "admin@example.com",
                 "example.com",
                 public_key,
