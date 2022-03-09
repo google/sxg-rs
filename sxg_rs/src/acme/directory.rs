@@ -60,6 +60,7 @@ pub struct MetaData {
 #[serde(rename_all = "camelCase")]
 pub struct NewAccountRequestPayload {
     pub contact: Vec<String>,
+    // https://datatracker.ietf.org/doc/html/rfc8555#section-7.3.4
     pub external_account_binding: Option<super::jws::JsonWebSignature>,
     pub terms_of_service_agreed: bool,
 }
