@@ -307,7 +307,7 @@ mod tests {
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
                     r#"{"alg":"ES256","nonce":"1","url":"https://acme.server/new-acct","jwk":{"crv":"P-256","kty":"EC","x":"AQ","y":"Ag"},"kid":null}"#,
-                    r#"{"contact":["mailto:admin@example.com"],"termsOfServiceAgreed":true}"#,
+                    r#"{"contact":["mailto:admin@example.com"],"externalAccountBinding":null,"termsOfServiceAgreed":true}"#,
                     &signer,
                 ).await.unwrap()).unwrap(),
                 method: Method::Post,
