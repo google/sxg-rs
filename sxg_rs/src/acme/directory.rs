@@ -31,6 +31,7 @@ pub struct Directory {
     pub new_authz: Option<String>,
     pub revoke_cert: String,
     pub key_change: String,
+    pub meta: MetaData,
 }
 
 impl Directory {
@@ -43,6 +44,14 @@ impl Directory {
         serde_json::from_slice(&bytes)
             .map_err(|e| Error::new(e).context("Failed to parse ACME directory"))
     }
+}
+
+/// The meta data in ACME directory object
+// https://datatracker.ietf.org/doc/html/rfc8555#section-9.7.6
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetaData {
+    pub terms_of_service: String,
 }
 
 #[derive(Debug, Serialize)]

@@ -36,6 +36,8 @@ pub struct Opts {
     sxg_private_key_file: String,
     #[clap(long, default_value_t=String::from("cert.csr"))]
     sxg_cert_request_file: String,
+    #[clap(long)]
+    agreed_terms_of_service: String,
 }
 
 fn start_warp_server(port: u16, answer: String) -> tokio::sync::oneshot::Sender<()> {
@@ -68,6 +70,7 @@ pub async fn main(opts: Opts) -> Result<()> {
     let fetcher = HyperFetcher::new();
     let ongoing_certificate_request = sxg_rs::acme::create_request_and_get_challenge_answer(
         &opts.acme_server,
+        &opts.agreed_terms_of_service,
         &opts.email,
         &opts.domain,
         acme_private_key.public_key,

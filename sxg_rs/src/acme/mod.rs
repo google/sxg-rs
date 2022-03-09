@@ -27,7 +27,7 @@ pub mod jws;
 use crate::crypto::EcPublicKey;
 use crate::fetcher::Fetcher;
 use crate::signature::Signer;
-use anyhow::{Error, Result};
+use anyhow::{anyhow, Error, Result};
 use client::AuthMethod;
 use client::Client;
 use directory::{
@@ -49,8 +49,11 @@ pub struct OngoingCertificateRequest<F: Fetcher, S: Signer> {
 
 /// Connects to ACME server to request a certificate, stops after generating
 /// HTTP challenge answer, and returns the running context of this application.
+/// If `agreed_terms_of_service` parameter is not the same as what required by
+/// server, the certificate application will be sent.
 pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
     directory_url: &str,
+    agreed_terms_of_service: &str,
     email: &str,
     domain: impl ToString,
     public_key: EcPublicKey,
@@ -59,10 +62,16 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
     signer: S,
 ) -> Result<OngoingCertificateRequest<F, S>> {
     let mut client = Client::new(directory_url, public_key, fetcher, signer).await?;
+    if agreed_terms_of_service != client.directory.meta.terms_of_service {
+        return Err(anyhow!(
+            "Please read and include the terms of service {}",
+            &client.directory.meta.terms_of_service
+        ));
+    }
     let account_url: String = {
         let request_payload = NewAccountRequestPayload {
             contact: vec![format!("mailto:{}", email)],
-            terms_of_service_agreed: true, // DO NOT SUBMIT
+            terms_of_service_agreed: true,
         };
         let response = client
             .post_with_payload(
@@ -225,6 +234,7 @@ mod tests {
             let signer = crate::signature::mock_signer::MockSigner;
             let ongoing_certificate_request = create_request_and_get_challenge_answer(
                 "https://acme.server/",
+                "https://acme.server/terms_of_service.pdf",
                 "admin@example.com",
                 "example.com",
                 public_key,
@@ -261,7 +271,10 @@ mod tests {
                     "newAccount": "https://acme.server/new-acct",
                     "newNonce": "https://acme.server/new-nonce",
                     "newOrder": "https://acme.server/new-order",
-                    "revokeCert": "https://acme.server/revoke-cert"
+                    "revokeCert": "https://acme.server/revoke-cert",
+                    "meta": {
+                        "termsOfService": "https://acme.server/terms_of_service.pdf"
+                    }
                 }"#
                 .to_string()
                 .into_bytes(),
