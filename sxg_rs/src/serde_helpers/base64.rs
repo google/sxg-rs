@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Module to seralize `Vec<u8>` to and from base64 format,
+//! Module to serialize `Vec<u8>` to and from base64 format,
 //! using URL-safe charater set without padding.
 
 use serde::de::Error;

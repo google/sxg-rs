@@ -21,7 +21,7 @@ use anyhow::{anyhow, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::convert::{Infallible, TryFrom, TryInto};
 
-#[derive(Serialize)]
+#[derive(Debug, Eq, PartialEq, Serialize)]
 pub struct HttpRequest {
     pub body: Vec<u8>,
     pub headers: HeaderFields,
@@ -119,7 +119,7 @@ fn try_into_header_map(input: HeaderFields) -> Result<::http::header::HeaderMap>
         .collect()
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Eq, PartialEq, Serialize)]
 pub enum Method {
     Get,
     Post,
