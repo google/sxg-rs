@@ -24,7 +24,7 @@ jobs:
   cloudflare_worker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Create self-signed cert
         working-directory: credentials
         run: |
@@ -39,7 +39,7 @@ jobs:
   fastly_compute:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Create self-signed cert
         working-directory: credentials
         run: |
@@ -70,7 +70,7 @@ jobs:
   gen_sxg:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Create self-signed cert
         working-directory: credentials
         run: |
