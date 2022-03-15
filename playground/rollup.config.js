@@ -23,8 +23,6 @@ import json from '@rollup/plugin-json';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import typescript from '@rollup/plugin-typescript';
 
-import pkg from './package.json';
-
 const sxgRsBinary = fs.readFileSync(path.resolve(__dirname, '..', 'cloudflare_worker', 'pkg', 'cloudflare_worker.js'));
 
 export default [
@@ -45,8 +43,9 @@ export default [
     ],
     preserveEntrySignatures: false,
     external: [
+      'fastify',
+      'puppeteer',
       ...module.builtinModules.map(x => `node:${x}`),
-      ...Object.keys(pkg.dependencies),
     ],
   },
 ];
