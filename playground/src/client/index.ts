@@ -24,7 +24,6 @@ import {
 } from './evaluated';
 
 async function setupPage(page: Page) {
-  await page.setCacheEnabled(false);
   await page.emulate(puppeteer.devices['Pixel 5']!);
   await page.emulateNetworkConditions(puppeteer.networkConditions['Fast 3G']!);
   await page.evaluateOnNewDocument(setupObserver);
@@ -39,7 +38,8 @@ async function measureLcp({
   url: string;
   useSxg: boolean;
 }) {
-  const page = await browser.newPage();
+  const context = await browser.createIncognitoBrowserContext();
+  const page = await context.newPage();
   await setupPage(page);
   page.goto(`https://localhost:8443/srp/${encodeURIComponent(url)}`);
   await page.waitForNavigation({
