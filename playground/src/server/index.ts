@@ -22,6 +22,10 @@ import crypto from 'crypto';
 import Fastify from 'fastify';
 
 import {fetcher} from './fetcher';
+import {
+  createSearchResultPage,
+  createSearchResultPageWithoutSxg,
+} from './searchResultPage';
 import {fromJwk as createSignerFromJwk} from './signer';
 import {WasmResponse, createWorker} from './wasmFunctions';
 
@@ -46,15 +50,6 @@ async function headerIntegrityGet(_url: string): Promise<WasmResponse> {
 }
 
 async function headerIntegrityPut() {}
-
-function createSrp(outerUrl: string, innerUrl: string) {
-  return `
-        <link rel=prefetch href="${outerUrl}">
-        <p>${innerUrl}<p>
-        <a id="sxg-link" href="${outerUrl}">SXG</a>
-        <a id="nonsxg-link" href="${innerUrl}">Non-SXG</a>
-    `;
-}
 
 export const SXG_CONFIG = `
 cert_url_dirname: ".well-known/sxg-certs"
@@ -137,7 +132,13 @@ export async function spawnSxgServer({
       return `Failed to create SXG. ${e}`;
     }
     reply.header('content-type', 'text/html');
-    return createSrp(`/sxg/${sxgId}`, sxgInnerUrl);
+    return createSearchResultPage(sxgInnerUrl, `/sxg/${sxgId}`);
+  });
+  fastify.get('/nonsxg-srp/:url', async (request, reply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sxgInnerUrl: string = (request.params as any).url;
+    reply.header('content-type', 'text/html');
+    return createSearchResultPageWithoutSxg(sxgInnerUrl);
   });
   fastify.get('/.well-known/sxg-certs/*', async (request, reply) => {
     const x = worker.servePresetContent(
