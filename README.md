@@ -28,6 +28,8 @@ Search](https://developers.google.com/search/docs/advanced/experience/signed-exc
 in order to improve their [Largest Contentful Paint](https://web.dev/lcp/), one
 of the [Core Web Vitals](https://web.dev/vitals/).
 
+For other technology stacks, see [this list of SXG tools](https://web.dev/signed-exchanges/#tooling).
+
 ## Next steps
 
 After installing, take the following steps.
