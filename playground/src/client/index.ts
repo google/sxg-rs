@@ -14,29 +14,89 @@
  * limitations under the License.
  */
 
-import puppeteer from 'puppeteer';
+import puppeteer, {Browser} from 'puppeteer';
+import {Page} from 'puppeteer';
+import {
+  clickSxgLink,
+  clickNonsxgLink,
+  setupObserver,
+  getObserverResult,
+} from './evaluated';
 
-export async function startClient({
+async function setupPage(page: Page) {
+  await page.setCacheEnabled(false);
+  await page.emulate(puppeteer.devices['Pixel 5']!);
+  await page.emulateNetworkConditions(puppeteer.networkConditions['Fast 3G']!);
+  await page.evaluateOnNewDocument(setupObserver);
+}
+
+async function measureLcp({
+  browser,
+  url,
+  useSxg,
+}: {
+  browser: Browser;
+  url: string;
+  useSxg: boolean;
+}) {
+  const page = await browser.newPage();
+  await setupPage(page);
+  page.goto(`https://localhost:8443/srp/${encodeURIComponent(url)}`);
+  await page.waitForNavigation({
+    waitUntil: 'networkidle0',
+  });
+  if (useSxg) {
+    await page.evaluate(clickSxgLink);
+  } else {
+    await page.evaluate(clickNonsxgLink);
+  }
+  await page.waitForNavigation({
+    waitUntil: 'networkidle0',
+  });
+  const lcpResult = await page.evaluate(getObserverResult);
+  await page.close();
+  return lcpResult;
+}
+
+export async function runClient({
   certificateSpki,
+  interactivelyInspect,
+  repeatTime,
   url,
 }: {
   certificateSpki: string;
+  interactivelyInspect: boolean;
+  repeatTime: number;
   url: string;
 }) {
   const browser = await puppeteer.launch({
-    devtools: true,
+    devtools: interactivelyInspect,
     args: [`--ignore-certificate-errors-spki-list=${certificateSpki}`],
   });
-  const page = (await browser.pages())[0]!;
-
-  const slow3g = puppeteer.networkConditions['Slow 3G']!;
-  const cdpSession = await page.target().createCDPSession();
-  await cdpSession.send('Network.emulateNetworkConditions', {
-    offline: false,
-    downloadThroughput: slow3g.download,
-    uploadThroughput: slow3g.upload,
-    latency: slow3g.latency,
-  });
-
-  await page.goto(`https://localhost:8443/srp/${encodeURIComponent(url)}`);
+  if (interactivelyInspect) {
+    const page = (await browser.pages())[0]!;
+    await setupPage(page);
+    await page.goto(`https://localhost:8443/srp/${encodeURIComponent(url)}`);
+    await new Promise<void>(resolve => {
+      browser.on('disconnected', () => {
+        resolve();
+      });
+    });
+  } else {
+    for (let i = 0; i < repeatTime; i += 1) {
+      const sxgLcp = await measureLcp({
+        browser,
+        url,
+        useSxg: true,
+      });
+      console.log(`LCP of SXG: ${sxgLcp}`);
+      const nonsxgLcp = await measureLcp({
+        browser,
+        url,
+        useSxg: false,
+      });
+      console.log(`LCP of Non-SXG: ${nonsxgLcp}`);
+    }
+    await browser.close();
+  }
 }

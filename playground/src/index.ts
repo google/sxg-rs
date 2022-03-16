@@ -14,26 +14,48 @@
  * limitations under the License.
  */
 
-import assert from 'assert';
-import {createSelfSignedCredentials} from './server/credentials';
+import {program, Option} from 'commander';
 
-import {startClient} from './client/';
-import {startSxgServer} from './server/';
+import {createSelfSignedCredentials} from './server/credentials';
+import {runClient} from './client/';
+import {spawnSxgServer} from './server/';
 
 async function main() {
-  const url = process.argv[2];
-  assert(url, 'Please specify URL as CLI argument');
+  program
+    .addOption(
+      new Option(
+        '--url <url>',
+        'A single URL to be measured'
+      ).makeOptionMandatory(true)
+    )
+    .addOption(
+      new Option(
+        '--inspect',
+        'open a Chrome window and use ChromeDevTools to preview SXG'
+      )
+    )
+    .addOption(
+      new Option('--repeat-time <number>', 'measure LCP multiple times')
+        .argParser(x => parseInt(x))
+        .default(1)
+    );
+  program.parse();
+  const opts = program.opts();
+  const url: string = opts['url'];
   const {certificatePem, privateKeyJwk, privateKeyPem, publicKeyHash} =
-    await createSelfSignedCredentials(new URL(url).hostname);
-  await startSxgServer({
+    await createSelfSignedCredentials(new URL(opts['url']).hostname);
+  const stopSxgServer = await spawnSxgServer({
     certificatePem,
     privateKeyJwk,
     privateKeyPem,
   });
-  await startClient({
+  await runClient({
     url,
     certificateSpki: publicKeyHash,
+    interactivelyInspect: opts['inspect'] ?? false,
+    repeatTime: opts['repeatTime'],
   });
+  await stopSxgServer();
 }
 
 main().catch(e => console.error(e));

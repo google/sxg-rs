@@ -51,8 +51,8 @@ function createSrp(outerUrl: string, innerUrl: string) {
   return `
         <link rel=prefetch href="${outerUrl}">
         <p>${innerUrl}<p>
-        <a href="${outerUrl}">SXG</a>
-        <a href="${innerUrl}">Non-SXG</a>
+        <a id="sxg-link" href="${outerUrl}">SXG</a>
+        <a id="nonsxg-link" href="${innerUrl}">Non-SXG</a>
     `;
 }
 
@@ -69,7 +69,10 @@ strip_response_headers:
   - strict-transport-security
 validity_url_dirname: ".well-known/sxg-validity"
 `;
-export async function startSxgServer({
+
+// Spawns a SXG server that runs in background, and returns a function to stop
+// the server.
+export async function spawnSxgServer({
   certificatePem,
   privateKeyJwk,
   privateKeyPem,
@@ -151,5 +154,8 @@ export async function startSxgServer({
     sxg.headers.forEach(([k, v]) => reply.header(k, v));
     return Buffer.from(sxg.body);
   });
-  fastify.listen(8443, '0.0.0.0', () => {});
+  await fastify.listen(8443, '0.0.0.0');
+  return async function stopServer() {
+    await fastify.close();
+  };
 }
