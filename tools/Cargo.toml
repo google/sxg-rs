@@ -42,4 +42,4 @@ toml = "0.5.8"
 tokio = { version = "1.17.0", features = ["full"] }
 url = "2.2.2"
 warp = "0.3.2"
-wrangler = "1.19.8"
+wrangler = "1.19.10"
