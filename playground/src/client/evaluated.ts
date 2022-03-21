@@ -30,6 +30,10 @@ declare global {
 
 export function setupObserver() {
   window.lcpResult = null;
+  // TODO: Check whether we can use npm package `web-vitals` here.
+  // The `web-vitals` package not only adds the performance observer, but also
+  // [handles](https://github.com/GoogleChrome/web-vitals/blob/ed70ed4b56d3f0573da7ca8ec324e630a04beaf2/src/getLCP.ts#L64-L66)
+  // some user input DOM event.
   const observer = new PerformanceObserver(entryList => {
     const entries = entryList.getEntries();
     const lastEntry = entries[entries.length - 1]!;
