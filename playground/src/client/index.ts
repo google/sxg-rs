@@ -29,17 +29,16 @@ async function setupPage(page: Page) {
   await page.evaluateOnNewDocument(setupObserver);
 }
 
+// Measures LCP of the given URL in an existing Chrome tab (page).
 async function measureLcp({
-  browser,
+  page,
   url,
   useSxg,
 }: {
-  browser: Browser;
+  page: Page;
   url: string;
   useSxg: boolean;
 }) {
-  const context = await browser.createIncognitoBrowserContext();
-  const page = await context.newPage();
   await setupPage(page);
   page.goto(`https://localhost:8443/srp/${encodeURIComponent(url)}`);
   await page.waitForNavigation({
@@ -53,9 +52,48 @@ async function measureLcp({
   await page.waitForNavigation({
     waitUntil: 'networkidle0',
   });
-  const lcpResult = await page.evaluate(getObserverResult);
-  await page.close();
-  return lcpResult;
+  return await page.evaluate(getObserverResult);
+}
+
+// The method to isolate cache between multiple tests.
+enum IsolationMode {
+  // The entire browser is cleared before running a test. The drawback is that
+  // tests can not run in parallel.
+  ClearBrowserCache,
+  // Each test runs in an individual incognito browser context. The drawback is
+  // that incognito mode might behave differently from regular context.
+  IncognitoBrowserContext,
+}
+
+// Opens a new Chrome tab (page), and measures the LCP of given URL.
+async function createPageAndMeasureLcp({
+  browser,
+  isolationMode,
+  url,
+  useSxg,
+}: {
+  browser: Browser;
+  isolationMode: IsolationMode;
+  url: string;
+  useSxg: boolean;
+}) {
+  if (isolationMode === IsolationMode.IncognitoBrowserContext) {
+    const context = await browser.createIncognitoBrowserContext();
+    const page = await context.newPage();
+    const lcpResult = await measureLcp({page, url, useSxg});
+    await page.close();
+    await context.close();
+    return lcpResult;
+  } else {
+    const page = await browser.newPage();
+    const client = await page.target().createCDPSession();
+    await client.send('Network.clearBrowserCookies');
+    await client.send('Network.clearBrowserCache');
+    await client.detach();
+    const lcpResult = await measureLcp({page, url, useSxg});
+    await page.close();
+    return lcpResult;
+  }
 }
 
 export async function runClient({
@@ -84,14 +122,16 @@ export async function runClient({
     });
   } else {
     for (let i = 0; i < repeatTime; i += 1) {
-      const sxgLcp = await measureLcp({
+      const sxgLcp = await createPageAndMeasureLcp({
         browser,
+        isolationMode: IsolationMode.ClearBrowserCache,
         url,
         useSxg: true,
       });
       console.log(`LCP of SXG: ${sxgLcp}`);
-      const nonsxgLcp = await measureLcp({
+      const nonsxgLcp = await createPageAndMeasureLcp({
         browser,
+        isolationMode: IsolationMode.ClearBrowserCache,
         url,
         useSxg: false,
       });
