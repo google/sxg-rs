@@ -86,7 +86,7 @@ dependencies = [
  "asn1-rs-derive",
  "asn1-rs-impl",
  "displaydoc",
- "nom 7.1.0",
+ "nom 7.1.1",
  "num-traits",
  "rusticata-macros",
  "thiserror",
@@ -1014,7 +1014,7 @@ dependencies = [
  "asn1-rs",
  "cookie-factory",
  "displaydoc",
- "nom 7.1.0",
+ "nom 7.1.1",
  "num-bigint",
  "num-traits",
  "rusticata-macros",
@@ -2296,13 +2296,12 @@ dependencies = [
 
 [[package]]
 name = "nom"
-version = "7.1.0"
+version = "7.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b1d11e1ef389c76fe5b81bcaf2ea32cf88b62bc494e19f493d0b30e7a930109"
+checksum = "a8903e5a29a317527874d0402f867152a3d21c908bb0b933e416c65e301d4c36"
 dependencies = [
  "memchr",
  "minimal-lexical",
- "version_check",
 ]
 
 [[package]]
@@ -3019,7 +3018,7 @@ version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65c52377bb2288aa522a0c8208947fada1e0c76397f108cc08f57efe6077b50d"
 dependencies = [
- "nom 7.1.0",
+ "nom 7.1.1",
 ]
 
 [[package]]
@@ -3523,7 +3522,7 @@ dependencies = [
  "getrandom 0.2.5",
  "http",
  "js-sys",
- "nom 7.1.0",
+ "nom 7.1.1",
  "once_cell",
  "p256",
  "pem",
@@ -4461,9 +4460,9 @@ dependencies = [
 
 [[package]]
 name = "wrangler"
-version = "1.19.8"
+version = "1.19.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9da71c069aea2428c1da507f969ae87471321dfa17d4238cd8d1d26b5a8319e0"
+checksum = "c386076213851d1e297b56d1dace56b0a7dadbacf631a70ec4586f1e4a3d8845"
 dependencies = [
  "anyhow",
  "atty",
@@ -4543,16 +4542,16 @@ dependencies = [
 
 [[package]]
 name = "x509-parser"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5f14bdbacc48cea8d2a3112fa141949ffb707d724b51a8a1e6a6091f6c26e38"
+checksum = "e64bcfe6a33d9a2d5451de520881469863bd05a095f6b6f7f2ad1a5cd8d4ea2f"
 dependencies = [
  "asn1-rs",
  "base64",
  "data-encoding",
  "der-parser",
  "lazy_static",
- "nom 7.1.0",
+ "nom 7.1.1",
  "oid-registry",
  "rusticata-macros",
  "thiserror",
