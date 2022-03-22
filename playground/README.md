@@ -35,5 +35,5 @@ A playground to locally preview Signed Exchanges without needing a certificate.
 ## Run
 
 ```
-node dist/index.js https://example.com/
+node dist/index.js --url https://example.com/ --inspect
 ```
