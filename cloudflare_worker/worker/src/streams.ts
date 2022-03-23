@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// SXGs larger than 8MB are not accepted by
+// https://github.com/google/webpackager/blob/main/docs/cache_requirements.md.
+export const PAYLOAD_SIZE_LIMIT = 8000000;
+
 // Calls process for each chunk from inputStream, up to maxSize. The last chunk
 // may extend beyond maxSize; process should handle this case.
 //
