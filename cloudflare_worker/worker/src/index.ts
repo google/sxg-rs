@@ -17,7 +17,14 @@
 import {signer} from './signer';
 import {readArrayPrefix, readIntoArray, teeResponse} from './streams';
 import {TOKEN, arrayBufferToBase64, escapeLinkParamValue} from './utils';
-import {WasmResponse, workerPromise, WasmRequest} from './wasmFunctions';
+import {WasmResponse, WasmRequest, createWorker} from './wasmFunctions';
+
+// This variable is added by the runtime of Cloudflare worker. It contains the
+// binary data of the wasm file.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare let wasm: any;
+
+const workerPromise = createWorker(wasm, SXG_CONFIG, CERT_PEM, ISSUER_PEM);
 
 addEventListener('fetch', (event: FetchEvent) => {
   event.respondWith(handleRequest(event.request));
