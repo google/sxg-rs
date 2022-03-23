@@ -56,7 +56,7 @@ async function measureLcp({
 }
 
 // The method to isolate cache between multiple tests.
-enum IsolationMode {
+export enum IsolationMode {
   // The entire browser is cleared before running a test. The drawback is that
   // tests can not run in parallel.
   ClearBrowserCache,
@@ -99,11 +99,13 @@ async function createPageAndMeasureLcp({
 export async function runClient({
   certificateSpki,
   interactivelyInspect,
+  isolationMode,
   repeatTime,
   url,
 }: {
   certificateSpki: string;
   interactivelyInspect: boolean;
+  isolationMode: IsolationMode;
   repeatTime: number;
   url: string;
 }) {
@@ -112,7 +114,13 @@ export async function runClient({
     args: [`--ignore-certificate-errors-spki-list=${certificateSpki}`],
   });
   if (interactivelyInspect) {
-    const page = (await browser.pages())[0]!;
+    let page: Page;
+    if (isolationMode === IsolationMode.ClearBrowserCache) {
+      page = (await browser.pages())[0]!;
+    } else {
+      const context = await browser.createIncognitoBrowserContext();
+      page = await context.newPage();
+    }
     await setupPage(page);
     await page.goto(`https://localhost:8443/srp/${encodeURIComponent(url)}`);
     await new Promise<void>(resolve => {
@@ -124,14 +132,14 @@ export async function runClient({
     for (let i = 0; i < repeatTime; i += 1) {
       const sxgLcp = await createPageAndMeasureLcp({
         browser,
-        isolationMode: IsolationMode.ClearBrowserCache,
+        isolationMode,
         url,
         useSxg: true,
       });
       console.log(`LCP of SXG: ${sxgLcp}`);
       const nonsxgLcp = await createPageAndMeasureLcp({
         browser,
-        isolationMode: IsolationMode.ClearBrowserCache,
+        isolationMode,
         url,
         useSxg: false,
       });

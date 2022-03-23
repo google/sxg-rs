@@ -17,7 +17,7 @@
 import {program, Option} from 'commander';
 
 import {createSelfSignedCredentials} from './server/credentials';
-import {runClient} from './client/';
+import {IsolationMode, runClient} from './client/';
 import {spawnSxgServer} from './server/';
 
 async function main() {
@@ -32,6 +32,12 @@ async function main() {
       new Option(
         '--inspect',
         'open a Chrome window and use ChromeDevTools to preview SXG'
+      )
+    )
+    .addOption(
+      new Option(
+        '--isolateBrowserContext',
+        'create a new browser context when testing each URL'
       )
     )
     .addOption(
@@ -53,6 +59,9 @@ async function main() {
     url,
     certificateSpki: publicKeyHash,
     interactivelyInspect: opts['inspect'] ?? false,
+    isolationMode: opts['isolateBrowserContext']
+      ? IsolationMode.IncognitoBrowserContext
+      : IsolationMode.ClearBrowserCache,
     repeatTime: opts['repeatTime'],
   });
   await stopSxgServer();
