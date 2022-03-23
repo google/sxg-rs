@@ -121,7 +121,8 @@ If you write:
 then in an SXG, its inner content will be "unwrapped" out of the template and
 thus activated, and when non-SXG it will be deleted. Since SXGs can't Vary by
 Cookie, this could be used to add lazy-loaded personalization to the SXG, while
-not adding unnecesary bytes to the non-SXG.
+not adding unnecesary bytes to the non-SXG. It could also be used to add
+SXG-only subresource preloads.
 
 ### Preview in Chrome
 
