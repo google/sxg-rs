@@ -4,7 +4,6 @@
   "version": "0.1.0",
   "main": "dist/index.js",
   "scripts": {
-    "build": "./node_modules/.bin/esbuild src/index.ts --bundle --platform=browser --outfile=dist/index.js",
     "test": "karma start --single-run",
     "lint": "gts lint"
   },
