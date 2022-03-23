@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {signer} from './signer';
+import {fromJwk as createSignerFromJwk} from './signer';
 import {readArrayPrefix, readIntoArray, teeResponse} from './streams';
 import {TOKEN, arrayBufferToBase64, escapeLinkParamValue} from './utils';
 import {WasmResponse, WasmRequest, createWorker} from './wasmFunctions';
@@ -25,6 +25,11 @@ import {WasmResponse, WasmRequest, createWorker} from './wasmFunctions';
 declare let wasm: any;
 
 const workerPromise = createWorker(wasm, SXG_CONFIG, CERT_PEM, ISSUER_PEM);
+
+if (typeof PRIVATE_KEY_JWK === 'undefined') {
+  throw 'The wrangler secret PRIVATE_KEY_JWK is not set.';
+}
+const signer = createSignerFromJwk(crypto.subtle, JSON.parse(PRIVATE_KEY_JWK));
 
 addEventListener('fetch', (event: FetchEvent) => {
   event.respondWith(handleRequest(event.request));
