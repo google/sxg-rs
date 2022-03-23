@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "main": "dist/index.js",
   "scripts": {
+    "build": "./build.sh",
     "test": "karma start --single-run",
     "lint": "gts lint"
   },
