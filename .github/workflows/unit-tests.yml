@@ -63,4 +63,3 @@ jobs:
           npm install
           node node_modules/.bin/tsc --noEmit
           npm run build
-          npm run test
