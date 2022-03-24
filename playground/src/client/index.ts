@@ -29,6 +29,14 @@ async function setupPage(page: Page) {
   await page.evaluateOnNewDocument(setupObserver);
 }
 
+function getSearchResultPageUrl(targetUrl: string, useSxg: boolean) {
+  if (useSxg) {
+    return `https://localhost:8443/srp/${encodeURIComponent(targetUrl)}`;
+  } else {
+    return `https://localhost:8443/nonsxg-srp/${encodeURIComponent(targetUrl)}`;
+  }
+}
+
 // Measures LCP of the given URL in an existing Chrome tab (page).
 async function measureLcp({
   page,
@@ -40,7 +48,7 @@ async function measureLcp({
   useSxg: boolean;
 }) {
   await setupPage(page);
-  page.goto(`https://localhost:8443/srp/${encodeURIComponent(url)}`);
+  page.goto(getSearchResultPageUrl(url, useSxg));
   await page.waitForNavigation({
     waitUntil: 'networkidle0',
   });
@@ -122,7 +130,7 @@ export async function runClient({
       page = await context.newPage();
     }
     await setupPage(page);
-    await page.goto(`https://localhost:8443/srp/${encodeURIComponent(url)}`);
+    await page.goto(getSearchResultPageUrl(url, true));
     await new Promise<void>(resolve => {
       browser.on('disconnected', () => {
         resolve();
