@@ -22,8 +22,7 @@
     "noPropertyAccessFromIndexSignature": true,
     "moduleResolution": "node",
     "types": [
-      "@cloudflare/workers-types",
-      "@types/jasmine"
+      "@cloudflare/workers-types"
     ],
     "esModuleInterop": true,
     "skipLibCheck": true,

@@ -5,20 +5,14 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "./build.sh",
-    "test": "karma start --single-run",
     "lint": "gts lint"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "3.4.0",
-    "@types/jasmine": "3.10.4",
     "@types/node": "16.11.26",
     "esbuild": "^0.14.27",
     "glob": "7.2.0",
     "gts": "3.1.0",
-    "jasmine-core": "4.0.1",
-    "karma": "6.3.17",
-    "karma-chrome-launcher": "3.1.1",
-    "karma-jasmine": "4.0.1",
     "tslib": "2.3.1",
     "typescript": "4.6.2"
   },
