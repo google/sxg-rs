@@ -62,4 +62,5 @@ jobs:
         run: |
           npm install
           node node_modules/.bin/tsc --noEmit
+          mkdir -p ../cloudflare_worker/pkg && touch ../cloudflare_worker/pkg/cloudflare_worker.js
           npm run build

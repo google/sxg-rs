@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "main": "dist/index.js",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --external:puppeteer --platform=node | cat ../cloudflare_worker/pkg/cloudflare_worker.js - > dist/index.js ",
+    "build": "./build.sh",
     "lint": "gts lint"
   },
   "author": "",
