@@ -1,0 +1,18 @@
+{
+  "name": "ts_utils_for_sxg_rs",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "./build.sh",
+    "test": "karma start --single-run",
+    "lint": "gts lint"
+  },
+  "devDependencies": {
+    "@types/jasmine": "^4.0.0",
+    "esbuild": "^0.14.27",
+    "gts": "3.1.0",
+    "jasmine-core": "^4.0.1",
+    "karma": "^6.3.17",
+    "karma-chrome-launcher": "^3.1.1",
+    "karma-jasmine": "^4.0.1"
+  }
+}
