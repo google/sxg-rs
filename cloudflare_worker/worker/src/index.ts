@@ -14,10 +14,23 @@
  * limitations under the License.
  */
 
-import {PromoteLinkTagsToHeaders, SXGOnly, processHTML} from '../../../typescript_utilities/src/processor';
+import {
+  PromoteLinkTagsToHeaders,
+  SXGOnly,
+  processHTML,
+  // eslint-disable-next-line node/no-unpublished-import
+} from '../../../typescript_utilities/src/processor';
 import {fromJwk as createSignerFromJwk} from './signer';
-import {PAYLOAD_SIZE_LIMIT, readIntoArray, teeResponse} from '../../../typescript_utilities/src/streams';
-import {arrayBufferToBase64} from '../../../typescript_utilities/src/utils';
+import {
+  PAYLOAD_SIZE_LIMIT,
+  readIntoArray,
+  teeResponse,
+  // eslint-disable-next-line node/no-unpublished-import
+} from '../../../typescript_utilities/src/streams';
+import {
+  arrayBufferToBase64,
+  // eslint-disable-next-line node/no-unpublished-import
+} from '../../../typescript_utilities/src/utils';
 import {WasmResponse, WasmRequest, createWorker} from './wasmFunctions';
 
 // This variable is added by the runtime of Cloudflare worker. It contains the
