@@ -55,12 +55,10 @@ jobs:
       - working-directory: cloudflare_worker/worker
         run: |
           npm install
-          node node_modules/.bin/tsc --noEmit
           npm run build
           npm run test
       - working-directory: playground
         run: |
           npm install
-          node node_modules/.bin/tsc --noEmit
           mkdir -p ../cloudflare_worker/pkg && touch ../cloudflare_worker/pkg/cloudflare_worker.js
           npm run build
