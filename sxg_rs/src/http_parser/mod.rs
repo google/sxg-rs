@@ -17,6 +17,7 @@ mod base;
 mod cache_control;
 pub mod link;
 pub mod media_type;
+pub mod srcset;
 
 use anyhow::{Error, Result};
 use base::ows;

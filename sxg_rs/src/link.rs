@@ -1,9 +1,10 @@
 use crate::header_integrity::HeaderIntegrityFetcher;
-use crate::http_parser::{link::Link, parse_link_header};
+use crate::http_parser::{link::Link, parse_link_header, srcset};
 use futures::{stream, stream::StreamExt};
 use once_cell::sync::Lazy;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::iter::once;
 use url::{Origin, Url};
 
 // Filters the link header to comply with
@@ -14,6 +15,94 @@ pub(crate) async fn process_link_header(
     fallback_url: &Url,
     header_integrity_fetcher: &mut dyn HeaderIntegrityFetcher,
 ) -> String {
+    let links = match parse_link_header(value) {
+        Ok(links) => links,
+        Err(_) => {
+            return "".into();
+        }
+    };
+
+    let (preloads, allowed_alt_sxgs) = preloads_and_allowed_alt_sxgs(links, fallback_url);
+
+    let fallback_origin = fallback_url.origin();
+    let directives = RefCell::new(vec![]);
+    stream::iter(preloads)
+        .for_each_concurrent(None, |link| async {
+            let link = link;
+            let srcset = get_param(&link.params, "imagesrcset");
+            let images = match &srcset {
+                Some(srcset) => srcset::parse(srcset).unwrap_or_default(),
+                None => vec![],
+            };
+            // Convert image hrefs from srcset to absolute, for comparison with
+            // allowed_alt_sxgs.
+            let images = images
+                .iter()
+                .filter_map(|url| fallback_url.join(url).ok().map(String::from));
+
+            // Collect allowed-alt-sxg directives for all URLs referred to by this preload.
+            // We will only output the preload if all of them can be found or computed.
+            let mut allow_directives = vec![];
+            let mut all_allow_sxg = true;
+
+            // Iterate over all URLs referred to by this preload.
+            // TODO: Make these concurrent also. (Not critical because imagesrcset is rare.)
+            let urls = once(link.uri.clone()).chain(images);
+            for url in urls {
+                let mut allow_sxg = false;
+                match allowed_alt_sxgs.get(&url) {
+                    Some(allowed_alt_sxg) => {
+                        allow_directives.push(allowed_alt_sxg.clone());
+                        allow_sxg = true;
+                    }
+                    None => {
+                        // Fetch and compute header-integrity only for same-origin preloads.
+                        // Cross-origin preloads are assumed unlikely to be SXG.
+                        if origin_is(&fallback_origin, &url) {
+                            if let Ok(integrity) = header_integrity_fetcher.fetch(&url).await {
+                                allow_directives.push(Link {
+                                    uri: url,
+                                    params: vec![
+                                        ("rel", Some("allowed-alt-sxg".into())),
+                                        ("header-integrity", Some(integrity)),
+                                    ],
+                                });
+                                allow_sxg = true;
+                            }
+                        }
+                    }
+                };
+                if !allow_sxg {
+                    all_allow_sxg = false;
+                    break;
+                }
+            }
+
+            // If all allowed-alt-sxg directives were found, output the preload and allow
+            // directives.
+            if all_allow_sxg {
+                if let Ok(mut directives) = directives.try_borrow_mut() {
+                    directives.push(link.clone());
+                    directives.extend_from_slice(&allow_directives);
+                }
+            }
+        })
+        .await;
+    directives
+        .take()
+        .iter()
+        .map(|link| link.serialize())
+        .collect::<Vec<String>>()
+        .join(",")
+}
+
+// Filters the given Link header to only the allowed preload and allowed-alt-sxg directives.
+// Converts URLs to absolute, given fallback_url as base href. Returns the allowed-alt-sxgs as a
+// HashMap for convenient lookup by URL.
+fn preloads_and_allowed_alt_sxgs<'a>(
+    links: Vec<Link<'a>>,
+    fallback_url: &Url,
+) -> (Vec<Link<'a>>, HashMap<String, Link<'a>>) {
     static ALLOWED_PARAM: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         vec![
             "as",
@@ -31,82 +120,38 @@ pub(crate) async fn process_link_header(
         Lazy::new(|| vec!["preload", "allowed-alt-sxg"].into_iter().collect());
     static ALLOWED_CROSSORIGIN: Lazy<HashSet<&'static str>> =
         Lazy::new(|| vec!["", "anonymous"].into_iter().collect());
-    match parse_link_header(value) {
-        Ok(links) => {
-            let links = links.into_iter().filter(|link| {
-                link.params.iter().all(|(k, v)| {
-                    ALLOWED_PARAM.contains(k)
-                        && match *k {
-                            "rel" => matches!(v, Some(v) if ALLOWED_REL.contains(v.as_str())),
-                            "crossorigin" => {
-                                matches!(v, Some(v) if ALLOWED_CROSSORIGIN.contains(v.as_str()))
-                            }
-                            _ => true,
-                        }
-                })
-            });
-
-            let (mut preloads, allowed_alt_sxgs) = links
-                .filter_map(|link| {
-                    let uri: String = fallback_url.join(&link.uri).ok()?.into();
-                    match get_param(&link.params, "rel") {
-                        Some(rel) if ALLOWED_REL.contains(rel.as_str()) => {
-                            Some((rel == "preload", Link { uri, ..link }))
-                        }
-                        _ => None,
+    let links = links.into_iter().filter(|link| {
+        link.params.iter().all(|(k, v)| {
+            ALLOWED_PARAM.contains(k)
+                && match *k {
+                    "rel" => matches!(v, Some(v) if ALLOWED_REL.contains(v.as_str())),
+                    "crossorigin" => {
+                        matches!(v, Some(v) if ALLOWED_CROSSORIGIN.contains(v.as_str()))
                     }
-                })
-                .partition::<Vec<(bool, Link)>, _>(|(is_preload, _)| *is_preload);
-            preloads.truncate(20);
+                    _ => true,
+                }
+        })
+    });
 
-            let preloads: Vec<Link> = preloads.into_iter().map(|(_, link)| link).collect();
-            let allowed_alt_sxgs: HashMap<String, Link> = allowed_alt_sxgs
-                .into_iter()
-                .map(|(_, link)| (link.uri.clone(), link))
-                .collect();
+    let (mut preloads, allowed_alt_sxgs) = links
+        .filter_map(|link| {
+            let uri: String = fallback_url.join(&link.uri).ok()?.into();
+            match get_param(&link.params, "rel") {
+                Some(rel) if ALLOWED_REL.contains(rel.as_str()) => {
+                    Some((rel == "preload", Link { uri, ..link }))
+                }
+                _ => None,
+            }
+        })
+        .partition::<Vec<(bool, Link)>, _>(|(is_preload, _)| *is_preload);
+    preloads.truncate(20);
 
-            let fallback_origin = fallback_url.origin();
-            let directives = RefCell::new(vec![]);
-            stream::iter(preloads)
-                .for_each_concurrent(None, |link| async {
-                    let link = link;
-                    match allowed_alt_sxgs.get(&link.uri) {
-                        Some(allowed_alt_sxg) => {
-                            if let Ok(mut directives) = directives.try_borrow_mut() {
-                                directives.push(link.clone());
-                                directives.push(allowed_alt_sxg.clone());
-                            }
-                        }
-                        None => {
-                            if origin_is(&fallback_origin, &link.uri) {
-                                if let Ok(integrity) =
-                                    header_integrity_fetcher.fetch(&link.uri).await
-                                {
-                                    if let Ok(mut directives) = directives.try_borrow_mut() {
-                                        directives.push(link.clone());
-                                        directives.push(Link {
-                                            uri: link.uri.clone(),
-                                            params: vec![
-                                                ("rel", Some("allowed-alt-sxg".into())),
-                                                ("header-integrity", Some(integrity)),
-                                            ],
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    };
-                })
-                .await;
-            directives
-                .take()
-                .iter()
-                .map(|link| link.serialize())
-                .collect::<Vec<String>>()
-                .join(",")
-        }
-        Err(_) => "".into(),
-    }
+    let preloads: Vec<Link> = preloads.into_iter().map(|(_, link)| link).collect();
+    let allowed_alt_sxgs: HashMap<String, Link> = allowed_alt_sxgs
+        .into_iter()
+        .map(|(_, link)| (link.uri.clone(), link))
+        .collect();
+    (preloads, allowed_alt_sxgs)
 }
 
 fn get_param(params: &[(&str, Option<String>)], name: &str) -> Option<String> {
@@ -223,16 +268,51 @@ mod tests {
             .await,
             "<https://foo.com/>;rel=preload,<https://foo.com/>;rel=allowed-alt-sxg;header-integrity=blah"
         );
+    }
+
+    #[cfg(feature = "srcset")]
+    #[async_std::test]
+    async fn imagesrcset() {
+        let url = Url::parse("https://foo.com").unwrap();
         assert_eq!(
             process_link_header(
-                r#"<img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset="img.jpg 800w",<img.jpg>;rel=allowed-alt-sxg;header-integrity=blah"#,
+                r#"<img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset="img2.jpg 800w",<img.jpg>;rel=allowed-alt-sxg;header-integrity=blah"#,
                 &url,
                 &mut null_integrity_fetcher()
             )
             .await,
-            r#"<https://foo.com/img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset="img.jpg 800w",<https://foo.com/img.jpg>;rel=allowed-alt-sxg;header-integrity=blah"#
+            ""
+        );
+        assert_eq!(
+            process_link_header(
+                "<img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset=\"img2.jpg 800w, img3.jpg\",\
+                 <img.jpg>;rel=allowed-alt-sxg;header-integrity=blah,\
+                 <img2.jpg>;rel=allowed-alt-sxg;header-integrity=blah2,\
+                 <img3.jpg>;rel=allowed-alt-sxg;header-integrity=blah3",
+                &url,
+                &mut null_integrity_fetcher()
+            )
+            .await,
+            "<https://foo.com/img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset=\"img2.jpg 800w, img3.jpg\",\
+             <https://foo.com/img.jpg>;rel=allowed-alt-sxg;header-integrity=blah,\
+             <https://foo.com/img2.jpg>;rel=allowed-alt-sxg;header-integrity=blah2,\
+             <https://foo.com/img3.jpg>;rel=allowed-alt-sxg;header-integrity=blah3"
+        );
+        let mut fetcher = FakeIntegrityFetcher(Ok("sha256-blah".into()));
+        assert_eq!(
+            process_link_header(
+                "<img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset=\"img2.jpg 800w, img3.jpg\"",
+                &url,
+                &mut fetcher,
+            )
+            .await,
+            "<https://foo.com/img.jpg>;rel=preload;as=image;imagesizes=800px;imagesrcset=\"img2.jpg 800w, img3.jpg\",\
+             <https://foo.com/img.jpg>;rel=allowed-alt-sxg;header-integrity=sha256-blah,\
+             <https://foo.com/img2.jpg>;rel=allowed-alt-sxg;header-integrity=sha256-blah,\
+             <https://foo.com/img3.jpg>;rel=allowed-alt-sxg;header-integrity=sha256-blah"
         );
     }
+
     #[async_std::test]
     async fn fetch_header_integrity_ok() {
         let mut fetcher = FakeIntegrityFetcher(Ok(
@@ -250,6 +330,7 @@ mod tests {
         &url, &mut fetcher).await,
                    r#"<https://foo.com/>;rel=preload,<https://foo.com/>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#);
     }
+
     #[async_std::test]
     async fn fetch_header_integrity_multiple() {
         let mut fetcher = FakeIntegrityFetcher(Ok(
@@ -264,6 +345,7 @@ mod tests {
             ),
         );
     }
+
     #[async_std::test]
     async fn fetch_header_integrity_out_of_order() {
         use crate::utils::tests::{out_of_order, OutOfOrderState};
@@ -294,6 +376,7 @@ mod tests {
             ),
         );
     }
+
     #[async_std::test]
     async fn fetch_header_integrity_ok_none() {
         let mut fetcher = FakeIntegrityFetcher(Err("some error".into()));
