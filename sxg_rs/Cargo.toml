@@ -23,6 +23,7 @@ edition = "2018"
 [features]
 default = ["strip_id_headers"]
 rust_signer = []
+srcset = []
 strip_id_headers = []
 wasm = []
 
