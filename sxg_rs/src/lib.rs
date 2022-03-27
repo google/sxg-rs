@@ -26,6 +26,7 @@ mod id_headers;
 mod link;
 mod mice;
 mod ocsp;
+mod process_html;
 pub mod serde_helpers;
 pub mod signature;
 mod structured_header;
@@ -92,6 +93,9 @@ impl SxgWorker {
     }
     pub fn cert_basename(&self) -> String {
         base64::encode_config(&self.config.cert_sha256, base64::URL_SAFE_NO_PAD)
+    }
+    pub fn process_html(&self, input: HttpResponse) -> Result<HttpResponse> {
+        process_html::process_html(input)
     }
     pub async fn create_signed_exchange<S: signature::Signer, F: Fetcher, C: HttpCache>(
         &self,

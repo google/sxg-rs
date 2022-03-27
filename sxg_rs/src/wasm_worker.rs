@@ -89,6 +89,12 @@ impl WasmWorker {
             .map_err(to_js_error)?;
         Ok(())
     }
+    #[wasm_bindgen(js_name=processHtml)]
+    pub fn process_html(&self, input: JsValue) -> Result<JsValue, JsValue> {
+        let input: HttpResponse = input.into_serde().map_err(to_js_error)?;
+        let output = self.0.process_html(input).map_err(to_js_error)?;
+        JsValue::from_serde(&output).map_err(to_js_error)
+    }
     #[allow(clippy::too_many_arguments)]
     #[wasm_bindgen(js_name=createSignedExchange)]
     pub fn create_signed_exchange(

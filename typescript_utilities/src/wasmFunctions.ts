@@ -59,6 +59,7 @@ export interface WasmWorker {
     accept_filter: AcceptFilter,
     fields: HeaderFields
   ): HeaderFields;
+  processHtml(input: WasmResponse): WasmResponse;
   createSignedExchange(
     fallbackUrl: string,
     certOrigin: string,

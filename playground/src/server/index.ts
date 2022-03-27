@@ -89,12 +89,13 @@ export async function spawnSxgServer({
   );
   const sxgList: WasmResponse[] = [];
   async function createSxgIntoList(innerUrl: string, certOrigin: string) {
-    const sxgPayload = await fetcher({
+    let sxgPayload = await fetcher({
       url: innerUrl,
       body: [],
       method: 'Get',
       headers: [],
     });
+    sxgPayload = worker.processHtml(sxgPayload);
     // TODO(PR#157): Use `handleRequest` function in `cloudflare_worker/worker/src/index.ts`.
     const sxg = await worker.createSignedExchange(
       innerUrl,
