@@ -16,7 +16,7 @@ use crate::fetcher::{Fetcher, NULL_FETCHER};
 use crate::headers::Headers;
 use crate::http::{HttpRequest, HttpResponse, Method};
 use crate::http_cache::{HttpCache, NullCache};
-use crate::utils::{console_log, get_sha, signed_headers_and_payload};
+use crate::utils::{get_sha, signed_headers_and_payload};
 use anyhow::{anyhow, Error, Result};
 use async_trait::async_trait;
 use once_cell::sync::Lazy;
@@ -62,19 +62,10 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcher for HeaderIntegrityFet
             Ok(response @ HttpResponse { status: 200, .. }) => response,
             // Respect the cached error status; don't fetch from origin.
             Ok(response @ HttpResponse { status: 406, .. }) => {
-                console_log(&format!(
-                    "Cached header-integrity error for {}; not refetching for up to an hour: {}",
-                    url,
-                    String::from_utf8_lossy(&response.body),
-                ));
                 response
             }
             // Cache miss or error fetching from cache; fall back to origin.
             _ => {
-                console_log(&format!(
-                    "{} not found in header-integrity cache. Fetching.",
-                    url
-                ));
                 let response = match self.fetch_subresource(url).await {
                     Ok(response) => {
                         match self.compute_integrity(url, &response).await {
@@ -157,7 +148,6 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
         .concat())
     }
     fn error_response(msg: &str) -> HttpResponse {
-        console_log(msg);
         HttpResponse {
             body: msg.as_bytes().into(),
             ..ERROR_RESPONSE.clone()
