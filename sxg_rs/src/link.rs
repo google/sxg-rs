@@ -2,6 +2,7 @@ use crate::header_integrity::HeaderIntegrityFetcher;
 use crate::http_parser::{link::Link, parse_link_header, srcset};
 use futures::{stream, stream::StreamExt};
 use once_cell::sync::Lazy;
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::iter::once;
@@ -63,8 +64,8 @@ pub(crate) async fn process_link_header(
                                 allow_directives.push(Link {
                                     uri: url,
                                     params: vec![
-                                        ("rel", Some("allowed-alt-sxg".into())),
-                                        ("header-integrity", Some(integrity)),
+                                        (Cow::Borrowed("rel"), Some("allowed-alt-sxg".into())),
+                                        (Cow::Borrowed("header-integrity"), Some(integrity)),
                                     ],
                                 });
                                 allow_sxg = true;
@@ -122,8 +123,8 @@ fn preloads_and_allowed_alt_sxgs<'a>(
         Lazy::new(|| vec!["", "anonymous"].into_iter().collect());
     let links = links.into_iter().filter(|link| {
         link.params.iter().all(|(k, v)| {
-            ALLOWED_PARAM.contains(k)
-                && match *k {
+            ALLOWED_PARAM.contains(k.as_ref())
+                && match k.as_ref() {
                     "rel" => matches!(v, Some(v) if ALLOWED_REL.contains(v.as_str())),
                     "crossorigin" => {
                         matches!(v, Some(v) if ALLOWED_CROSSORIGIN.contains(v.as_str()))
@@ -154,7 +155,7 @@ fn preloads_and_allowed_alt_sxgs<'a>(
     (preloads, allowed_alt_sxgs)
 }
 
-fn get_param(params: &[(&str, Option<String>)], name: &str) -> Option<String> {
+fn get_param(params: &[(Cow<'_, str>, Option<String>)], name: &str) -> Option<String> {
     let values: Vec<&Option<String>> = params
         .iter()
         .filter(|(k, _)| *k == name)

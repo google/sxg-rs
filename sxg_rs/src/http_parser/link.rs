@@ -21,6 +21,7 @@ use nom::{
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
 };
+use std::borrow::Cow;
 
 // Represents an individual link directive i.e. an instance of `link-value`
 // from https://datatracker.ietf.org/doc/html/rfc8288#section-3.
@@ -29,7 +30,7 @@ use nom::{
 #[derive(Clone, Debug, PartialEq)]
 pub struct Link<'a> {
     pub uri: String,
-    pub params: Vec<(&'a str, Option<String>)>,
+    pub params: Vec<(Cow<'a, str>, Option<String>)>,
 }
 
 fn quote(value: &str) -> Option<String> {
@@ -96,9 +97,9 @@ fn uri_ref(input: &str) -> IResult<&str, &str> {
     })(input)
 }
 
-fn link_param<'a>(input: &'a str) -> IResult<&str, (&'a str, Option<String>)> {
+fn link_param<'a>(input: &'a str) -> IResult<&str, (Cow<'a, str>, Option<String>)> {
     pair(
-        terminated(token, ows),
+        map(terminated(token, ows), Cow::Borrowed),
         opt(preceded(pair(char('='), ows), parameter_value)),
     )(input)
 }
@@ -147,7 +148,10 @@ mod tests {
                 "",
                 Link {
                     uri: "/foo".into(),
-                    params: vec![("bar", None), ("baz", Some("quux".into()))]
+                    params: vec![
+                        (Cow::Borrowed("bar"), None),
+                        (Cow::Borrowed("baz"), Some("quux".into()))
+                    ]
                 }
             )
         );
@@ -157,7 +161,7 @@ mod tests {
                 "",
                 Link {
                     uri: "/foo".into(),
-                    params: vec![("bar", Some(r#"baz \"quux"#.into()))]
+                    params: vec![(Cow::Borrowed("bar"), Some(r#"baz \"quux"#.into()))]
                 }
             )
         );
@@ -167,7 +171,7 @@ mod tests {
                 r#"="baz \""#,
                 Link {
                     uri: "/foo".into(),
-                    params: vec![("bar", None)],
+                    params: vec![(Cow::Borrowed("bar"), None)],
                 }
             )
         );
@@ -177,7 +181,7 @@ mod tests {
         assert_eq!(
             Link {
                 uri: "/foo".into(),
-                params: vec![("bar", None)]
+                params: vec![(Cow::Borrowed("bar"), None)]
             }
             .serialize(),
             "</foo>;bar"
@@ -185,7 +189,7 @@ mod tests {
         assert_eq!(
             Link {
                 uri: "/foo".into(),
-                params: vec![("bar", Some("baz".into()))]
+                params: vec![(Cow::Borrowed("bar"), Some("baz".into()))]
             }
             .serialize(),
             "</foo>;bar=baz"
@@ -193,7 +197,7 @@ mod tests {
         assert_eq!(
             Link {
                 uri: "/foo".into(),
-                params: vec![("bar", Some("baz quux".into()))]
+                params: vec![(Cow::Borrowed("bar"), Some("baz quux".into()))]
             }
             .serialize(),
             r#"</foo>;bar="baz quux""#
@@ -201,7 +205,7 @@ mod tests {
         assert_eq!(
             Link {
                 uri: "/foo".into(),
-                params: vec![("bar", Some(r#"baz\"quux"#.into()))]
+                params: vec![(Cow::Borrowed("bar"), Some(r#"baz\"quux"#.into()))]
             }
             .serialize(),
             r#"</foo>;bar="baz\\\"quux""#
@@ -209,7 +213,7 @@ mod tests {
         assert_eq!(
             Link {
                 uri: "/foo".into(),
-                params: vec![("bar", Some("\x7f".into()))]
+                params: vec![(Cow::Borrowed("bar"), Some("\x7f".into()))]
             }
             .serialize(),
             "</foo>"
