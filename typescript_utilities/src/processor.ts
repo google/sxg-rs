@@ -65,6 +65,8 @@ interface HTMLProcessor {
 //
 // For `<meta name=declare-issxg-var>` elements, they are replaced with
 // `<script>window.isSXG=...</script>`, where `...` is true or false.
+
+// TODO: Use Rust `process_html.rs` to do this.
 export class SXGOnly {
   isSXG: boolean;
   modified = false;
@@ -205,6 +207,7 @@ export async function processHTML(
 // If any <link rel=preload>s are found, they are promoted to Link headers.
 // Later, generateSxgResponse will further modify the link header to support
 // SXG preloading of eligible subresources.
+// TODO: Use Rust `process_html.rs` to do this.
 export class PromoteLinkTagsToHeaders implements HTMLProcessor {
   modified = false;
   link_tags: {href: string; attrs: string[][]}[] = [];

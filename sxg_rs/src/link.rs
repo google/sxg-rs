@@ -97,6 +97,22 @@ pub(crate) async fn process_link_header(
         .join(",")
 }
 
+// Attributes allowed on Link headers by
+// https://github.com/google/webpackager/blob/main/docs/cache_requirements.md.
+pub static ALLOWED_PARAM_NAMES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    vec![
+        "as",
+        "header-integrity",
+        "media",
+        "rel",
+        "imagesrcset",
+        "imagesizes",
+        "crossorigin",
+    ]
+    .into_iter()
+    .collect()
+});
+
 // Filters the given Link header to only the allowed preload and allowed-alt-sxg directives.
 // Converts URLs to absolute, given fallback_url as base href. Returns the allowed-alt-sxgs as a
 // HashMap for convenient lookup by URL.
@@ -104,26 +120,13 @@ fn preloads_and_allowed_alt_sxgs<'a>(
     links: Vec<Link<'a>>,
     fallback_url: &Url,
 ) -> (Vec<Link<'a>>, HashMap<String, Link<'a>>) {
-    static ALLOWED_PARAM: Lazy<HashSet<&'static str>> = Lazy::new(|| {
-        vec![
-            "as",
-            "header-integrity",
-            "media",
-            "rel",
-            "imagesrcset",
-            "imagesizes",
-            "crossorigin",
-        ]
-        .into_iter()
-        .collect()
-    });
     static ALLOWED_REL: Lazy<HashSet<&'static str>> =
         Lazy::new(|| vec!["preload", "allowed-alt-sxg"].into_iter().collect());
     static ALLOWED_CROSSORIGIN: Lazy<HashSet<&'static str>> =
         Lazy::new(|| vec!["", "anonymous"].into_iter().collect());
     let links = links.into_iter().filter(|link| {
         link.params.iter().all(|(k, v)| {
-            ALLOWED_PARAM.contains(k.as_ref())
+            ALLOWED_PARAM_NAMES.contains(k.as_ref())
                 && match k.as_ref() {
                     "rel" => matches!(v, Some(v) if ALLOWED_REL.contains(v.as_str())),
                     "crossorigin" => {

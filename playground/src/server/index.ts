@@ -95,7 +95,7 @@ export async function spawnSxgServer({
       method: 'Get',
       headers: [],
     });
-    sxgPayload = worker.processHtml(sxgPayload);
+    sxgPayload = worker.processHtml(sxgPayload, {isSxg: true});
     // TODO(PR#157): Use `handleRequest` function in `cloudflare_worker/worker/src/index.ts`.
     const sxg = await worker.createSignedExchange(
       innerUrl,

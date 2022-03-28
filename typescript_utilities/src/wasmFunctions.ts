@@ -52,6 +52,10 @@ export type PresetContent =
       fallback: WasmResponse;
     };
 
+export interface ProcessHtmlOption {
+  isSxg: boolean;
+}
+
 export interface WasmWorker {
   // eslint-disable-next-line @typescript-eslint/no-misused-new
   new (configYaml: string, certPem: string, issuerPem: string): WasmWorker;
@@ -59,7 +63,7 @@ export interface WasmWorker {
     accept_filter: AcceptFilter,
     fields: HeaderFields
   ): HeaderFields;
-  processHtml(input: WasmResponse): WasmResponse;
+  processHtml(input: WasmResponse, option: ProcessHtmlOption): WasmResponse;
   createSignedExchange(
     fallbackUrl: string,
     certOrigin: string,
