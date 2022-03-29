@@ -32,9 +32,17 @@ pub struct ProcessHtmlOption {
 ///   - Else, they are deleted.
 /// - For `<script data-issxg-var>` elements, they are replaced with
 ///   `<script>window.isSXG=...</script>`, where `...` is true or false.
-/// This function assumes the input document to be encoded in UTF8. It is needed to ensure that the
-/// document is explicitly labellbed as UTF8 via ContentType of <meta> before using this function.
+/// This function tries the input body as UTF8 string, if input body is not valid UTF8, the input
+/// will be returned back without any HTML processing.
 pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> Result<HttpResponse> {
+    let input_body = match String::from_utf8(input.body) {
+        Ok(input_body) => input_body,
+        Err(e) => return Ok(HttpResponse {
+            body: e.into_bytes(),
+            headers: input.headers,
+            status: input.status,
+        }),
+    };
     let mut link_headers: Vec<String> = vec![];
     let element_content_handlers = vec![
         lol_html::element!(
@@ -76,7 +84,6 @@ pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> Result<Ht
             Ok(())
         }),
     ];
-    let input_body = String::from_utf8(input.body)?;
     let output = lol_html::rewrite_str(
         &input_body,
         lol_html::Settings {
