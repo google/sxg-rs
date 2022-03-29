@@ -54,7 +54,7 @@ fn parse_content_type(content_type_header_value: &str) -> ContentType {
 ///   - Else, they are deleted.
 /// - For `<script data-issxg-var>` elements, they are replaced with
 ///   `<script>window.isSXG=...</script>`, where `...` is true or false.
-/// If input charset is not UTF8, the input will be returned back without any HTML.
+/// If input charset is not UTF8, the input will be returned back without any modification.
 pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> Result<HttpResponse> {
     let content_type_header = input.headers.iter().find_map(|(name, value)| {
         if name.eq_ignore_ascii_case("content-type") {
