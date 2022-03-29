@@ -77,12 +77,13 @@ pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> Result<Ht
     let input_body = match String::from_utf8(input.body) {
         Ok(input_body) => input_body,
         Err(e) => {
-            // Doesn't process HTML because input body bytes can't be parsed at UTF-8 string.
+            // Doesn't process HTML because input body bytes can't be parsed at UTF-8 string, for
+            // example, a UTF-16 BOM exsists.
             return Ok(HttpResponse {
                 body: e.into_bytes(),
                 headers: input.headers,
                 status: input.status,
-            })
+            });
         }
     };
     let mut link_headers: Vec<String> = vec![];
