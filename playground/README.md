@@ -29,6 +29,7 @@ A playground to locally preview Signed Exchanges without needing a certificate.
 1. Compile playground
 
    ```bash
+   npm install
    npm run build
    ```
 
