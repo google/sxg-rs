@@ -91,8 +91,8 @@ matches the output of:
 $ dump-signedexchange -uri "$SUBRESOURCE_URL" -headerIntegrity
 ```
 
-If you have any same-origin preload tags that should not be converts into headers,
-add the `data-sxg-no-header` attribute to them.
+If you have any same-origin preload tags that should not be converted into
+headers, add the `data-sxg-no-header` attribute to them.
 
 ##### Cross-origin
 
