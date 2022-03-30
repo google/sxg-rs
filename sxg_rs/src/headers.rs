@@ -53,6 +53,9 @@ impl Headers {
         }
         headers
     }
+    pub fn inner(&self) -> &HashMap<String, String> {
+        &self.0
+    }
     pub fn forward_to_origin_server(
         self,
         accept_filter: AcceptFilter,
