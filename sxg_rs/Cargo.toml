@@ -29,13 +29,13 @@ wasm = []
 
 [dependencies]
 anyhow = "1.0.56"
-async-trait = "0.1.52"
+async-trait = "0.1.53"
 base64 = "0.13.0"
 clap = { version = "3.1.6", features = ["derive"] }
 chrono = { version = "0.4.19", features = ["serde"] }
 der-parser = { version = "7.0.0", features = ["bigint", "serialize"] }
 futures = { version = "0.3.21", features = ["executor"] }
-getrandom = { version = "0.2.5", features = ["js"] }
+getrandom = { version = "0.2.6", features = ["js"] }
 http = "0.2.6"
 js-sys = "0.3.56"
 lol_html = "0.3.1"
@@ -56,5 +56,5 @@ web-sys = { version = "0.3.56", features = ["console"] }
 x509-parser = "0.13.1"
 
 [dev-dependencies]
-async-std = { version = "1.10.0", features = ["attributes"] }
+async-std = { version = "1.11.0", features = ["attributes"] }
 tokio-test = "0.4.2"
