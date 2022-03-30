@@ -35,7 +35,7 @@ enum ContentType {
 }
 fn parse_content_type(content_type_header_value: &str) -> ContentType {
     static CONTENT_TYPE_HTML: Lazy<Regex> =
-        Lazy::new(|| Regex::new(r#"^text/html([ \t]*;[ \t]*charset=(utf-8|"utf-8"))?$"#).unwrap());
+        Lazy::new(|| Regex::new(r#"(?i)^text/html([ \t]*;[ \t]*charset=(utf-8|"utf-8"))?$"#).unwrap());
     if let Some(captures) = CONTENT_TYPE_HTML.captures(content_type_header_value) {
         if captures.get(1).is_some() {
             ContentType::HtmlUtf8
