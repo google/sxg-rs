@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-export function clickSxgLink() {
-  document.getElementById('sxg-link')!.click();
-}
-
-export function clickNonsxgLink() {
-  document.getElementById('nonsxg-link')!.click();
+export function clickSearchResultLink() {
+  const p = document.createElement('p');
+  p.textContent = 'Puppeteer clicks the link, starting to navigate.';
+  document.body.appendChild(p);
+  document.getElementById('search-result-link')!.click();
 }
 
 declare global {

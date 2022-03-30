@@ -14,12 +14,25 @@
  * limitations under the License.
  */
 
+import createDomPurify from 'dompurify';
+import {JSDOM} from 'jsdom';
+
+const DomPurify = createDomPurify(new JSDOM('').window as unknown as Window);
+
+function createLinkFromUntrustedString(href: string, text: string) {
+  return DomPurify.sanitize(
+    `<a id="search-result-link" href=${href}>${text}</a>`,
+    {ALLOWED_TAGS: ['a']}
+  );
+}
+
 export function createSearchResultPageWithoutSxg(
   targetInnerUrl: string
 ): string {
   return `
-    <p>Non SXG</p>
-    <a id="nonsxg-link" href="${targetInnerUrl}">${targetInnerUrl}</a>
+    <p>This is a Search Result Page without using prefetch.</p>
+    ${createLinkFromUntrustedString(targetInnerUrl, targetInnerUrl)}
+    <p>Click the link to load their page.</p>
   `;
 }
 
@@ -28,8 +41,12 @@ export function createSearchResultPage(
   sxgOuterUrl: string
 ): string {
   return `
-    <p>SXG</p>
-    <a id="sxg-link" href="${sxgOuterUrl}">${targetInnerUrl}</a>
-    <link rel=prefetch href="${sxgOuterUrl}">
+    <p>This is a Search Result Page using Signed Exchanges</p>
+    ${createLinkFromUntrustedString(sxgOuterUrl, targetInnerUrl)}
+    <link rel="prefetch" as="document" href="${sxgOuterUrl}">
+    <p>
+      Resources are being prefetched.
+      Open browser's developer tool to check loading state.
+    </p>
   `;
 }
