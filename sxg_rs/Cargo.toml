@@ -38,10 +38,12 @@ futures = { version = "0.3.21", features = ["executor"] }
 getrandom = { version = "0.2.5", features = ["js"] }
 http = "0.2.6"
 js-sys = "0.3.56"
+lol_html = "0.3.1"
 nom = { version = "7.1.1", features = ["alloc"] }
 once_cell = "1.10.0"
 p256 = { version = "0.10.1", features = ["ecdsa"] }
 pem = "1.0.2"
+regex = "1.5.5"
 serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.79"
 serde_yaml = "0.8.23"
