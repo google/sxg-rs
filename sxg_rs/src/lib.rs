@@ -45,7 +45,7 @@ use std::time::Duration;
 use url::Url;
 
 pub struct SxgWorker {
-    config: Config,
+    pub config: Config,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
