@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! This file is the Rust implementation of
+//! [processor.ts](https://github.com/google/sxg-rs/blob/main/typescript_utilities/src/processor.ts).
+//! Most of the context of why and how we process HTML are documented in that file.
+
 use crate::http::HttpResponse;
 use crate::http_parser::link::Link;
 use crate::link::ALLOWED_PARAM_NAMES;
