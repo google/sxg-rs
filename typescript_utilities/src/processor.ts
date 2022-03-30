@@ -218,6 +218,7 @@ export class PromoteLinkTagsToHeaders implements HTMLProcessor {
         const as = link.getAttribute('as');
         // Ensure the values can be placed inside a Link header without
         // escaping or quoting.
+        // TODO: matching `as` against `TOKEN` is no longer needed
         if (href?.match(URL_CHARS) && as?.match(TOKEN)) {
           // link.attributes is somehow being mistyped as an Attr[], per the
           // definition of Attr from typescript/lib/lib.dom.d.ts. Not sure why;
