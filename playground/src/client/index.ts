@@ -17,8 +17,7 @@
 import puppeteer, {Browser} from 'puppeteer';
 import {Page} from 'puppeteer';
 import {
-  clickSxgLink,
-  clickNonsxgLink,
+  clickSearchResultLink,
   setupObserver,
   getObserverResult,
 } from './evaluated';
@@ -52,11 +51,7 @@ async function measureLcp({
   await page.waitForNavigation({
     waitUntil: 'networkidle0',
   });
-  if (useSxg) {
-    await page.evaluate(clickSxgLink);
-  } else {
-    await page.evaluate(clickNonsxgLink);
-  }
+  await page.evaluate(clickSearchResultLink);
   await page.waitForNavigation({
     waitUntil: 'networkidle0',
   });
