@@ -112,12 +112,14 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
     async fn cache_put(&self, url: &str, response: &HttpResponse) -> Result<()> {
         self.header_integrity_cache.put(url, response).await
     }
+    /// Fetches unsigned subresource from URL.
     async fn fetch_subresource(&self, url: &str) -> Result<HttpResponse> {
-        // A generic SXG-preferring Accept header, for use in populating the
+        // A generic Accept header, for use in populating the
         // subresource integrity cache. This will be cached and reused for
         // other clients, so there is no need to proxy the client's accept
         // header.
-        const ACCEPT: &str = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3";
+        const ACCEPT: &str =
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8";
         let request = HttpRequest {
             body: vec![],
             headers: vec![("Accept".into(), ACCEPT.into())],
