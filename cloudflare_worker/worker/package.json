@@ -10,11 +10,11 @@
   "devDependencies": {
     "@cloudflare/workers-types": "3.4.0",
     "@types/node": "16.11.26",
-    "esbuild": "^0.14.27",
+    "esbuild": "0.14.27",
     "glob": "7.2.0",
     "gts": "3.1.0",
     "tslib": "2.3.1",
-    "typescript": "4.6.2"
+    "typescript": "4.6.3"
   },
   "engines": {
     "node": ">=16.0.0"
