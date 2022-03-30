@@ -61,9 +61,7 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcher for HeaderIntegrityFet
             // Use cached header-integrity.
             Ok(response @ HttpResponse { status: 200, .. }) => response,
             // Respect the cached error status; don't fetch from origin.
-            Ok(response @ HttpResponse { status: 406, .. }) => {
-                response
-            }
+            Ok(response @ HttpResponse { status: 406, .. }) => response,
             // Cache miss or error fetching from cache; fall back to origin.
             _ => {
                 let response = match self.fetch_subresource(url).await {
