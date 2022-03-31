@@ -91,3 +91,29 @@ jobs:
             config.yaml credentials/cert.pem credentials/issuer.pem \
             test.cert test.sxg
           dump-signedexchange -i test.sxg -cert test.cert -verify
+  playground:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            playground/node_modules
+          key: ${{ runner.os }}-playground-${{ hashFiles('**/Cargo.lock'), hashFiles('playground/package.json') }}
+      - name: Build wasm
+        working-directory: cloudflare_worker
+        run: |
+          cp wrangler.example.toml wrangler.toml
+          npm install -g @cloudflare/wrangler
+          wrangler build
+      - name: Build playground
+        working-directory: playground
+        run: |
+          npm install
+          npm run build
+          node dist/index.js --url https://example.com/
