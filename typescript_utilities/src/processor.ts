@@ -20,7 +20,7 @@ import {
   readIntoArray,
   teeResponse,
 } from './streams';
-import {TOKEN, escapeLinkParamValue} from './utils';
+import {escapeLinkParamValue} from './utils';
 
 // Approximate matcher for a valid URL; that it only contains characters
 // allowed by https://datatracker.ietf.org/doc/html/rfc3986#appendix-A.
@@ -215,11 +215,7 @@ export class PromoteLinkTagsToHeaders implements HTMLProcessor {
     rewriter.on('link[rel~="preload" i][href][as]:not([data-sxg-no-header])', {
       element: (link: Element) => {
         const href = link.getAttribute('href');
-        const as = link.getAttribute('as');
-        // Ensure the values can be placed inside a Link header without
-        // escaping or quoting.
-        // TODO: matching `as` against `TOKEN` is no longer needed
-        if (href?.match(URL_CHARS) && as?.match(TOKEN)) {
+        if (href?.match(URL_CHARS)) {
           // link.attributes is somehow being mistyped as an Attr[], per the
           // definition of Attr from typescript/lib/lib.dom.d.ts. Not sure why;
           // @cloudflare/workers-types/index.d.ts says it's a string[][].
