@@ -19,7 +19,7 @@ use std::collections::BTreeSet;
 
 // This struct is source-of-truth of the sxg config. The user need to create
 // a file (like `config.yaml`) to provide this config input.
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ConfigInput {
     pub cert_url_dirname: String,
     pub forward_request_headers: BTreeSet<String>,
@@ -39,6 +39,7 @@ pub struct ConfigInput {
 
 // This contains not only source-of-truth ConfigInput, but also a few more
 // attributes which are computed from ConfigInput.
+#[derive(Debug, Clone)]
 pub struct Config {
     input: ConfigInput,
     pub cert_der: Vec<u8>,
@@ -66,21 +67,28 @@ impl Config {
         let cert_url_dirname = to_url_prefix(&input.cert_url_dirname);
         let reserved_path = to_url_prefix(&input.reserved_path);
         let validity_url_dirname = to_url_prefix(&input.validity_url_dirname);
+
+        let input = ConfigInput {
+            cert_url_dirname,
+            forward_request_headers: lowercase_all(input.forward_request_headers),
+            reserved_path,
+            strip_request_headers: lowercase_all(input.strip_request_headers),
+            strip_response_headers: lowercase_all(input.strip_response_headers),
+            validity_url_dirname,
+            ..input
+        };
+        let config = Self::new_unchecked(input, cert_der, issuer_der);
+
+        Ok(config)
+    }
+    pub fn new_unchecked(input: ConfigInput, cert_der: Vec<u8>, issuer_der: Vec<u8>) -> Self {
         let config = Config {
             cert_sha256: crate::utils::get_sha(&cert_der),
             cert_der,
-            input: ConfigInput {
-                cert_url_dirname,
-                forward_request_headers: lowercase_all(input.forward_request_headers),
-                reserved_path,
-                strip_request_headers: lowercase_all(input.strip_request_headers),
-                strip_response_headers: lowercase_all(input.strip_response_headers),
-                validity_url_dirname,
-                ..input
-            },
             issuer_der,
+            input,
         };
-        Ok(config)
+        config
     }
 }
 

@@ -45,6 +45,7 @@ use serde::Serialize;
 use std::time::Duration;
 use url::Url;
 
+#[derive(Debug)]
 pub struct SxgWorker {
     config: Config,
 }
@@ -69,6 +70,9 @@ impl SxgWorker {
     pub fn new(config_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<SxgWorker> {
         let config = Config::new(config_yaml, cert_pem, issuer_pem)?;
         Ok(SxgWorker { config })
+    }
+    pub fn config(&self) -> &Config {
+        &self.config
     }
     // TODO: Make OCSP status as an internal state of SxgWorker, so that
     // SxgWorker is able to fetch OCSP. This will need a definition of a
@@ -315,6 +319,12 @@ impl SxgWorker {
             }
         }
         Ok(fallback)
+    }
+}
+
+impl From<Config> for SxgWorker {
+    fn from(config: Config) -> Self {
+        Self { config }
     }
 }
 
