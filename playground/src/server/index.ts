@@ -86,7 +86,7 @@ export async function spawnSxgServer({
   async function createSxgIntoList(
     innerUrl: string,
     certOrigin: string,
-    isTopLevel: boolean,
+    isTopLevel: boolean
   ) {
     let sxgPayload = await fetcher({
       url: innerUrl,
@@ -116,7 +116,7 @@ export async function spawnSxgServer({
           const subresourceSxgId = await createSxgIntoList(
             subresourceUrl,
             certOrigin,
-            /*isTopLevel=*/ false,
+            /*isTopLevel=*/ false
           );
           return `<https://localhost:8443/sxg/${subresourceSxgId}>;rel="alternate";type="application/signed-exchange;v=b3";anchor="${subresourceUrl}"`;
         })
