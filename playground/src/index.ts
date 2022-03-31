@@ -24,6 +24,13 @@ async function main() {
   program
     .addOption(
       new Option(
+        '--crawler-user-agent <string>',
+        'the user-agent request header to be sent to the website server'
+        // The defalt value is from https://developers.google.com/search/docs/advanced/crawling/overview-google-crawlers#googlebot-smartphone
+      ).default(`Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)`)
+    )
+    .addOption(
+      new Option(
         '--url <url>',
         'A single URL to be measured'
       ).makeOptionMandatory(true)
@@ -52,6 +59,7 @@ async function main() {
     await createSelfSignedCredentials(new URL(opts['url']).hostname);
   const stopSxgServer = await spawnSxgServer({
     certificatePem,
+    crawlerUserAgent: opts['crawlerUserAgent'],
     privateKeyJwk,
     privateKeyPem,
   });
