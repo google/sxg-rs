@@ -43,7 +43,7 @@ pub enum AcceptFilter {
 const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36";
 
 impl Headers {
-    pub(crate) fn new(data: HeaderFields, strip_headers: &BTreeSet<String>) -> Self {
+    pub fn new(data: HeaderFields, strip_headers: &BTreeSet<String>) -> Self {
         let mut headers = Headers(HashMap::new());
         for (mut k, v) in data {
             k.make_ascii_lowercase();
@@ -53,7 +53,10 @@ impl Headers {
         }
         headers
     }
-    pub(crate) fn forward_to_origin_server(
+    pub fn inner(&self) -> &HashMap<String, String> {
+        &self.0
+    }
+    pub fn forward_to_origin_server(
         self,
         accept_filter: AcceptFilter,
         forwarded_header_names: &BTreeSet<String>,
@@ -97,7 +100,7 @@ impl Headers {
         }
         Ok(new_headers.into_iter().collect())
     }
-    pub(crate) fn validate_as_sxg_payload(&self) -> Result<()> {
+    pub fn validate_as_sxg_payload(&self) -> Result<()> {
         for (k, v) in self.0.iter() {
             if DONT_SIGN_RESPONSE_HEADERS.contains(k.as_str()) {
                 return Err(anyhow!(r#"A stateful header "{}" is found."#, k));
@@ -204,7 +207,7 @@ impl Headers {
         fields.push(("digest", &digest));
         serializer(fields)
     }
-    pub(crate) async fn get_signed_headers_bytes(
+    pub async fn get_signed_headers_bytes(
         &self,
         fallback_url: &Url,
         status_code: u16,
@@ -238,7 +241,7 @@ impl Headers {
     // https://datatracker.ietf.org/doc/html/rfc7230#section-6.1.
     // These headers should be removed before signing per
     // https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-impl.html#section-4.1-2.1.
-    fn connection_headers(&self) -> HashSet<String> {
+    pub fn connection_headers(&self) -> HashSet<String> {
         // OWS is defined at https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.3.
         const OWS: &[char] = &[' ', '\t'];
         match self.0.get("connection") {
@@ -250,7 +253,7 @@ impl Headers {
         }
     }
     // How long the signature should last, or error if the response shouldn't be signed.
-    pub(crate) fn signature_duration(&self) -> Result<Duration> {
+    pub fn signature_duration(&self) -> Result<Duration> {
         // Default to 7 days unless a cache-control directive lowers it.
         // Only look at the most specific cache-control header present. This follows the requirement
         // in https://datatracker.ietf.org/doc/html/draft-cdn-control-header-01#section-2.1.
