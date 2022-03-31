@@ -16,8 +16,11 @@
 
 import {program, Option} from 'commander';
 
-import {createSelfSignedCredentials} from './server/credentials';
 import {IsolationMode, runClient} from './client/';
+import {
+  NOT_EMULATED,
+} from './client/emulationOptions';
+import {createSelfSignedCredentials} from './server/credentials';
 import {spawnSxgServer} from './server/';
 
 async function main() {
@@ -25,9 +28,21 @@ async function main() {
     .addOption(
       new Option(
         '--crawler-user-agent <string>',
-        'the user-agent request header to be sent to the website server'
+        'The user-agent request header to be sent to the website server'
         // The defalt value is from https://developers.google.com/search/docs/advanced/crawling/overview-google-crawlers#googlebot-smartphone
       ).default(`Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)`)
+    )
+    .addOption(
+      new Option(
+        '--emulate-device <string>',
+        'The device that puppeteer emulates'
+      ).choices(['Pixel 5', 'iPhone XR', NOT_EMULATED]).default(`Pixel 5`)
+    )
+    .addOption(
+      new Option(
+        '--emulate-network <string>',
+        'The network condition that puppeteer emulates'
+      ).choices(['Slow 3G', 'Fast 3G', NOT_EMULATED]).default(`Pixel 5`)
     )
     .addOption(
       new Option(
@@ -67,6 +82,10 @@ async function main() {
     url,
     certificateSpki: publicKeyHash,
     interactivelyInspect: opts['inspect'] ?? false,
+    emulationOptions: {
+      device: opts['emulateDevice'],
+      networkCondition: opts['emulateNetwork']
+    },
     isolationMode: opts['isolateBrowserContext']
       ? IsolationMode.IncognitoBrowserContext
       : IsolationMode.ClearBrowserCache,
