@@ -60,10 +60,12 @@ validity_url_dirname: ".well-known/sxg-validity"
 // the server.
 export async function spawnSxgServer({
   certificatePem,
+  crawlerUserAgent,
   privateKeyJwk,
   privateKeyPem,
 }: {
   certificatePem: string;
+  crawlerUserAgent: string;
   privateKeyJwk: Object;
   privateKeyPem: string;
 }) {
@@ -92,7 +94,7 @@ export async function spawnSxgServer({
       url: innerUrl,
       body: [],
       method: 'Get',
-      headers: [],
+      headers: [['user-agent', crawlerUserAgent]],
     });
     sxgPayload = worker.processHtml(sxgPayload, {isSxg: true});
     const urlRecorder = subresourceCache.createRecorder();

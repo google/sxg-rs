@@ -16,15 +16,23 @@
 
 import puppeteer, {Browser} from 'puppeteer';
 import {Page} from 'puppeteer';
+import {EmulationOptions, NOT_EMULATED} from './emulationOptions';
 import {
   clickSearchResultLink,
   setupObserver,
   getObserverResult,
 } from './evaluated';
 
-async function setupPage(page: Page) {
-  await page.emulate(puppeteer.devices['Pixel 5']!);
-  await page.emulateNetworkConditions(puppeteer.networkConditions['Fast 3G']!);
+async function setupPage(page: Page, emulationOptions: EmulationOptions) {
+  const {device, networkCondition} = emulationOptions;
+  if (device !== NOT_EMULATED) {
+    await page.emulate(puppeteer.devices[device]!);
+  }
+  if (networkCondition !== NOT_EMULATED) {
+    await page.emulateNetworkConditions(
+      puppeteer.networkConditions[networkCondition]!
+    );
+  }
   await page.evaluateOnNewDocument(setupObserver);
 }
 
@@ -39,14 +47,16 @@ function getSearchResultPageUrl(targetUrl: string, useSxg: boolean) {
 // Measures LCP of the given URL in an existing Chrome tab (page).
 async function measureLcp({
   page,
+  emulationOptions,
   url,
   useSxg,
 }: {
   page: Page;
+  emulationOptions: EmulationOptions;
   url: string;
   useSxg: boolean;
 }) {
-  await setupPage(page);
+  await setupPage(page, emulationOptions);
   page.goto(getSearchResultPageUrl(url, useSxg));
   await page.waitForNavigation({
     waitUntil: 'networkidle0',
@@ -72,18 +82,20 @@ export enum IsolationMode {
 async function createPageAndMeasureLcp({
   browser,
   isolationMode,
+  emulationOptions,
   url,
   useSxg,
 }: {
   browser: Browser;
   isolationMode: IsolationMode;
+  emulationOptions: EmulationOptions;
   url: string;
   useSxg: boolean;
 }) {
   if (isolationMode === IsolationMode.IncognitoBrowserContext) {
     const context = await browser.createIncognitoBrowserContext();
     const page = await context.newPage();
-    const lcpResult = await measureLcp({page, url, useSxg});
+    const lcpResult = await measureLcp({page, emulationOptions, url, useSxg});
     await page.close();
     await context.close();
     return lcpResult;
@@ -93,7 +105,7 @@ async function createPageAndMeasureLcp({
     await client.send('Network.clearBrowserCookies');
     await client.send('Network.clearBrowserCache');
     await client.detach();
-    const lcpResult = await measureLcp({page, url, useSxg});
+    const lcpResult = await measureLcp({page, emulationOptions, url, useSxg});
     await page.close();
     return lcpResult;
   }
@@ -103,12 +115,14 @@ export async function runClient({
   certificateSpki,
   interactivelyInspect,
   isolationMode,
+  emulationOptions,
   repeatTime,
   url,
 }: {
   certificateSpki: string;
   interactivelyInspect: boolean;
   isolationMode: IsolationMode;
+  emulationOptions: EmulationOptions;
   repeatTime: number;
   url: string;
 }) {
@@ -124,7 +138,7 @@ export async function runClient({
       const context = await browser.createIncognitoBrowserContext();
       page = await context.newPage();
     }
-    await setupPage(page);
+    await setupPage(page, emulationOptions);
     await page.goto(getSearchResultPageUrl(url, true));
     await new Promise<void>(resolve => {
       browser.on('disconnected', () => {
@@ -136,6 +150,7 @@ export async function runClient({
       const sxgLcp = await createPageAndMeasureLcp({
         browser,
         isolationMode,
+        emulationOptions,
         url,
         useSxg: true,
       });
@@ -143,6 +158,7 @@ export async function runClient({
       const nonsxgLcp = await createPageAndMeasureLcp({
         browser,
         isolationMode,
+        emulationOptions,
         url,
         useSxg: false,
       });
