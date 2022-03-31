@@ -82,7 +82,7 @@ async function main() {
     url: string;
   };
   const {certificatePem, privateKeyJwk, privateKeyPem, publicKeyHash} =
-    await createSelfSignedCredentials(new URL(opts.url).hostname);
+    await createSelfSignedCredentials('example.com');
   const stopSxgServer = await spawnSxgServer({
     certificatePem,
     crawlerUserAgent: opts.crawlerUserAgent,
