@@ -94,9 +94,7 @@ export async function spawnSxgServer({
       url: innerUrl,
       body: [],
       method: 'Get',
-      headers: [
-        ['user-agent', crawlerUserAgent],
-      ],
+      headers: [['user-agent', crawlerUserAgent]],
     });
     sxgPayload = worker.processHtml(sxgPayload, {isSxg: true});
     const urlRecorder = subresourceCache.createRecorder();

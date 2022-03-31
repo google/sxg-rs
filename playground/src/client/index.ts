@@ -16,10 +16,7 @@
 
 import puppeteer, {Browser} from 'puppeteer';
 import {Page} from 'puppeteer';
-import {
-  EmulationOptions,
-  NOT_EMULATED,
-} from './emulationOptions';
+import {EmulationOptions, NOT_EMULATED} from './emulationOptions';
 import {
   clickSearchResultLink,
   setupObserver,
@@ -27,15 +24,14 @@ import {
 } from './evaluated';
 
 async function setupPage(page: Page, emulationOptions: EmulationOptions) {
-  const {
-    device,
-    networkCondition,
-  } = emulationOptions;
+  const {device, networkCondition} = emulationOptions;
   if (device !== NOT_EMULATED) {
     await page.emulate(puppeteer.devices[device]!);
   }
   if (networkCondition !== NOT_EMULATED) {
-    await page.emulateNetworkConditions(puppeteer.networkConditions[networkCondition]!);
+    await page.emulateNetworkConditions(
+      puppeteer.networkConditions[networkCondition]!
+    );
   }
   await page.evaluateOnNewDocument(setupObserver);
 }
@@ -56,7 +52,7 @@ async function measureLcp({
   useSxg,
 }: {
   page: Page;
-  emulationOptions: EmulationOptions,
+  emulationOptions: EmulationOptions;
   url: string;
   useSxg: boolean;
 }) {
@@ -92,7 +88,7 @@ async function createPageAndMeasureLcp({
 }: {
   browser: Browser;
   isolationMode: IsolationMode;
-  emulationOptions: EmulationOptions,
+  emulationOptions: EmulationOptions;
   url: string;
   useSxg: boolean;
 }) {
@@ -126,7 +122,7 @@ export async function runClient({
   certificateSpki: string;
   interactivelyInspect: boolean;
   isolationMode: IsolationMode;
-  emulationOptions: EmulationOptions,
+  emulationOptions: EmulationOptions;
   repeatTime: number;
   url: string;
 }) {
