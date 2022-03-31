@@ -71,6 +71,9 @@ impl SxgWorker {
         let config = Config::new(config_yaml, cert_pem, issuer_pem)?;
         Ok(SxgWorker { config })
     }
+    pub fn new_with_config(config: Config) -> Self {
+        Self { config }
+    }
     pub fn config(&self) -> &Config {
         &self.config
     }
@@ -319,12 +322,6 @@ impl SxgWorker {
             }
         }
         Ok(fallback)
-    }
-}
-
-impl From<Config> for SxgWorker {
-    fn from(config: Config) -> Self {
-        Self { config }
     }
 }
 
