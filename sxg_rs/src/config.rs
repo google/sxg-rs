@@ -19,7 +19,7 @@ use std::collections::BTreeSet;
 
 // This struct is source-of-truth of the sxg config. The user need to create
 // a file (like `config.yaml`) to provide this config input.
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ConfigInput {
     pub cert_url_dirname: String,
     pub forward_request_headers: BTreeSet<String>,
@@ -39,6 +39,7 @@ pub struct ConfigInput {
 
 // This contains not only source-of-truth ConfigInput, but also a few more
 // attributes which are computed from ConfigInput.
+#[derive(Debug, Clone)]
 pub struct Config {
     input: ConfigInput,
     pub cert_der: Vec<u8>,
@@ -58,29 +59,50 @@ fn lowercase_all(names: BTreeSet<String>) -> BTreeSet<String> {
     names.into_iter().map(|h| h.to_ascii_lowercase()).collect()
 }
 
+fn normalize_config_input(input: ConfigInput) -> ConfigInput {
+    ConfigInput {
+        cert_url_dirname: to_url_prefix(&input.cert_url_dirname),
+        forward_request_headers: lowercase_all(input.forward_request_headers),
+        reserved_path: to_url_prefix(&input.reserved_path),
+        strip_request_headers: lowercase_all(input.strip_request_headers),
+        strip_response_headers: lowercase_all(input.strip_response_headers),
+        validity_url_dirname: to_url_prefix(&input.validity_url_dirname),
+        ..input
+    }
+}
+
 impl Config {
+    /// Creates config from text
     pub fn new(input_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<Self> {
         let input: ConfigInput = serde_yaml::from_str(input_yaml)?;
         let cert_der = get_der_from_pem(cert_pem, "CERTIFICATE")?;
         let issuer_der = get_der_from_pem(issuer_pem, "CERTIFICATE")?;
-        let cert_url_dirname = to_url_prefix(&input.cert_url_dirname);
-        let reserved_path = to_url_prefix(&input.reserved_path);
-        let validity_url_dirname = to_url_prefix(&input.validity_url_dirname);
-        let config = Config {
+
+        let config = Self::new_with_parsed_data(input, cert_der, issuer_der);
+
+        Ok(config)
+    }
+    /// Creates config from parsed input and der
+    pub fn new_with_parsed_data(
+        input: ConfigInput,
+        cert_der: Vec<u8>,
+        issuer_der: Vec<u8>,
+    ) -> Self {
+        let input = normalize_config_input(input);
+        Self::new_with_parsed_and_normalized_data(input, cert_der, issuer_der)
+    }
+    /// Creates config without normalizing input
+    pub fn new_with_parsed_and_normalized_data(
+        input: ConfigInput,
+        cert_der: Vec<u8>,
+        issuer_der: Vec<u8>,
+    ) -> Self {
+        Config {
             cert_sha256: crate::utils::get_sha(&cert_der),
             cert_der,
-            input: ConfigInput {
-                cert_url_dirname,
-                forward_request_headers: lowercase_all(input.forward_request_headers),
-                reserved_path,
-                strip_request_headers: lowercase_all(input.strip_request_headers),
-                strip_response_headers: lowercase_all(input.strip_response_headers),
-                validity_url_dirname,
-                ..input
-            },
             issuer_der,
-        };
-        Ok(config)
+            input,
+        }
     }
 }
 
