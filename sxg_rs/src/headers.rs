@@ -22,7 +22,7 @@ use crate::link::process_link_header;
 use anyhow::{anyhow, Result};
 use once_cell::sync::Lazy;
 use serde::Deserialize;
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{hash_map, BTreeSet, HashMap, HashSet};
 use std::time::Duration;
 use url::Url;
 
@@ -48,13 +48,25 @@ impl Headers {
         for (mut k, v) in data {
             k.make_ascii_lowercase();
             if !strip_headers.contains(&k) {
-                headers.0.insert(k, v);
+                match headers.0.entry(k) {
+                    hash_map::Entry::Occupied(o) => {
+                        let o = o.into_mut();
+                        o.push(',');
+                        o.push_str(&v);
+                    }
+                    hash_map::Entry::Vacant(va) => {
+                        va.insert(v);
+                    }
+                };
             }
         }
         headers
     }
     pub fn inner(&self) -> &HashMap<String, String> {
         &self.0
+    }
+    pub fn into_inner(self) -> HashMap<String, String> {
+        self.0
     }
     pub fn forward_to_origin_server(
         self,
@@ -457,6 +469,18 @@ mod tests {
             .0,
             header_fields(vec![("accept", "*/*")])
         );
+    }
+
+    #[test]
+    fn duplicate_headers() {
+        assert_eq!(
+            headers(vec![
+                ("accept", "application/json"),
+                ("ACcEpt", "application/xml")
+            ])
+            .0,
+            header_fields(vec![("accept", "application/json,application/xml")])
+        )
     }
 
     // === forward_to_origin_server ===
