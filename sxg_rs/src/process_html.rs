@@ -28,7 +28,7 @@ use std::borrow::Cow;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessHtmlOption {
-    is_sxg: bool,
+    pub is_sxg: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -55,7 +55,7 @@ fn parse_content_type(content_type_header_value: &str) -> ContentType {
 /// Processes HTML using the following processors.
 /// - For `<link rel=preload>` elements, they are promoted to Link headers.
 /// - For `<template data-sxg-only>` elements:
-///   - If SXG, they are "unwrapped" (i.e. their children promoted out of the <teplate>).
+///   - If SXG, they are "unwrapped" (i.e. their children are promoted out of the <template>).
 ///   - Else, they are deleted.
 /// - For `<script data-issxg-var>` elements, they are replaced with
 ///   `<script>window.isSXG=...</script>`, where `...` is true or false.

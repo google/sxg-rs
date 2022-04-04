@@ -26,7 +26,7 @@ mod id_headers;
 mod link;
 mod mice;
 mod ocsp;
-mod process_html;
+pub mod process_html;
 pub mod serde_helpers;
 pub mod signature;
 mod structured_header;
