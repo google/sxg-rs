@@ -119,9 +119,10 @@ impl JsonWebSignature {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     #[async_std::test]
+    #[cfg(feature = "rust_signer")]
     async fn json_web_signature() {
+        use super::*;
         // This test follow the example given in RFC 7515.
         // https://datatracker.ietf.org/doc/html/rfc7515#appendix-A.3.1
         let protected_header = r#"{"alg":"ES256"}"#;
