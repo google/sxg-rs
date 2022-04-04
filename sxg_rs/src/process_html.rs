@@ -28,7 +28,7 @@ use std::borrow::Cow;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessHtmlOption {
-    is_sxg: bool,
+    pub is_sxg: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
