@@ -53,7 +53,7 @@ impl TryInto<::http::request::Request<Vec<u8>>> for HttpRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Clone)]
 pub struct HttpResponse {
     pub body: Vec<u8>,
     pub headers: HeaderFields,
@@ -143,5 +143,15 @@ impl TryInto<::http::Method> for Method {
             Method::Get => Ok(::http::Method::GET),
             Method::Post => Ok(::http::Method::POST),
         }
+    }
+}
+
+impl std::fmt::Debug for HttpResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HttpResponse")
+            .field("status", &self.status)
+            .field("headers", &self.headers)
+            .field("body", &base64::encode(&self.body))
+            .finish()
     }
 }
