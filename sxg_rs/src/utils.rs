@@ -41,7 +41,7 @@ macro_rules! console_dbg {
         ))
     };
 }
-pub(crate) use console_dbg;
+pub use console_dbg;
 
 pub fn get_sha(bytes: &[u8]) -> Vec<u8> {
     use ::sha2::{Digest, Sha256};
