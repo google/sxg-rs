@@ -30,6 +30,19 @@ pub fn console_log(msg: &str) {
     println!("{}", msg);
 }
 
+macro_rules! console_dbg {
+    ($x: expr) => {
+        $crate::utils::console_log(&format!(
+            "[{}:{}] {} = {:#?}",
+            file!(),
+            line!(),
+            std::stringify!($x),
+            $x
+        ))
+    };
+}
+pub use console_dbg;
+
 pub fn get_sha(bytes: &[u8]) -> Vec<u8> {
     use ::sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
