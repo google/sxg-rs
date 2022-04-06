@@ -3609,7 +3609,6 @@ dependencies = [
  "once_cell",
  "p256",
  "pem",
- "regex",
  "serde",
  "serde_json",
  "serde_yaml",
