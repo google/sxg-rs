@@ -20,8 +20,6 @@ use crate::http::HttpResponse;
 use crate::http_parser::link::Link;
 use crate::link::ALLOWED_PARAM_NAMES;
 use anyhow::Result;
-use once_cell::sync::Lazy;
-use regex::Regex;
 use serde::Deserialize;
 use std::borrow::Cow;
 
@@ -38,11 +36,9 @@ enum ContentType {
     Other,
 }
 fn parse_content_type(content_type_header_value: &str) -> ContentType {
-    static CONTENT_TYPE_HTML: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r#"(?i)^text/html([ \t]*;[ \t]*charset=(utf-8|"utf-8"))?$"#).unwrap()
-    });
-    if let Some(captures) = CONTENT_TYPE_HTML.captures(content_type_header_value) {
-        if captures.get(1).is_some() {
+    let content_type_header_value = content_type_header_value.trim_start().to_ascii_lowercase();
+    if content_type_header_value.starts_with("text/html") {
+        if content_type_header_value.contains("utf-8") {
             ContentType::HtmlUtf8
         } else {
             ContentType::HtmlOther
@@ -192,6 +188,10 @@ mod tests {
             parse_content_type(r#"text/html; charset="utf-8""#),
             ContentType::HtmlUtf8
         );
+        assert_eq!(
+            parse_content_type(r#"text/html; charset=ascii"#),
+            ContentType::HtmlOther
+        );
         assert_eq!(parse_content_type(r#"text/plain"#), ContentType::Other);
     }
     fn quick_process(content_type: &str, input_body: &str) -> String {
@@ -229,10 +229,7 @@ mod tests {
             "<meta http-equiv=content-type content=\"text/html;charset=utf-8\">\
             <script data-issxg-var>window.isSXG=true</script>"
         );
-        // https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/html/parser/html_parser_idioms.cc;l=308-354;drc=984c3018ecb2ff818e900fdb7c743fc00caf7efe
-        // https://html.spec.whatwg.org/multipage/urls-and-fetching.html#extracting-character-encodings-from-meta-elements
-        // lol-html doesn't appear to decode HTML entities inside
-        // attribute values, so this won't work. This could be supported in the future.
+        // Meta tag with HTML-encoded attribute
         assert_eq!(
             quick_process(
                 "text/html",
@@ -240,7 +237,7 @@ mod tests {
                 <script data-issxg-var></script>"
             ),
             "<meta http-equiv=content-type content=\"text/html;charset=&quot;utf-8&quot;\">\
-            <script data-issxg-var></script>",
+            <script data-issxg-var>window.isSXG=true</script>",
         );
     }
 }
