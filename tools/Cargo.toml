@@ -23,7 +23,7 @@ edition = "2018"
 anyhow = "1.0.56"
 async-trait = "0.1.53"
 base64 = "0.13.0"
-clap = { version = "3.1.6", features = ["derive"] }
+clap = { version = "3.1.8", features = ["derive"] }
 cloudflare = "0.9.1"
 console = "0.15.0"
 ctrlc = "3.2.1"

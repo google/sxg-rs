@@ -31,13 +31,13 @@ wasm = []
 anyhow = "1.0.56"
 async-trait = "0.1.53"
 base64 = "0.13.0"
-clap = { version = "3.1.6", features = ["derive"] }
+clap = { version = "3.1.8", features = ["derive"] }
 chrono = { version = "0.4.19", features = ["serde"] }
 der-parser = { version = "7.0.0", features = ["bigint", "serialize"] }
 futures = { version = "0.3.21", features = ["executor"] }
 getrandom = { version = "0.2.6", features = ["js"] }
 http = "0.2.6"
-js-sys = "0.3.56"
+js-sys = "0.3.57"
 lol_html = "0.3.1"
 nom = { version = "7.1.1", features = ["alloc"] }
 once_cell = "1.10.0"
@@ -49,9 +49,9 @@ serde_yaml = "0.8.23"
 sha2 = "0.10.2"
 tokio = { version = "1.17.0", features = ["macros", "sync", "time"] }
 url = "2.2.2"
-wasm-bindgen = { version = "0.2.79", features = ["serde-serialize"] }
-wasm-bindgen-futures = "0.4.29"
-web-sys = { version = "0.3.56", features = ["console"] }
+wasm-bindgen = { version = "0.2.80", features = ["serde-serialize"] }
+wasm-bindgen-futures = "0.4.30"
+web-sys = { version = "0.3.57", features = ["console"] }
 x509-parser = "0.13.1"
 
 [dev-dependencies]
