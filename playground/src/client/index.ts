@@ -14,14 +14,24 @@
  * limitations under the License.
  */
 
+import fetch from 'node-fetch';
+import https from 'https';
 import puppeteer, {Browser} from 'puppeteer';
 import {Page} from 'puppeteer';
+import {
+  CreateSignedExchangeRequest,
+  CreateSignedExchangeResponse,
+} from '../schema';
 import {EmulationOptions, NOT_EMULATED} from './emulationOptions';
 import {
   clickSearchResultLink,
   setupObserver,
   getObserverResult,
 } from './evaluated';
+import {
+  createSearchResultPage,
+  createSearchResultPageWithoutSxg,
+} from './templates';
 
 async function setupPage(page: Page, emulationOptions: EmulationOptions) {
   const {device, networkCondition} = emulationOptions;
@@ -36,11 +46,30 @@ async function setupPage(page: Page, emulationOptions: EmulationOptions) {
   await page.evaluateOnNewDocument(setupObserver);
 }
 
-function getSearchResultPageUrl(targetUrl: string, useSxg: boolean) {
-  if (useSxg) {
-    return `https://localhost:8443/srp/${encodeURIComponent(targetUrl)}`;
+// Calls the backend server to create a signed exchange. This uses node-js
+// directly, instead of using puppeteer.
+async function createSignedExchange(
+  request: CreateSignedExchangeRequest
+): Promise<CreateSignedExchangeResponse> {
+  const rsp = await fetch('https://localhost:8443/create-sxg', {
+    method: 'POST',
+    body: JSON.stringify(request),
+    agent: new https.Agent({
+      // The localhost:8443 uses a self-signed certificate, so we have to
+      // disable the SSL validation.
+      rejectUnauthorized: false,
+    }),
+  });
+  return JSON.parse(await rsp.text());
+}
+
+// Creates a URL of a Search Result Page of a given target URL and an optional
+// SXG outer URL.
+function getSearchResultPageUrl(targetUrl: string, sxgOuterUrl?: string) {
+  if (sxgOuterUrl) {
+    return `data:text/html,${createSearchResultPage(targetUrl, sxgOuterUrl)}`;
   } else {
-    return `https://localhost:8443/nonsxg-srp/${encodeURIComponent(targetUrl)}`;
+    return `data:text/html,${createSearchResultPageWithoutSxg(targetUrl)}`;
   }
 }
 
@@ -49,15 +78,15 @@ async function measureLcp({
   page,
   emulationOptions,
   url,
-  useSxg,
+  sxgOuterUrl,
 }: {
   page: Page;
   emulationOptions: EmulationOptions;
   url: string;
-  useSxg: boolean;
+  sxgOuterUrl?: string;
 }) {
   await setupPage(page, emulationOptions);
-  page.goto(getSearchResultPageUrl(url, useSxg));
+  page.goto(getSearchResultPageUrl(url, sxgOuterUrl));
   await page.waitForNavigation({
     waitUntil: 'networkidle0',
   });
@@ -83,19 +112,24 @@ async function createPageAndMeasureLcp({
   browser,
   isolationMode,
   emulationOptions,
+  sxgOuterUrl,
   url,
-  useSxg,
 }: {
   browser: Browser;
   isolationMode: IsolationMode;
   emulationOptions: EmulationOptions;
+  sxgOuterUrl?: string;
   url: string;
-  useSxg: boolean;
 }) {
   if (isolationMode === IsolationMode.IncognitoBrowserContext) {
     const context = await browser.createIncognitoBrowserContext();
     const page = await context.newPage();
-    const lcpResult = await measureLcp({page, emulationOptions, url, useSxg});
+    const lcpResult = await measureLcp({
+      page,
+      emulationOptions,
+      url,
+      sxgOuterUrl,
+    });
     await page.close();
     await context.close();
     return lcpResult;
@@ -105,7 +139,12 @@ async function createPageAndMeasureLcp({
     await client.send('Network.clearBrowserCookies');
     await client.send('Network.clearBrowserCache');
     await client.detach();
-    const lcpResult = await measureLcp({page, emulationOptions, url, useSxg});
+    const lcpResult = await measureLcp({
+      page,
+      emulationOptions,
+      url,
+      sxgOuterUrl,
+    });
     await page.close();
     return lcpResult;
   }
@@ -126,6 +165,18 @@ export async function runClient({
   repeatTime: number;
   url: string;
 }) {
+  let sxgOuterUrl: string;
+  const sxg = await createSignedExchange({
+    innerUrl: url,
+  });
+  if (sxg[0] === 'Ok') {
+    sxgOuterUrl = sxg[1].outerUrl;
+  } else if (sxg[0] === 'Err') {
+    console.log(`Failed to create SXG for ${url}\n${sxg[1].message}`);
+    return;
+  } else {
+    throw 'Unreachable';
+  }
   const browser = await puppeteer.launch({
     devtools: interactivelyInspect,
     args: [`--ignore-certificate-errors-spki-list=${certificateSpki}`],
@@ -139,7 +190,7 @@ export async function runClient({
       page = await context.newPage();
     }
     await setupPage(page, emulationOptions);
-    await page.goto(getSearchResultPageUrl(url, true));
+    await page.goto(getSearchResultPageUrl(url, sxgOuterUrl));
     await new Promise<void>(resolve => {
       browser.on('disconnected', () => {
         resolve();
@@ -152,7 +203,7 @@ export async function runClient({
         isolationMode,
         emulationOptions,
         url,
-        useSxg: true,
+        sxgOuterUrl,
       });
       console.log(`LCP of SXG: ${sxgLcp}`);
       const nonsxgLcp = await createPageAndMeasureLcp({
@@ -160,7 +211,7 @@ export async function runClient({
         isolationMode,
         emulationOptions,
         url,
-        useSxg: false,
+        sxgOuterUrl: undefined,
       });
       console.log(`LCP of Non-SXG: ${nonsxgLcp}`);
     }
