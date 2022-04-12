@@ -21,12 +21,12 @@ import crypto from 'crypto';
 
 import Fastify from 'fastify';
 
+import {
+  CreateSignedExchangeRequest,
+  CreateSignedExchangeResponse,
+} from '../schema';
 import {SubresourceCache} from './cache';
 import {fetcher} from './fetcher';
-import {
-  createSearchResultPage,
-  createSearchResultPageWithoutSxg,
-} from './searchResultPage';
 import {fromJwk as createSignerFromJwk} from './signer';
 import {WasmResponse, createWorker} from './wasmFunctions';
 
@@ -136,27 +136,23 @@ export async function spawnSxgServer({
       cert: certificatePem,
     },
   });
-  fastify.get('/srp/:url', async (request, reply) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sxgInnerUrl: string = (request.params as any).url;
-    let sxgId: number;
+  fastify.post('/create-sxg', async (request, reply) => {
+    const {innerUrl} = JSON.parse(
+      request.body as string
+    ) as CreateSignedExchangeRequest;
+    let response: CreateSignedExchangeResponse;
     try {
-      sxgId = await createSxgIntoList(
-        sxgInnerUrl,
+      const sxgId = await createSxgIntoList(
+        innerUrl,
         `https://${request.hostname}`,
         /*isTopLevel=*/ true
       );
+      response = ['Ok', {outerUrl: `https://localhost:8443/sxg/${sxgId}`}];
     } catch (e) {
-      return `Failed to create SXG. ${e}`;
+      response = ['Err', {message: `${e}`}];
     }
-    reply.header('content-type', 'text/html');
-    return createSearchResultPage(sxgInnerUrl, `/sxg/${sxgId}`);
-  });
-  fastify.get('/nonsxg-srp/:url', async (request, reply) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sxgInnerUrl: string = (request.params as any).url;
-    reply.header('content-type', 'text/html');
-    return createSearchResultPageWithoutSxg(sxgInnerUrl);
+    reply.header('content-type', 'application/json');
+    return JSON.stringify(response);
   });
   fastify.get('/.well-known/sxg-certs/*', async (request, reply) => {
     const x = worker.servePresetContent(
