@@ -104,7 +104,7 @@ jobs:
             ~/.cargo/git/db/
             target/
             playground/node_modules
-          key: ${{ runner.os }}-playground-${{ hashFiles('**/Cargo.lock'), hashFiles('playground/package.json') }}
+          key: ${{ runner.os }}-playground-${{ hashFiles('**/Cargo.lock', 'playground/package.json') }}
       - name: Build wasm
         working-directory: cloudflare_worker
         run: |
