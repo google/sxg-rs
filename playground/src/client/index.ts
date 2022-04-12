@@ -150,19 +150,15 @@ async function createPageAndMeasureLcp({
   }
 }
 
-export async function runClient({
+export async function runInteractiveClient({
   certificateSpki,
-  interactivelyInspect,
   isolationMode,
   emulationOptions,
-  repeatTime,
   url,
 }: {
   certificateSpki: string;
-  interactivelyInspect: boolean;
   isolationMode: IsolationMode;
   emulationOptions: EmulationOptions;
-  repeatTime: number;
   url: string;
 }) {
   let sxgOuterUrl: string;
@@ -178,25 +174,55 @@ export async function runClient({
     throw 'Unreachable';
   }
   const browser = await puppeteer.launch({
-    devtools: interactivelyInspect,
+    devtools: true,
     args: [`--ignore-certificate-errors-spki-list=${certificateSpki}`],
   });
-  if (interactivelyInspect) {
-    let page: Page;
-    if (isolationMode === IsolationMode.ClearBrowserCache) {
-      page = (await browser.pages())[0]!;
-    } else {
-      const context = await browser.createIncognitoBrowserContext();
-      page = await context.newPage();
-    }
-    await setupPage(page, emulationOptions);
-    await page.goto(getSearchResultPageUrl(url, sxgOuterUrl));
-    await new Promise<void>(resolve => {
-      browser.on('disconnected', () => {
-        resolve();
-      });
-    });
+  let page: Page;
+  if (isolationMode === IsolationMode.ClearBrowserCache) {
+    page = (await browser.pages())[0]!;
   } else {
+    const context = await browser.createIncognitoBrowserContext();
+    page = await context.newPage();
+  }
+  await setupPage(page, emulationOptions);
+  await page.goto(getSearchResultPageUrl(url, sxgOuterUrl));
+  await new Promise<void>(resolve => {
+    browser.on('disconnected', () => {
+      resolve();
+    });
+  });
+}
+
+export async function runBatchClient({
+  certificateSpki,
+  isolationMode,
+  emulationOptions,
+  repeatTime,
+  urlList,
+}: {
+  certificateSpki: string;
+  isolationMode: IsolationMode;
+  emulationOptions: EmulationOptions;
+  repeatTime: number;
+  urlList: string[];
+}) {
+  const browser = await puppeteer.launch({
+    args: [`--ignore-certificate-errors-spki-list=${certificateSpki}`],
+  });
+  for (const url of urlList) {
+    let sxgOuterUrl: string;
+    const sxg = await createSignedExchange({
+      innerUrl: url,
+    });
+    if (sxg[0] === 'Ok') {
+      console.log(`Starting to measure ${url}`);
+      sxgOuterUrl = sxg[1].outerUrl;
+    } else if (sxg[0] === 'Err') {
+      console.log(`Failed to create SXG for ${url}\n${sxg[1].message}`);
+      continue;
+    } else {
+      throw 'Unreachable';
+    }
     for (let i = 0; i < repeatTime; i += 1) {
       const sxgLcp = await createPageAndMeasureLcp({
         browser,
@@ -215,6 +241,6 @@ export async function runClient({
       });
       console.log(`LCP of Non-SXG: ${nonsxgLcp}`);
     }
-    await browser.close();
   }
+  await browser.close();
 }

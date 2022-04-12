@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+import fs from 'fs';
 import {program, Option} from 'commander';
 
-import {IsolationMode, runClient} from './client/';
+import {IsolationMode, runBatchClient, runInteractiveClient} from './client/';
 import {NOT_EMULATED} from './client/emulationOptions';
 import {createSelfSignedCredentials} from './server/credentials';
 import {spawnSxgServer} from './server/';
@@ -49,16 +50,23 @@ async function main() {
         .default('Pixel 5')
     )
     .addOption(
+      new Option('--single-url <url>', 'A single URL to be measured').conflicts(
+        'urlList'
+      )
+    )
+    .addOption(
       new Option(
-        '--url <url>',
-        'A single URL to be measured'
-      ).makeOptionMandatory(true)
+        '--url-list <file name>',
+        'A JSON file containing many URLs to be measured'
+      ).conflicts(['inspect', 'singleUrl'])
     )
     .addOption(
       new Option(
         '--inspect',
         'open a Chrome window and use ChromeDevTools to preview SXG'
-      ).default(false)
+      )
+        .default(false)
+        .conflicts(['repeatTime', 'urlList'])
     )
     .addOption(
       new Option(
@@ -70,6 +78,7 @@ async function main() {
       new Option('--repeat-time <number>', 'measure LCP multiple times')
         .argParser(x => parseInt(x))
         .default(1)
+        .conflicts('inspect')
     );
   program.parse();
   const opts = program.opts() as {
@@ -79,8 +88,17 @@ async function main() {
     inspect: boolean;
     isolateBrowserContext: boolean;
     repeatTime: number;
-    url: string;
+    singleUrl?: string;
+    urlList?: string;
   };
+  let urlList = [];
+  if (opts.singleUrl) {
+    urlList.push(opts.singleUrl);
+  } else if (opts.urlList) {
+    urlList = JSON.parse(fs.readFileSync(opts.urlList, 'utf8'));
+  } else {
+    throw new Error('Please specify either --single-url or --url-list');
+  }
   const {certificatePem, privateKeyJwk, privateKeyPem, publicKeyHash} =
     await createSelfSignedCredentials('example.com');
   const stopSxgServer = await spawnSxgServer({
@@ -89,19 +107,32 @@ async function main() {
     privateKeyJwk,
     privateKeyPem,
   });
-  await runClient({
-    url: opts.url,
-    certificateSpki: publicKeyHash,
-    interactivelyInspect: opts.inspect,
-    emulationOptions: {
-      device: opts.emulateDevice,
-      networkCondition: opts.emulateNetwork,
-    },
-    isolationMode: opts.isolateBrowserContext
-      ? IsolationMode.IncognitoBrowserContext
-      : IsolationMode.ClearBrowserCache,
-    repeatTime: opts.repeatTime,
-  });
+  if (opts.inspect) {
+    await runInteractiveClient({
+      url: urlList[0],
+      certificateSpki: publicKeyHash,
+      emulationOptions: {
+        device: opts.emulateDevice,
+        networkCondition: opts.emulateNetwork,
+      },
+      isolationMode: opts.isolateBrowserContext
+        ? IsolationMode.IncognitoBrowserContext
+        : IsolationMode.ClearBrowserCache,
+    });
+  } else {
+    await runBatchClient({
+      urlList,
+      certificateSpki: publicKeyHash,
+      emulationOptions: {
+        device: opts.emulateDevice,
+        networkCondition: opts.emulateNetwork,
+      },
+      isolationMode: opts.isolateBrowserContext
+        ? IsolationMode.IncognitoBrowserContext
+        : IsolationMode.ClearBrowserCache,
+      repeatTime: opts.repeatTime,
+    });
+  }
   await stopSxgServer();
 }
 
