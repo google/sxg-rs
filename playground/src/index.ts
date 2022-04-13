@@ -62,6 +62,12 @@ async function main() {
     )
     .addOption(
       new Option(
+        '--sxg-config <file name>',
+        'A YAML file containing the sxg-rs config'
+      )
+    )
+    .addOption(
+      new Option(
         '--inspect',
         'open a Chrome window and use ChromeDevTools to preview SXG'
       )
@@ -89,6 +95,7 @@ async function main() {
     isolateBrowserContext: boolean;
     repeatTime: number;
     singleUrl?: string;
+    sxgConfig?: string;
     urlList?: string;
   };
   let urlList = [];
@@ -106,6 +113,7 @@ async function main() {
     crawlerUserAgent: opts.crawlerUserAgent,
     privateKeyJwk,
     privateKeyPem,
+    sxgConfig: opts.sxgConfig && fs.readFileSync(opts.sxgConfig, 'utf8'),
   });
   if (opts.inspect) {
     await runInteractiveClient({
