@@ -135,7 +135,11 @@ impl Headers {
                     if directives.contains(&"*")
                         || directives.iter().any(|d| d.eq_ignore_ascii_case("cookie"))
                     {
-                        return Err(anyhow!(r#"The response may vary by cookie."#));
+                        return Err(anyhow!(
+                            "The response may vary by cookie, \
+                            because its \"vary\" header is \"{}\".",
+                            vary
+                        ));
                     }
                 }
             }
