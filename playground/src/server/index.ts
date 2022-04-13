@@ -41,7 +41,7 @@ const wasmBuffer = fs.readFileSync(
   )
 );
 
-export const SXG_CONFIG = `
+export const DEFAULT_SXG_CONFIG = `
 cert_url_dirname: ".well-known/sxg-certs"
 forward_request_headers:
   - user-agent
@@ -63,11 +63,13 @@ export async function spawnSxgServer({
   crawlerUserAgent,
   privateKeyJwk,
   privateKeyPem,
+  sxgConfig,
 }: {
   certificatePem: string;
   crawlerUserAgent: string;
   privateKeyJwk: Object;
   privateKeyPem: string;
+  sxgConfig?: string;
 }) {
   const signer = createSignerFromJwk(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,7 +78,7 @@ export async function spawnSxgServer({
   );
   const worker = await createWorker(
     wasmBuffer,
-    SXG_CONFIG,
+    sxgConfig ?? DEFAULT_SXG_CONFIG,
     certificatePem,
     certificatePem
   );
