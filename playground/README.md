@@ -36,11 +36,17 @@ A playground to locally preview Signed Exchanges without needing a certificate.
 ## Run
 
 ```bash
-node dist/index.js --single-url https://example.com/ --emulate-network Fast\ 3G
+node dist/index.js --single-url https://example.com/ --emulate-network Fast\ 3G --repeat-time 3
 ```
-The output will be like below, showing SXG decreases LCP from 747ms to 102ms.
+The output will be like below.
 ```
-Starting to measure https://example.com
-LCP of SXG: 102.2
-LCP of Non-SXG: 747.4
+Measuring non-SXG LCP of https://example.com/
+LCP 1 / 3: 720
+LCP 2 / 3: 674
+LCP 3 / 3: 636
+Measuring SXG LCP of https://example.com/
+LCP 1 / 3: 78
+LCP 2 / 3: 95
+LCP 3 / 3: 69
+SXG changes LCP from 677 ± 24 to 80 ± 8
 ```

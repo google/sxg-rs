@@ -32,6 +32,11 @@ import {
   createSearchResultPage,
   createSearchResultPageWithoutSxg,
 } from './templates';
+import {
+  EstimatedValue,
+  estimateMeasurements,
+  formatEstimatedValue,
+} from './statistics';
 
 async function setupPage(page: Page, emulationOptions: EmulationOptions) {
   const {device, networkCondition} = emulationOptions;
@@ -120,7 +125,7 @@ async function createPageAndMeasureLcp({
   emulationOptions: EmulationOptions;
   sxgOuterUrl?: string;
   url: string;
-}) {
+}): Promise<number | null> {
   if (isolationMode === IsolationMode.IncognitoBrowserContext) {
     const context = await browser.createIncognitoBrowserContext();
     const page = await context.newPage();
@@ -148,6 +153,47 @@ async function createPageAndMeasureLcp({
     await page.close();
     return lcpResult;
   }
+}
+
+// Measures the LCP of given URL multiple times and returns statictical
+// analysis.
+async function staticticallyEstimateLcp({
+  browser,
+  isolationMode,
+  emulationOptions,
+  repeatTime,
+  sxgOuterUrl,
+  url,
+}: {
+  browser: Browser;
+  isolationMode: IsolationMode;
+  emulationOptions: EmulationOptions;
+  repeatTime: number;
+  sxgOuterUrl?: string;
+  url: string;
+}): Promise<EstimatedValue> {
+  const values: number[] = [];
+  if (sxgOuterUrl !== undefined) {
+    console.log(`Measuring SXG LCP of ${url}`);
+  } else {
+    console.log(`Measuring non-SXG LCP of ${url}`);
+  }
+  for (let i = 0; i < repeatTime; i += 1) {
+    const current = await createPageAndMeasureLcp({
+      browser,
+      isolationMode,
+      emulationOptions,
+      url,
+      sxgOuterUrl,
+    });
+    if (repeatTime > 1) {
+      console.log(`LCP ${i + 1} / ${repeatTime}: ${current?.toFixed(0)}`);
+    }
+    if (current !== null) {
+      values.push(current);
+    }
+  }
+  return estimateMeasurements(values);
 }
 
 export async function runInteractiveClient({
@@ -215,32 +261,34 @@ export async function runBatchClient({
       innerUrl: url,
     });
     if (sxg[0] === 'Ok') {
-      console.log(`Starting to measure ${url}`);
       sxgOuterUrl = sxg[1].outerUrl;
     } else if (sxg[0] === 'Err') {
-      console.log(`Failed to create SXG for ${url}\n${sxg[1].message}`);
+      console.error(`Failed to create SXG for ${url}\n${sxg[1].message}`);
       continue;
     } else {
       throw 'Unreachable';
     }
-    for (let i = 0; i < repeatTime; i += 1) {
-      const sxgLcp = await createPageAndMeasureLcp({
-        browser,
-        isolationMode,
-        emulationOptions,
-        url,
-        sxgOuterUrl,
-      });
-      console.log(`LCP of SXG: ${sxgLcp}`);
-      const nonsxgLcp = await createPageAndMeasureLcp({
-        browser,
-        isolationMode,
-        emulationOptions,
-        url,
-        sxgOuterUrl: undefined,
-      });
-      console.log(`LCP of Non-SXG: ${nonsxgLcp}`);
-    }
+    const nonSxgLcp = await staticticallyEstimateLcp({
+      browser,
+      emulationOptions,
+      isolationMode,
+      repeatTime,
+      sxgOuterUrl: undefined,
+      url,
+    });
+    const sxgLcp = await staticticallyEstimateLcp({
+      browser,
+      emulationOptions,
+      isolationMode,
+      repeatTime,
+      sxgOuterUrl,
+      url,
+    });
+    console.log(
+      `SXG changes LCP from ${formatEstimatedValue(
+        nonSxgLcp
+      )} to ${formatEstimatedValue(sxgLcp)}`
+    );
   }
   await browser.close();
 }
