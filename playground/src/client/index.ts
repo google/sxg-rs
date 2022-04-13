@@ -92,13 +92,29 @@ async function measureLcp({
 }) {
   await setupPage(page, emulationOptions);
   page.goto(getSearchResultPageUrl(url, sxgOuterUrl));
-  await page.waitForNavigation({
-    waitUntil: 'networkidle0',
-  });
+  try {
+    await page.waitForNavigation({
+      waitUntil: 'networkidle0',
+    });
+  } catch (e) {
+    if (e instanceof puppeteer.errors['TimeoutError']!) {
+      return null;
+    } else {
+      throw e;
+    }
+  }
   await page.evaluate(clickSearchResultLink);
-  await page.waitForNavigation({
-    waitUntil: 'networkidle0',
-  });
+  try {
+    await page.waitForNavigation({
+      waitUntil: 'networkidle0',
+    });
+  } catch (e) {
+    if (e instanceof puppeteer.errors['TimeoutError']!) {
+      return null;
+    } else {
+      throw e;
+    }
+  }
   return await page.evaluate(getObserverResult);
 }
 
