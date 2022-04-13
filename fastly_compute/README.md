@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# sxg-rs/cloudflare_worker
+# sxg-rs/fastly_compute
 
 This is a [Fastly Compute@Edge app](https://www.fastly.com/products/edge-compute/serverless) that
 automatically generates [signed exchanges](https://web.dev/signed-exchanges/) (SXGs)
