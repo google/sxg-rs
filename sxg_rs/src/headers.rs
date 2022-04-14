@@ -19,6 +19,7 @@ use crate::http_parser::{
     parse_content_type_header, parse_vary_header,
 };
 use crate::link::process_link_header;
+use crate::MAX_PAYLOAD_SIZE;
 use anyhow::{anyhow, Result};
 use once_cell::sync::Lazy;
 use serde::Deserialize;
@@ -146,20 +147,14 @@ impl Headers {
         }
         // Google SXG cache sets the maximum of SXG to be 8 megabytes.
         if let Some(size) = self.0.get("content-length") {
-            if let Ok(size) = size.parse::<u64>() {
-                const MAX_SIZE: u64 = 8_000_000;
-                if size > MAX_SIZE {
+            if let Ok(size) = size.parse::<usize>() {
+                if size > MAX_PAYLOAD_SIZE {
                     return Err(anyhow!(
                         "The content-length header is {}, which exceeds the limit {}.",
                         size,
-                        MAX_SIZE
+                        MAX_PAYLOAD_SIZE
                     ));
                 }
-            } else {
-                return Err(anyhow!(
-                    r#"The content-length header "{}" is not a valid length."#,
-                    size
-                ));
             }
         }
         // The payload of SXG must have a content-type. See step 8 of

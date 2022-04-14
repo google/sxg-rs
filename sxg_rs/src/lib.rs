@@ -36,7 +36,7 @@ pub mod utils;
 mod wasm_worker;
 
 use crate::http::{HeaderFields, HttpResponse};
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, bail, Error, Result};
 use config::Config;
 use fetcher::Fetcher;
 use headers::{AcceptFilter, Headers};
@@ -65,6 +65,8 @@ pub enum PresetContent {
 // expiration because it goes against the origin's cache-control header. (e.g. For max-age
 // <1h, an SXG would be instantly invalid; this would be confusing.)
 const BACKDATING: Duration = Duration::from_secs(60 * 60);
+
+pub(crate) const MAX_PAYLOAD_SIZE: usize = 8_000_000;
 
 impl SxgWorker {
     pub fn new(config_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<SxgWorker> {
@@ -123,6 +125,14 @@ impl SxgWorker {
             subresource_fetcher,
             header_integrity_cache,
         } = params;
+        if payload_body.len() > MAX_PAYLOAD_SIZE {
+            bail!(
+                "Payload body size is {}, which exceeds the limit {}.",
+                payload_body.len(),
+                MAX_PAYLOAD_SIZE
+            );
+        }
+
         let fallback_base = Url::parse(fallback_url)
             .map_err(|e| Error::new(e).context("Failed to parse fallback URL"))?;
         let cert_base = Url::parse(cert_origin)
