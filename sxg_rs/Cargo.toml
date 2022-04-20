@@ -51,7 +51,7 @@ url = "2.2.2"
 wasm-bindgen = { version = "0.2.80", features = ["serde-serialize"] }
 wasm-bindgen-futures = "0.4.30"
 web-sys = { version = "0.3.57", features = ["console"] }
-x509-parser = "0.13.1"
+x509-parser = "0.13.2"
 
 [dev-dependencies]
 async-std = { version = "1.11.0", features = ["attributes"] }
