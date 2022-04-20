@@ -3,7 +3,16 @@ export type CreateSignedExchangeRequest = {
 };
 
 export type CreateSignedExchangeResponse =
-  | ['Ok', {outerUrl: string}]
+  | [
+      'Ok',
+      {
+        outerUrl: string;
+        info: {
+          bodySize: number;
+          subresourceUrls: string[];
+        };
+      }
+    ]
   | [
       'Err',
       {
