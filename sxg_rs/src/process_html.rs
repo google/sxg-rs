@@ -55,6 +55,7 @@ fn parse_content_type(content_type_header_value: &str) -> ContentType {
 ///   - Else, they are deleted.
 /// - For `<script data-issxg-var>` elements, they are replaced with
 ///   `<script>window.isSXG=...</script>`, where `...` is true or false.
+/// - The `content-length` header is updated to the new value.
 /// If input charset is not UTF8, the input will be returned back without any modification.
 pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> Result<HttpResponse> {
     let content_type_header = input.headers.iter().find_map(|(name, value)| {
@@ -166,9 +167,17 @@ pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> Result<Ht
         });
     }
     let mut output_headers = input.headers;
-    output_headers.push(("Link".to_string(), link_headers.join(",")));
+    if !link_headers.is_empty() {
+        output_headers.push(("Link".to_string(), link_headers.join(",")));
+    }
+    let output_body = output.into_bytes();
+    for (name, value) in output_headers.iter_mut() {
+        if name.eq_ignore_ascii_case("content-length") {
+            *value = format!("{}", output_body.len());
+        }
+    }
     Ok(HttpResponse {
-        body: output.into_bytes(),
+        body: output_body,
         headers: output_headers,
         status: input.status,
     })
@@ -206,7 +215,7 @@ mod tests {
         String::from_utf8(output.unwrap().body).unwrap()
     }
     #[test]
-    fn it_works() {
+    fn it_processes_html() {
         assert_eq!(
             quick_process(
                 "text/html;charset=utf-8",
@@ -238,6 +247,37 @@ mod tests {
             ),
             "<meta http-equiv=content-type content=\"text/html;charset=&quot;utf-8&quot;\">\
             <script data-issxg-var>window.isSXG=true</script>",
+        );
+        // HTTP content-length header is updated
+        assert_eq!(
+            process_html(
+                HttpResponse {
+                    status: 200,
+                    headers: vec![
+                        (
+                            "content-type".to_string(),
+                            "text/html;charset=utf-8".to_string()
+                        ),
+                        ("content-length".to_string(), "32".to_string()),
+                    ],
+                    body: "<script data-issxg-var></script>".to_string().into_bytes(),
+                },
+                ProcessHtmlOption { is_sxg: true },
+            )
+            .unwrap(),
+            HttpResponse {
+                status: 200,
+                headers: vec![
+                    (
+                        "content-type".to_string(),
+                        "text/html;charset=utf-8".to_string()
+                    ),
+                    ("content-length".to_string(), "49".to_string()),
+                ],
+                body: "<script data-issxg-var>window.isSXG=true</script>"
+                    .to_string()
+                    .into_bytes(),
+            },
         );
     }
 }
