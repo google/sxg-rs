@@ -66,6 +66,8 @@ pub enum PresetContent {
 // <1h, an SXG would be instantly invalid; this would be confusing.)
 const BACKDATING: Duration = Duration::from_secs(60 * 60);
 
+pub(crate) const MAX_PAYLOAD_SIZE: usize = 8_000_000;
+
 impl SxgWorker {
     pub fn new(config_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<SxgWorker> {
         let config = Config::new(config_yaml, cert_pem, issuer_pem)?;
@@ -123,6 +125,14 @@ impl SxgWorker {
             subresource_fetcher,
             header_integrity_cache,
         } = params;
+        if payload_body.len() > MAX_PAYLOAD_SIZE {
+            return Err(anyhow!(
+                "Payload body size is {}, which exceeds the limit {}.",
+                payload_body.len(),
+                MAX_PAYLOAD_SIZE
+            ));
+        }
+
         let fallback_base = Url::parse(fallback_url)
             .map_err(|e| Error::new(e).context("Failed to parse fallback URL"))?;
         let cert_base = Url::parse(cert_origin)
