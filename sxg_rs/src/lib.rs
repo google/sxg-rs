@@ -36,7 +36,7 @@ pub mod utils;
 mod wasm_worker;
 
 use crate::http::{HeaderFields, HttpResponse};
-use anyhow::{anyhow, bail, Error, Result};
+use anyhow::{anyhow, Error, Result};
 use config::Config;
 use fetcher::Fetcher;
 use headers::{AcceptFilter, Headers};
@@ -126,11 +126,11 @@ impl SxgWorker {
             header_integrity_cache,
         } = params;
         if payload_body.len() > MAX_PAYLOAD_SIZE {
-            bail!(
+            return Err(anyhow!(
                 "Payload body size is {}, which exceeds the limit {}.",
                 payload_body.len(),
                 MAX_PAYLOAD_SIZE
-            );
+            ));
         }
 
         let fallback_base = Url::parse(fallback_url)
