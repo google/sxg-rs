@@ -47,7 +47,7 @@ async function main() {
         'The network condition that puppeteer emulates'
       )
         .choices(['Slow 3G', 'Fast 3G', NOT_EMULATED])
-        .default('Pixel 5')
+        .default(NOT_EMULATED)
     )
     .addOption(
       new Option('--single-url <url>', 'A single URL to be measured').conflicts(
