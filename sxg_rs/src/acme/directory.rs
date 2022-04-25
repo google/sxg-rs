@@ -30,7 +30,10 @@ pub struct Directory {
     pub new_order: String,
     pub new_authz: Option<String>,
     pub revoke_cert: String,
-    pub key_change: String,
+    // Although `key_change` is a required field, we are not using it.
+    // We are marking it an optional field here, so we don't throw errors if
+    // the ACME server does not provide it.
+    pub key_change: Option<String>,
     pub meta: MetaData,
 }
 
