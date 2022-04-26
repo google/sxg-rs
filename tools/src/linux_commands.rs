@@ -17,7 +17,7 @@ use std::path::Path;
 use std::process::Command;
 
 /// Executes a command, and returns the stdout as bytes.
-fn execute(command: &mut Command) -> Result<Vec<u8>> {
+pub fn execute(command: &mut Command) -> Result<Vec<u8>> {
     let output = command
         .output()
         .map_err(|e| Error::new(e).context("Failed to execute command"))?;
@@ -25,7 +25,7 @@ fn execute(command: &mut Command) -> Result<Vec<u8>> {
 }
 
 /// Executes a command, and parses the stdout as a string.
-fn execute_and_parse_stdout(command: &mut Command) -> Result<String> {
+pub fn execute_and_parse_stdout(command: &mut Command) -> Result<String> {
     let stdout = execute(command)?;
     String::from_utf8(stdout)
         .map_err(|e| Error::new(e).context("The stdout contains non-utf8 bytes."))

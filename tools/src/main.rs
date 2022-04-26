@@ -18,6 +18,7 @@ mod gen_dev_cert;
 mod gen_sxg;
 mod hyper_fetcher;
 mod linux_commands;
+mod openssl_signer;
 
 use anyhow::Result;
 use clap::Parser;

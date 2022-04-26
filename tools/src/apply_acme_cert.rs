@@ -12,14 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::Result;
+use anyhow::{Error, Result};
 use clap::Parser;
 use warp::Filter;
 
 use crate::hyper_fetcher::HyperFetcher;
 use crate::linux_commands::{create_certificate_request_pem, create_private_key_pem};
+use sxg_rs::acme::directory::Directory;
+use sxg_rs::acme::eab::create_external_account_binding;
 
 #[derive(Debug, Parser)]
+#[clap(allow_hyphen_values = true)]
 pub struct Opts {
     #[clap(long)]
     port: u16,
@@ -38,6 +41,10 @@ pub struct Opts {
     sxg_cert_request_file: String,
     #[clap(long)]
     agreed_terms_of_service: String,
+    #[clap(long)]
+    eab_mac_key: Option<String>,
+    #[clap(long)]
+    eab_key_id: Option<String>,
 }
 
 fn start_warp_server(port: u16, answer: String) -> tokio::sync::oneshot::Sender<()> {
@@ -68,11 +75,36 @@ pub async fn main(opts: Opts) -> Result<()> {
     };
     let signer = acme_private_key.create_signer()?;
     let fetcher = HyperFetcher::new();
+    let external_account_binding = match (&opts.eab_key_id, &opts.eab_mac_key) {
+        (Some(eab_key_id), Some(eab_mac_key)) => {
+            let eab_mac_key = base64::decode_config(eab_mac_key, base64::URL_SAFE_NO_PAD)?;
+            let eab_signer = super::openssl_signer::OpensslSigner::Hmac(&eab_mac_key);
+            let new_account_url = Directory::new(&opts.acme_server, &fetcher)
+                .await?
+                .new_account;
+            let eab = create_external_account_binding(
+                "HS256",
+                eab_key_id,
+                &new_account_url,
+                &acme_private_key.public_key,
+                &eab_signer,
+            )
+            .await?;
+            Some(eab)
+        }
+        (None, None) => None,
+        _ => {
+            return Err(Error::msg(
+                "To use External Account Binding, \
+                please provide both \"eab-key-id\" and \"eab-mac-key\".",
+            ))
+        }
+    };
     let ongoing_certificate_request =
         sxg_rs::acme::create_request_and_get_challenge_answer(sxg_rs::acme::AcmeStartupParams {
             directory_url: &opts.acme_server,
             agreed_terms_of_service: &opts.agreed_terms_of_service,
-            external_account_binding: None, // TODO: Add EAB to CLI params.
+            external_account_binding,
             email: &opts.email,
             domain: &opts.domain,
             public_key: acme_private_key.public_key,

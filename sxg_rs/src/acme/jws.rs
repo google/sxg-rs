@@ -65,7 +65,7 @@ impl JsonWebSignature {
     /// Constructs a signature from serialiable header and payload.
     /// If the given `payload` is `None`, it will be serialized into an empty
     /// string.
-    async fn new<H: Serialize, P: Serialize, S: Signer>(
+    pub async fn new<H: Serialize, P: Serialize, S: Signer>(
         protected_header: H,
         payload: Option<P>,
         signer: &S,
