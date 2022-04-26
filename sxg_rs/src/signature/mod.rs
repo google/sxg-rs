@@ -25,10 +25,16 @@ use der_parser::ber::{BerObject, BerObjectContent};
 use std::cmp::min;
 use std::time::Duration;
 
+#[derive(Clone, Copy)]
+pub enum Format {
+    Raw,
+    EccAsn1,
+}
+
 #[async_trait(?Send)]
 pub trait Signer {
-    /// Signs the message, and returns `ASN.1` format.
-    async fn sign(&self, message: &[u8]) -> Result<Vec<u8>>;
+    /// Signs the message, and returns in the given format.
+    async fn sign(&self, message: &[u8], format: Format) -> Result<Vec<u8>>;
 }
 
 pub struct SignatureParams<'a, S: Signer> {
@@ -99,7 +105,7 @@ impl<'a> Signature<'a> {
         ]
         .concat();
         let sig = signer
-            .sign(&message)
+            .sign(&message, Format::EccAsn1)
             .await
             .map_err(|e| e.context("Failed to sign the message."))?;
         Ok(Signature {
@@ -129,6 +135,15 @@ impl<'a> Signature<'a> {
 
 fn time_to_number(t: std::time::SystemTime) -> u64 {
     t.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
+}
+
+// Parses an asn1 format signature and returns the raw 64 bytes data.
+fn parse_asn1_sig(asn1: &[u8]) -> Result<Vec<u8>> {
+    let signature = der_parser::parse_ber(asn1)?.1;
+    let numbers = signature.as_sequence()?;
+    let r = numbers[0].as_bigint()?.to_bytes_be();
+    let s = numbers[1].as_bigint()?.to_bytes_be();
+    Ok([r.1, s.1].concat())
 }
 
 fn raw_sig_to_asn1(raw: Vec<u8>) -> Result<Vec<u8>> {

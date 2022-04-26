@@ -12,21 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::Signer;
+use super::{Format, Signer};
 use anyhow::{Error, Result};
 use async_trait::async_trait;
 use js_sys::{Function as JsFunction, Uint8Array};
 use wasm_bindgen::JsValue;
 
-enum SigFormat {
-    Raw,
-    Asn1,
-}
-
 /// [JsSigner] allows you to implement [Signer] trait by a JavaScript function.
 pub struct JsSigner {
     js_function: JsFunction,
-    js_sig_format: SigFormat,
+    js_sig_format: Format,
 }
 
 impl JsSigner {
@@ -36,7 +31,7 @@ impl JsSigner {
     pub fn from_asn1_signer(js_function: JsFunction) -> Self {
         JsSigner {
             js_function,
-            js_sig_format: SigFormat::Asn1,
+            js_sig_format: Format::EccAsn1,
         }
     }
     /// Creates a signer by a JavaScript async function.
@@ -48,14 +43,14 @@ impl JsSigner {
     pub fn from_raw_signer(js_function: JsFunction) -> Self {
         JsSigner {
             js_function,
-            js_sig_format: SigFormat::Raw,
+            js_sig_format: Format::Raw,
         }
     }
 }
 
 #[async_trait(?Send)]
 impl Signer for JsSigner {
-    async fn sign(&self, message: &[u8]) -> Result<Vec<u8>> {
+    async fn sign(&self, message: &[u8], format: Format) -> Result<Vec<u8>> {
         let a = Uint8Array::new_with_length(message.len() as u32);
         a.copy_from(message);
         let this = JsValue::null();
@@ -69,10 +64,11 @@ impl Signer for JsSigner {
         })?;
         let sig = Uint8Array::from(sig);
         let sig = sig.to_vec();
-        let sig = match self.js_sig_format {
-            SigFormat::Asn1 => sig,
-            SigFormat::Raw => super::raw_sig_to_asn1(sig)?,
-        };
-        Ok(sig)
+        match (self.js_sig_format, format) {
+            (Format::Raw, Format::Raw) => Ok(sig),
+            (Format::EccAsn1, Format::EccAsn1) => Ok(sig),
+            (Format::Raw, Format::EccAsn1) => super::raw_sig_to_asn1(sig),
+            (Format::EccAsn1, Format::Raw) => super::parse_asn1_sig(&sig),
+        }
     }
 }
