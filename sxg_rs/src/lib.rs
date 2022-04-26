@@ -120,6 +120,7 @@ impl SxgWorker {
             now,
             payload_body,
             payload_headers,
+            process_link,
             signer,
             status_code,
             subresource_fetcher,
@@ -145,6 +146,7 @@ impl SxgWorker {
             subresource_fetcher,
             header_integrity_cache,
             &self.config.strip_response_headers,
+            process_link,
         )
         .await?;
         let cert_url = cert_base
@@ -341,6 +343,7 @@ pub struct CreateSignedExchangeParams<'a, S: signature::Signer, F: Fetcher, C: H
     pub now: std::time::SystemTime,
     pub payload_body: &'a [u8],
     pub payload_headers: headers::Headers,
+    pub process_link: bool,
     pub signer: S,
     pub status_code: u16,
     pub subresource_fetcher: F,

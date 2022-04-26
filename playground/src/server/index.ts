@@ -107,6 +107,7 @@ export async function spawnSxgServer({
       sxgPayload.status,
       sxgPayload.headers,
       new Uint8Array(sxgPayload.body),
+      true,
       Date.now() / 1000,
       signer,
       fetcher,

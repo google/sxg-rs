@@ -70,6 +70,7 @@ export interface WasmWorker {
     statusCode: number,
     payloadHeaders: HeaderFields,
     payloadBody: Uint8Array,
+    process_link: boolean,
     nowInSeconds: number,
     signer: (input: Uint8Array) => Promise<Uint8Array>,
     subresourceFetcher: (request: WasmRequest) => Promise<WasmResponse>,

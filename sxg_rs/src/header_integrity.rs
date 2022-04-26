@@ -66,7 +66,7 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcher for HeaderIntegrityFet
             _ => {
                 let response = match self.fetch_subresource(url).await {
                     Ok(response) => {
-                        match self.compute_integrity(url, &response).await {
+                        match self.compute_integrity(url, &response, false).await {
                             Ok(integrity) => {
                                 // Keep original cache-control headers, so the integrity is
                                 // up-to-date with the subresource.
@@ -124,7 +124,12 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
     // not specified, the base64 encoding must use the non-websafe alphabet with
     // padding, per this usage:
     // https://source.chromium.org/chromium/chromium/src/+/main:content/browser/web_package/prefetched_signed_exchange_cache.cc;l=616;drc=d6962609965d2b9f804e66792486506de801f46c
-    async fn compute_integrity(&self, url: &str, response: &HttpResponse) -> Result<Vec<u8>> {
+    async fn compute_integrity(
+        &self,
+        url: &str,
+        response: &HttpResponse,
+        process_link: bool,
+    ) -> Result<Vec<u8>> {
         let fallback_base =
             Url::parse(url).map_err(|e| Error::new(e).context("parsing fallback URL"))?;
         // TODO: Figure out how to reduce the amount of data cloned.
@@ -137,6 +142,7 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
             NULL_FETCHER,
             NullCache {},
             self.strip_response_headers,
+            process_link,
         )
         .await?;
         Ok([

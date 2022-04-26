@@ -71,6 +71,7 @@ pub async fn signed_headers_and_payload<F: Fetcher, C: HttpCache>(
     subresource_fetcher: F,
     header_integrity_cache: C,
     strip_response_headers: &BTreeSet<String>,
+    process_link: bool,
 ) -> Result<(Vec<u8>, Vec<u8>)> {
     if status_code != 200 {
         return Err(anyhow!("The resource status code is {}.", status_code));
@@ -89,6 +90,7 @@ pub async fn signed_headers_and_payload<F: Fetcher, C: HttpCache>(
             status_code,
             &mice_digest,
             &mut header_integrity_fetcher,
+            process_link,
         )
         .await;
     Ok((signed_headers, payload_body))

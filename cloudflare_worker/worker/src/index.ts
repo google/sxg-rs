@@ -250,6 +250,7 @@ async function generateSxgResponse(
     payload.status,
     payloadHeaders,
     payloadBody,
+    true,
     now_in_seconds,
     signer,
     fetcher,

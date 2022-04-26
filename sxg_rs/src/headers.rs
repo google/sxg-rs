@@ -175,6 +175,7 @@ impl Headers {
         mice_digest: &[u8],
         header_integrity_fetcher: &mut dyn HeaderIntegrityFetcher,
         serializer: S,
+        process_link: bool,
     ) -> O
     where
         S: Fn(Vec<(&str, &str)>) -> O,
@@ -185,12 +186,17 @@ impl Headers {
             matches!(parse_content_type_header(t),
                      Ok(MediaType {primary_type, sub_type, ..})
                          if primary_type.eq_ignore_ascii_case("text") && sub_type.eq_ignore_ascii_case("html")));
-        let link = match self.0.get("link") {
-            Some(value) => process_link_header(value, fallback_url, header_integrity_fetcher).await,
-            None => "".into(),
-        };
-        if !link.is_empty() {
-            fields.push(("link", &link));
+        let link;
+        if process_link {
+            link = match self.0.get("link") {
+                Some(value) => {
+                    process_link_header(value, fallback_url, header_integrity_fetcher).await
+                }
+                None => "".into(),
+            };
+            if !link.is_empty() {
+                fields.push(("link", &link));
+            }
         }
         for (k, v) in self.0.iter() {
             if STRIP_RESPONSE_HEADERS.contains(k.as_str())
@@ -224,6 +230,7 @@ impl Headers {
         status_code: u16,
         mice_digest: &[u8],
         header_integrity_fetcher: &mut dyn HeaderIntegrityFetcher,
+        process_link: bool,
     ) -> Vec<u8> {
         self.get_signed_headers(
             fallback_url,
@@ -245,6 +252,7 @@ impl Headers {
                 );
                 cbor_data.serialize()
             },
+            process_link,
         )
         .await
     }
@@ -797,7 +805,8 @@ mod tests {
                 200,
                 &[],
                 &mut null_integrity_fetcher(),
-                header_fields
+                header_fields,
+                true,
             )
             .await,
             header_fields::<HashMap<String, String>>(vec![
@@ -818,7 +827,8 @@ mod tests {
                 200,
                 &[],
                 &mut null_integrity_fetcher(),
-                header_fields
+                header_fields,
+                true,
             )
             .await,
             header_fields::<HashMap<String, String>>(vec![
@@ -843,7 +853,8 @@ mod tests {
                 200,
                 &[],
                 &mut null_integrity_fetcher(),
-                header_fields
+                header_fields,
+                true,
             )
             .await,
             header_fields::<HashMap<String, String>>(vec![
@@ -864,7 +875,8 @@ mod tests {
                 200,
                 &[],
                 &mut null_integrity_fetcher(),
-                header_fields
+                header_fields,
+                true
             )
             .await,
             header_fields::<HashMap<String, String>>(vec![
@@ -880,7 +892,7 @@ mod tests {
     #[async_std::test]
     async fn get_signed_headers_bytes() {
         let url = Url::parse("https://foo.com").unwrap();
-        assert_eq!(headers(vec![("content-type", "image/jpeg")]).get_signed_headers_bytes(&url, 200, &[], &mut null_integrity_fetcher()).await,
+        assert_eq!(headers(vec![("content-type", "image/jpeg")]).get_signed_headers_bytes(&url, 200, &[], &mut null_integrity_fetcher(), true).await,
                    b"\xA4FdigestMmi-sha256-03=G:statusC200Lcontent-typeJimage/jpegPcontent-encodingLmi-sha256-03");
     }
 }
