@@ -100,7 +100,7 @@ SXGs.
    1. Use the following [ACME Directory](https://dv-sxg.acme-v02.api.pki.goog/directory)
    for SXG certs.
    1. Use the HMAC and KID (Key ID) you retrieved in the steps above in your configuration file
-   for use in retrieving the SXG certs.
+      for use in retrieving the SXG certs.
 
 #### Renew certificate
 
