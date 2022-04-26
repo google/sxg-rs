@@ -98,7 +98,7 @@ SXGs.
 1. Using Google as the Certificate Authority
    1. Follow the [Google doc](https://cloud.devsite.corp.google.com/public-certificate-authority/docs)
    1. Use the following [ACME Directory](https://dv-sxg.acme-v02.api.pki.goog/directory)
-   for SXG certs.
+      for SXG certs.
    1. Use the HMAC and KID (Key ID) you retrieved in the steps above in your configuration file
       for use in retrieving the SXG certs.
 
