@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::Signer;
+use super::{Format, Signer};
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -20,7 +20,10 @@ pub struct MockSigner;
 
 #[async_trait(?Send)]
 impl Signer for MockSigner {
-    async fn sign(&self, _message: &[u8]) -> Result<Vec<u8>> {
-        super::raw_sig_to_asn1([0].repeat(64))
+    async fn sign(&self, _message: &[u8], format: Format) -> Result<Vec<u8>> {
+        match format {
+            Format::EccAsn1 => super::raw_sig_to_asn1([0].repeat(64)),
+            Format::Raw => Ok([0].repeat(64)),
+        }
     }
 }

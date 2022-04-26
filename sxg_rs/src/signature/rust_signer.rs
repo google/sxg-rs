@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::Signer;
+use super::{Format, Signer};
 use anyhow::Result;
 use async_trait::async_trait;
 use p256::ecdsa::SigningKey;
@@ -30,9 +30,12 @@ impl RustSigner {
 
 #[async_trait(?Send)]
 impl Signer for RustSigner {
-    async fn sign(&self, message: &[u8]) -> Result<Vec<u8>> {
+    async fn sign(&self, message: &[u8], format: Format) -> Result<Vec<u8>> {
         use p256::ecdsa::signature::Signer as _;
-        let sig = self.private_key.try_sign(message)?.to_der();
-        Ok(sig.as_bytes().to_vec())
+        let sig = self.private_key.try_sign(message)?;
+        match format {
+            Format::Raw => Ok(sig.to_vec()),
+            Format::EccAsn1 => Ok(sig.to_der().as_bytes().to_vec()),
+        }
     }
 }

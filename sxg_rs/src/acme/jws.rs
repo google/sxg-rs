@@ -18,7 +18,7 @@
 //! requires the request body to be encapsulated in JWS format for authentication.
 
 use crate::crypto::EcPublicKey;
-use crate::signature::Signer;
+use crate::signature::{Format as SignatureFormat, Signer};
 use anyhow::{Error, Result};
 use serde::Serialize;
 
@@ -61,19 +61,6 @@ pub struct JsonWebSignature {
     signature: String,
 }
 
-// Parses an asn1 format signature and returns the raw 64 bytes data.
-// This is the inverse function of `crate::signature::js_signer::raw_sig_to_asn1`.
-// We need this funciton because the SXG uses asn1 signature,
-// however JSON WebSignature needs a raw 64 bytes signature.
-// TODO: refactor `crate::signature::Signer` to return both formats.
-fn parse_asn1_sig(asn1: &[u8]) -> Result<Vec<u8>> {
-    let signature = der_parser::parse_ber(asn1)?.1;
-    let numbers = signature.as_sequence()?;
-    let r = numbers[0].as_bigint()?.to_bytes_be();
-    let s = numbers[1].as_bigint()?.to_bytes_be();
-    Ok([r.1, s.1].concat())
-}
-
 impl JsonWebSignature {
     /// Constructs a signature from serialiable header and payload.
     /// If the given `payload` is `None`, it will be serialized into an empty
@@ -104,10 +91,9 @@ impl JsonWebSignature {
         // https://datatracker.ietf.org/doc/html/rfc7515#:~:text=The%20input%20to%20the%20digital%20signature
         let message = format!("{}.{}", protected_header, payload);
         let signature = signer
-            .sign(message.as_bytes())
+            .sign(message.as_bytes(), SignatureFormat::Raw)
             .await
             .map_err(|e| e.context("Failed to sign message"))?;
-        let signature = parse_asn1_sig(&signature)?;
         let signature = base64::encode_config(&signature, base64::URL_SAFE_NO_PAD);
         Ok(JsonWebSignature {
             protected: protected_header,
