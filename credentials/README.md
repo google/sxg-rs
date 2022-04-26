@@ -79,20 +79,28 @@ Authority](https://github.com/google/webpackager/wiki/Certificate-Authorities).
 A production certificate enables the Google SXG Cache to prefetch your site's
 SXGs.
 
-1. Follow the [DigiCert
-   doc](https://docs.digicert.com/manage-certificates/certificate-profile-options/get-your-signed-http-exchange-certificate/).
-   Note:
-   1. Accounts should be created via the [SXG account signup
-      form](https://www.digicert.com/account/ietf/http-signed-exchange-account.php#create-account).
-      For existing accounts, you will need to reach out to DigiCert support to
-      enable the CanSignHttpExchanges option.
-   1. If setting the CAA DNS record using Cloudflare, add a trailing period
-      after `com`, so the value for CA domain name is: `digicert.com.;
-      cansignhttpexchanges=yes`.
+1. Using DigiCert as the Certificate Authority
+   1. Follow the [DigiCert
+      doc](https://docs.digicert.com/manage-certificates/certificate-profile-options/get-your-signed-http-exchange-certificate/).
+      Note:
+      1. Accounts should be created via the [SXG account signup
+         form](https://www.digicert.com/account/ietf/http-signed-exchange-account.php#create-account).
+         For existing accounts, you will need to reach out to DigiCert support to
+         enable the CanSignHttpExchanges option.
+      1. If setting the CAA DNS record using Cloudflare, add a trailing period
+         after `com`, so the value for CA domain name is: `digicert.com.;
+         cansignhttpexchanges=yes`.
 
-1. From the files issued by DigiCert, rename `DigiCertCA.crt` as `issuer.pem`,
-   and rename `your_domain.crt` as `cert.pem`. Place them in this `credentials/`
-   directory.
+   1. From the files issued by DigiCert, rename `DigiCertCA.crt` as `issuer.pem`,
+      and rename `your_domain.crt` as `cert.pem`. Place them in this `credentials/`
+      directory.
+
+1. Using Google as the Certificate Authority
+   1. Follow the [Google doc](https://cloud.devsite.corp.google.com/public-certificate-authority/docs)
+   1. Use the following [ACME Directory](https://dv-sxg.acme-v02.api.pki.goog/directory)
+   for SXG certs.
+   1. Use the HMAC and KID (Key ID) you retrieved in the steps above in your configuration file
+   for use in retrieving the SXG certs.
 
 #### Renew certificate
 
