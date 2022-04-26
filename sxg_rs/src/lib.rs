@@ -138,14 +138,17 @@ impl SxgWorker {
             .map_err(|e| Error::new(e).context("Failed to parse fallback URL"))?;
         let cert_base = Url::parse(cert_origin)
             .map_err(|e| Error::new(e).context("Failed to parse cert origin"))?;
+        let mut header_integrity_fetcher = header_integrity::new_fetcher(
+            subresource_fetcher,
+            header_integrity_cache,
+            &self.config.strip_response_headers,
+        );
         let (signed_headers, payload_body) = utils::signed_headers_and_payload(
             &fallback_base,
             status_code,
             &payload_headers,
             payload_body,
-            subresource_fetcher,
-            header_integrity_cache,
-            &self.config.strip_response_headers,
+            &mut header_integrity_fetcher,
             process_link,
         )
         .await?;

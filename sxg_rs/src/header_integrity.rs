@@ -134,14 +134,14 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
             Url::parse(url).map_err(|e| Error::new(e).context("parsing fallback URL"))?;
         // TODO: Figure out how to reduce the amount of data cloned.
         let payload_headers = Headers::new(response.headers.clone(), self.strip_response_headers);
+        let mut header_integrity_fetcher =
+            new_fetcher(NULL_FETCHER, NullCache, self.strip_response_headers);
         let (signed_headers, _) = signed_headers_and_payload(
             &fallback_base,
             response.status,
             &payload_headers,
             &response.body,
-            NULL_FETCHER,
-            NullCache {},
-            self.strip_response_headers,
+            &mut header_integrity_fetcher,
             process_link,
         )
         .await?;
