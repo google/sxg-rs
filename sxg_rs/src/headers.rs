@@ -187,16 +187,15 @@ impl Headers {
                      Ok(MediaType {primary_type, sub_type, ..})
                          if primary_type.eq_ignore_ascii_case("text") && sub_type.eq_ignore_ascii_case("html")));
         let link;
-        if process_link {
-            link = match self.0.get("link") {
-                Some(value) => {
-                    process_link_header(value, fallback_url, header_integrity_fetcher).await
+        match (process_link, self.0.get("link")) {
+            (true, Some(value)) => {
+                link = process_link_header(value, fallback_url, header_integrity_fetcher).await;
+                if !link.is_empty() {
+                    fields.push(("link", &link));
                 }
-                None => "".into(),
-            };
-            if !link.is_empty() {
-                fields.push(("link", &link));
             }
+            (false, Some(value)) if !value.is_empty() => fields.push(("link", value)),
+            _ => (),
         }
         for (k, v) in self.0.iter() {
             if STRIP_RESPONSE_HEADERS.contains(k.as_str())
