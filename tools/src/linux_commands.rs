@@ -20,7 +20,7 @@ use std::process::Command;
 pub fn execute(command: &mut Command) -> Result<Vec<u8>> {
     let output = command
         .output()
-        .map_err(|e| Error::new(e).context("Failed to execute command"))?;
+        .map_err(|e| Error::new(e).context(format!("Failed to execute command {:?}", command)))?;
     Ok(output.stdout)
 }
 

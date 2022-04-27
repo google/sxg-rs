@@ -46,7 +46,8 @@ impl<'a> Signer for OpensslSigner<'a> {
                         .arg("-macopt")
                         .arg(format!("hexkey:{}", hexkey))
                         .arg(tmp_file),
-                )?;
+                )
+                .map_err(|e| e.context("Failed to use openssl to create HMAC"))?;
                 match format {
                     SignatureFormat::Raw => Ok(sig),
                     SignatureFormat::EccAsn1 => {
