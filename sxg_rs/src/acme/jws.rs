@@ -20,7 +20,7 @@
 use crate::crypto::EcPublicKey;
 use crate::signature::{Format as SignatureFormat, Signer};
 use anyhow::{Error, Result};
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 
 pub async fn create_acme_request_body<S: Signer, P: Serialize>(
     jwk: Option<&EcPublicKey>,
@@ -31,7 +31,7 @@ pub async fn create_acme_request_body<S: Signer, P: Serialize>(
     signer: &S,
 ) -> Result<Vec<u8>> {
     let protected_header = AcmeProtectedHeader {
-        alg: "ES256",
+        alg: Algorithm::ES256,
         nonce,
         url,
         jwk,
@@ -41,12 +41,33 @@ pub async fn create_acme_request_body<S: Signer, P: Serialize>(
     serde_json::to_vec(&jws).map_err(|e| Error::new(e).context("Failed to serialize JWS"))
 }
 
+/// Cryptographic signing algorithms allowed in JWS, as defined in
+/// [RFC-7518](https://datatracker.ietf.org/doc/html/rfc7518#section-3.1).
+#[derive(Clone, Copy)]
+pub enum Algorithm {
+    /// ECDSA using P-256 and SHA-256
+    ES256,
+    /// HMAC using SHA-256
+    HS256,
+}
+
+impl Serialize for Algorithm {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Algorithm::ES256 => serializer.serialize_str("ES256"),
+            Algorithm::HS256 => serializer.serialize_str("HS256"),
+        }
+    }
+}
+
 /// The protected headers which is used authentication ACME request
 /// [(ACME spec)](https://datatracker.ietf.org/doc/html/rfc8555#:~:text=The%20JWS%20Protected%20Header%20MUST%20include%20the%20following%20fields).
 #[derive(Serialize)]
 struct AcmeProtectedHeader<'a> {
-    // https://datatracker.ietf.org/doc/html/rfc7518#section-3.1
-    alg: &'static str,
+    alg: Algorithm,
     nonce: String,
     url: &'a str,
     jwk: Option<&'a EcPublicKey>,

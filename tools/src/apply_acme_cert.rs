@@ -83,7 +83,7 @@ pub async fn main(opts: Opts) -> Result<()> {
                 .await?
                 .new_account;
             let eab = create_external_account_binding(
-                "HS256",
+                sxg_rs::acme::jws::Algorithm::HS256,
                 eab_key_id,
                 &new_account_url,
                 &acme_private_key.public_key,

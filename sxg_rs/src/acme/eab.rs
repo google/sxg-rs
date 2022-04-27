@@ -15,7 +15,7 @@
 //! This module implements External Account Binding (EAB), which is defined in
 //! [RFC-8555](https://datatracker.ietf.org/doc/html/rfc8555#section-7.3.4).
 
-use super::jws::JsonWebSignature;
+use super::jws::{Algorithm, JsonWebSignature};
 use crate::crypto::EcPublicKey;
 use crate::signature::Signer;
 use anyhow::Result;
@@ -24,9 +24,7 @@ use serde::Serialize;
 /// The protected header which is used for External Account Binding.
 #[derive(Serialize)]
 struct EabProtectedHeader<'a> {
-    /// Signing algorithm used by EAB, with
-    /// [possible values](https://datatracker.ietf.org/doc/html/rfc7518#section-3.1).
-    alg: &'a str,
+    alg: Algorithm,
     /// Key identifier from Certificate Authority.
     kid: &'a str,
     /// URL of the request. This is usually the new-account URL of ACME server,
@@ -35,7 +33,7 @@ struct EabProtectedHeader<'a> {
 }
 
 pub async fn create_external_account_binding<S: Signer>(
-    alg: &str,
+    alg: Algorithm,
     kid: &str,
     url: &str,
     public_key: &EcPublicKey,
