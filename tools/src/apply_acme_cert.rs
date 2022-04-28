@@ -17,7 +17,7 @@ use clap::Parser;
 use warp::Filter;
 
 use crate::hyper_fetcher::HyperFetcher;
-use crate::linux_commands::{create_certificate_request_pem, create_private_key_pem};
+use crate::linux_commands::{create_certificate_request_pem, read_or_create_private_key_pem};
 use sxg_rs::acme::directory::Directory;
 use sxg_rs::acme::eab::create_external_account_binding;
 
@@ -61,11 +61,11 @@ fn start_warp_server(port: u16, answer: String) -> tokio::sync::oneshot::Sender<
 
 pub async fn main(opts: Opts) -> Result<()> {
     let acme_private_key = {
-        let private_key_pem = create_private_key_pem(&opts.acme_account_private_key_file)?;
+        let private_key_pem = read_or_create_private_key_pem(&opts.acme_account_private_key_file)?;
         sxg_rs::crypto::EcPrivateKey::from_sec1_pem(&private_key_pem)?
     };
     let sxg_cert_request_der = {
-        create_private_key_pem(&opts.sxg_private_key_file)?;
+        read_or_create_private_key_pem(&opts.sxg_private_key_file)?;
         let cert_request_pem = create_certificate_request_pem(
             &opts.domain,
             &opts.sxg_private_key_file,

@@ -17,8 +17,8 @@ use clap::Parser;
 use std::fs::write;
 
 use crate::linux_commands::{
-    create_certificate, create_certificate_request_pem, create_private_key_pem,
-    get_certificate_sha256, write_new_file,
+    create_certificate, create_certificate_request_pem, get_certificate_sha256,
+    read_or_create_private_key_pem, write_new_file,
 };
 
 #[derive(Parser)]
@@ -34,7 +34,7 @@ pub fn main(opts: Opts) -> Result<()> {
     const CERT_FILE: &str = "cert.pem";
     const ISSUER_FILE: &str = "issuer.pem";
     const CERT_SHA256_FILE: &str = "cert_sha256.txt";
-    create_private_key_pem(PRIVKEY_FILE)?;
+    read_or_create_private_key_pem(PRIVKEY_FILE)?;
     create_certificate_request_pem(&opts.domain, PRIVKEY_FILE, CERT_CSR_FILE)?;
     write(
         EXT_FILE,

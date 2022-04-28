@@ -46,26 +46,30 @@ pub fn write_new_file(path: impl AsRef<Path>, content: impl AsRef<[u8]>) -> Resu
     }
 }
 
-/// Generates a private key, and returns it in PEM format.
-/// Writes PEM to `output_file`.
-/// Returns error if `output_file` already exists.
-pub fn create_private_key_pem(output_file: impl AsRef<Path>) -> Result<String> {
-    let privkey_pem = execute_and_parse_stdout(
-        Command::new("openssl")
-            .arg("ecparam")
-            .arg("-outform")
-            .arg("pem")
-            .arg("-name")
-            .arg("prime256v1")
-            .arg("-genkey"),
-    )?;
-    write_new_file(output_file, &privkey_pem)?;
-    Ok(privkey_pem)
+/// Tries to read the content of given file; if the file does not exist,
+/// generates a private key, and writes PEM to file, and returns it.
+pub fn read_or_create_private_key_pem(file: impl AsRef<Path>) -> Result<String> {
+    if file.as_ref().exists() {
+        std::fs::read_to_string(file).map_err(Error::new)
+    } else {
+        let privkey_pem = execute_and_parse_stdout(
+            Command::new("openssl")
+                .arg("ecparam")
+                .arg("-outform")
+                .arg("pem")
+                .arg("-name")
+                .arg("prime256v1")
+                .arg("-genkey"),
+        )
+        .map_err(|e| e.context("Failed to use openssl to generate private key"))?;
+        write_new_file(file, &privkey_pem)?;
+        Ok(privkey_pem)
+    }
 }
 
 /// Generates a certificate request, and returns it in PEM format.
 /// Writes PEM to `output_file`.
-/// Returns error if `output_file` already exists.
+/// Overwrites if `output_file` already exists.
 pub fn create_certificate_request_pem(
     domain: &str,
     private_key_file: impl AsRef<Path>,
@@ -81,7 +85,7 @@ pub fn create_certificate_request_pem(
             .arg("-subj")
             .arg(format!("/CN={}/O=Test/C=US", domain)),
     )?;
-    write_new_file(output_file, &cert_csr_pem)?;
+    std::fs::write(output_file, &cert_csr_pem)?;
     Ok(cert_csr_pem)
 }
 
