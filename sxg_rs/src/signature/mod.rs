@@ -138,7 +138,7 @@ fn time_to_number(t: std::time::SystemTime) -> u64 {
 }
 
 // Parses an asn1 format signature and returns the raw 64 bytes data.
-fn parse_asn1_sig(asn1: &[u8]) -> Result<Vec<u8>> {
+pub fn parse_asn1_sig(asn1: &[u8]) -> Result<Vec<u8>> {
     let signature = der_parser::parse_ber(asn1)?.1;
     let numbers = signature.as_sequence()?;
     let r = numbers[0].as_bigint()?.to_bytes_be();
@@ -146,7 +146,7 @@ fn parse_asn1_sig(asn1: &[u8]) -> Result<Vec<u8>> {
     Ok([r.1, s.1].concat())
 }
 
-fn raw_sig_to_asn1(raw: Vec<u8>) -> Result<Vec<u8>> {
+pub fn raw_sig_to_asn1(raw: Vec<u8>) -> Result<Vec<u8>> {
     const NUMBER_LENGTH: usize = 32; // 256 bit is 32 bytes.
     const SIG_LENGTH: usize = NUMBER_LENGTH * 2; // A signature contains two numbers;
     if raw.len() != SIG_LENGTH {
