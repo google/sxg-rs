@@ -63,7 +63,10 @@ pub fn read_or_create_private_key_pem(file: impl AsRef<Path>) -> Result<String> 
                 .arg("-genkey"),
         )
         .map_err(|e| e.context("Failed to use openssl to generate private key"))?;
-        println!("Writing private key to file {:?}, please keep it in a safe place.", file.as_ref());
+        println!(
+            "Writing private key to file {:?}, please keep it in a safe place.",
+            file.as_ref()
+        );
         write_new_file(file, &privkey_pem)?;
         Ok(privkey_pem)
     }
