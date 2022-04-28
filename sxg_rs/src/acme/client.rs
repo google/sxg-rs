@@ -19,8 +19,8 @@ use crate::crypto::EcPublicKey;
 use crate::fetcher::Fetcher;
 use crate::http::{HttpRequest, HttpResponse, Method};
 use crate::signature::Signer;
-use anyhow::{anyhow, Result};
-use serde::Serialize;
+use anyhow::{anyhow, Error, Result};
+use serde::{Deserialize, Serialize};
 
 pub struct Client<F: Fetcher, S: Signer> {
     pub public_key: EcPublicKey,
@@ -140,4 +140,21 @@ pub fn find_header(response: &HttpResponse, header_name: &str) -> Result<String>
             }
         })
         .ok_or_else(|| anyhow!("The response header does not contain {}", header_name))
+}
+
+/// Parses response body as JSON of type `T`.
+pub fn parse_response_body<'a, T: Deserialize<'a>>(response: &'a HttpResponse) -> Result<T> {
+    serde_json::from_slice(&response.body).map_err(|e| {
+        let msg = if let Ok(s) = String::from_utf8(response.body.clone()) {
+            format!("Body contains text: {}", s)
+        } else {
+            format!("Body contains bytes: {:?}", response.body)
+        };
+        Error::new(e)
+            .context(format!(
+                "Failed to parse response body into type {}",
+                std::any::type_name::<T>()
+            ))
+            .context(msg)
+    })
 }

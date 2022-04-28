@@ -29,8 +29,7 @@ use crate::crypto::EcPublicKey;
 use crate::fetcher::Fetcher;
 use crate::signature::Signer;
 use anyhow::{anyhow, Error, Result};
-use client::AuthMethod;
-use client::Client;
+use client::{parse_response_body, AuthMethod, Client};
 use directory::{
     Authorization, Challenge, FinalizeRequest, Identifier, IdentifierType,
     NewAccountRequestPayload, NewAccountResponsePayload, NewOrderRequestPayload, Order, Status,
@@ -99,8 +98,7 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
                 request_payload,
             )
             .await?;
-        let rsp_paylod: NewAccountResponsePayload = serde_json::from_slice(&response.body)
-            .map_err(|e| Error::new(e).context("Failed to parse new account response"))?;
+        let rsp_paylod: NewAccountResponsePayload = parse_response_body(&response)?;
         if rsp_paylod.status != Status::Valid {
             return Err(Error::msg("The account status is not valid"));
         }
@@ -122,8 +120,7 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
                 request_payload,
             )
             .await?;
-        serde_json::from_slice(&response.body)
-            .map_err(|e| Error::new(e).context("Failed to parse new order response"))?
+        parse_response_body(&response)?
     };
     let authorization_url: String = order
         .authorizations
@@ -194,8 +191,7 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
                 },
             )
             .await?;
-        serde_json::from_slice(&response.body)
-            .map_err(|e| Error::new(e).context("Failed to parse order finalize response"))?
+        parse_response_body(&response)?
     };
     let certificate_url = order.certificate.unwrap();
     let certificate = client
@@ -217,8 +213,7 @@ async fn get_http_challenge<F: Fetcher, S: Signer>(
             authorization_url.to_string(),
         )
         .await?;
-    let authorization: Authorization = serde_json::from_slice(&response.body)
-        .map_err(|e| Error::new(e).context("Failed to parse authorization response"))?;
+    let authorization: Authorization = parse_response_body(&response)?;
     let challenge: &Challenge = authorization
         .challenges
         .iter()
