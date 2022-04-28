@@ -27,6 +27,9 @@ srcset = []
 strip_id_headers = []
 wasm = []
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 anyhow = "1.0.56"
 async-trait = "0.1.53"

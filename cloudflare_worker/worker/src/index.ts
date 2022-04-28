@@ -243,20 +243,20 @@ async function generateSxgResponse(
   }
   const {get: headerIntegrityGet, put: headerIntegrityPut} =
     await headerIntegrityCache();
-  const now_in_seconds = Math.floor(Date.now() / 1000);
-  const sxg = await worker.createSignedExchange(
+  const nowInSeconds = Math.floor(Date.now() / 1000);
+  const sxg = await worker.createSignedExchange({
     fallbackUrl,
     certOrigin,
-    payload.status,
+    statusCode: payload.status,
     payloadHeaders,
     payloadBody,
-    true,
-    now_in_seconds,
+    skipProcessLink: false,
+    nowInSeconds,
     signer,
-    fetcher,
+    subresourceFetcher: fetcher,
     headerIntegrityGet,
-    headerIntegrityPut
-  );
+    headerIntegrityPut,
+  });
   return responseFromWasm(sxg);
 }
 

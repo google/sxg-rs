@@ -52,6 +52,20 @@ export type PresetContent =
       fallback: WasmResponse;
     };
 
+export type CreateSignedExchangedOptions = {
+  fallbackUrl: string;
+  certOrigin: string;
+  statusCode: number;
+  payloadHeaders: HeaderFields;
+  payloadBody: Uint8Array;
+  skipProcessLink: boolean;
+  nowInSeconds: number;
+  signer: (input: Uint8Array) => Promise<Uint8Array>;
+  subresourceFetcher: (request: WasmRequest) => Promise<WasmResponse>;
+  headerIntegrityGet: (url: string) => Promise<WasmResponse>;
+  headerIntegrityPut: (url: string, response: WasmResponse) => Promise<void>;
+};
+
 export interface ProcessHtmlOption {
   isSxg: boolean;
 }
@@ -64,19 +78,7 @@ export interface WasmWorker {
     fields: HeaderFields
   ): HeaderFields;
   processHtml(input: WasmResponse, option: ProcessHtmlOption): WasmResponse;
-  createSignedExchange(
-    fallbackUrl: string,
-    certOrigin: string,
-    statusCode: number,
-    payloadHeaders: HeaderFields,
-    payloadBody: Uint8Array,
-    process_link: boolean,
-    nowInSeconds: number,
-    signer: (input: Uint8Array) => Promise<Uint8Array>,
-    subresourceFetcher: (request: WasmRequest) => Promise<WasmResponse>,
-    headerIntegrityGet: (url: string) => Promise<WasmResponse>,
-    headerIntegrityPut: (url: string, response: WasmResponse) => Promise<void>
-  ): WasmResponse;
+  createSignedExchange(options: CreateSignedExchangedOptions): WasmResponse;
   fetchOcspFromCa(
     fetcher: (request: WasmRequest) => Promise<WasmResponse>
   ): Uint8Array;
