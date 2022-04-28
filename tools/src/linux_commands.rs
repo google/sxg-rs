@@ -46,8 +46,8 @@ pub fn write_new_file(path: impl AsRef<Path>, content: impl AsRef<[u8]>) -> Resu
     }
 }
 
-/// Tries to read the content of given file; if the file does not exist,
-/// generates a private key, and writes PEM to file, and returns it.
+/// Tries to read the contents of given file; if the file does not exist,
+/// generates a private key, and writes PEM to the file, and returns it.
 pub fn read_or_create_private_key_pem(file: impl AsRef<Path>) -> Result<String> {
     if file.as_ref().exists() {
         std::fs::read_to_string(file).map_err(Error::new)
