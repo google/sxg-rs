@@ -120,6 +120,7 @@ impl SxgWorker {
             now,
             payload_body,
             payload_headers,
+            skip_process_link,
             signer,
             status_code,
             subresource_fetcher,
@@ -137,14 +138,18 @@ impl SxgWorker {
             .map_err(|e| Error::new(e).context("Failed to parse fallback URL"))?;
         let cert_base = Url::parse(cert_origin)
             .map_err(|e| Error::new(e).context("Failed to parse cert origin"))?;
+        let mut header_integrity_fetcher = header_integrity::new_fetcher(
+            subresource_fetcher,
+            header_integrity_cache,
+            &self.config.strip_response_headers,
+        );
         let (signed_headers, payload_body) = utils::signed_headers_and_payload(
             &fallback_base,
             status_code,
             &payload_headers,
             payload_body,
-            subresource_fetcher,
-            header_integrity_cache,
-            &self.config.strip_response_headers,
+            &mut header_integrity_fetcher,
+            skip_process_link,
         )
         .await?;
         let cert_url = cert_base
@@ -341,6 +346,7 @@ pub struct CreateSignedExchangeParams<'a, S: signature::Signer, F: Fetcher, C: H
     pub now: std::time::SystemTime,
     pub payload_body: &'a [u8],
     pub payload_headers: headers::Headers,
+    pub skip_process_link: bool,
     pub signer: S,
     pub status_code: u16,
     pub subresource_fetcher: F,

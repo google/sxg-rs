@@ -12,12 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::fetcher::Fetcher;
-use crate::header_integrity;
+use crate::header_integrity::HeaderIntegrityFetcher;
 use crate::headers::Headers;
-use crate::http_cache::HttpCache;
 use anyhow::{anyhow, Result};
-use std::collections::BTreeSet;
 use url::Url;
 
 #[cfg(all(target_family = "wasm", feature = "wasm"))]
@@ -63,14 +60,14 @@ pub fn to_js_error<E: std::fmt::Debug>(e: E) -> wasm_bindgen::JsValue {
     wasm_bindgen::JsValue::from_str(&format!("{:?}", e))
 }
 
-pub async fn signed_headers_and_payload<F: Fetcher, C: HttpCache>(
+// #[warn(clippy::too_many_arguments)]
+pub async fn signed_headers_and_payload(
     fallback_url: &Url,
     status_code: u16,
     payload_headers: &Headers,
     payload_body: &[u8],
-    subresource_fetcher: F,
-    header_integrity_cache: C,
-    strip_response_headers: &BTreeSet<String>,
+    header_integrity_fetcher: &mut dyn HeaderIntegrityFetcher,
+    skip_process_link: bool,
 ) -> Result<(Vec<u8>, Vec<u8>)> {
     if status_code != 200 {
         return Err(anyhow!("The resource status code is {}.", status_code));
@@ -78,17 +75,13 @@ pub async fn signed_headers_and_payload<F: Fetcher, C: HttpCache>(
     // 16384 is the max mice record size allowed by SXG spec.
     // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#section-3.5-7.9.1
     let (mice_digest, payload_body) = crate::mice::calculate(payload_body, 16384);
-    let mut header_integrity_fetcher = header_integrity::new_fetcher(
-        subresource_fetcher,
-        header_integrity_cache,
-        strip_response_headers,
-    );
     let signed_headers = payload_headers
         .get_signed_headers_bytes(
             fallback_url,
             status_code,
             &mice_digest,
-            &mut header_integrity_fetcher,
+            header_integrity_fetcher,
+            skip_process_link,
         )
         .await;
     Ok((signed_headers, payload_body))

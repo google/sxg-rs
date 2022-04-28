@@ -33,6 +33,33 @@ use wasm_bindgen_futures::future_to_promise;
 pub struct WasmWorker(Arc<SxgWorker>);
 
 #[wasm_bindgen]
+extern "C" {
+    pub type CreateSignedExchangedOptions;
+    #[wasm_bindgen(method, getter, js_name = "fallbackUrl")]
+    fn fallback_url(this: &CreateSignedExchangedOptions) -> String;
+    #[wasm_bindgen(method, getter, js_name = "certOrigin")]
+    fn cert_origin(this: &CreateSignedExchangedOptions) -> String;
+    #[wasm_bindgen(method, getter, js_name = "statusCode")]
+    fn status_code(this: &CreateSignedExchangedOptions) -> u16;
+    #[wasm_bindgen(method, getter, js_name = "payloadHeaders")]
+    fn payload_headers(this: &CreateSignedExchangedOptions) -> JsValue;
+    #[wasm_bindgen(method, getter, js_name = "payloadBody")]
+    fn payload_body(this: &CreateSignedExchangedOptions) -> Vec<u8>;
+    #[wasm_bindgen(method, getter, js_name = "skipProcessLink")]
+    fn skip_process_link(this: &CreateSignedExchangedOptions) -> bool;
+    #[wasm_bindgen(method, getter, js_name = "nowInSeconds")]
+    fn now_in_seconds(this: &CreateSignedExchangedOptions) -> u32;
+    #[wasm_bindgen(method, getter, js_name = "signer")]
+    fn signer(this: &CreateSignedExchangedOptions) -> JsFunction;
+    #[wasm_bindgen(method, getter, js_name = "subresourceFetcher")]
+    fn subresource_fetcher(this: &CreateSignedExchangedOptions) -> JsFunction;
+    #[wasm_bindgen(method, getter, js_name = "headerIntegrityGet")]
+    fn header_integrity_get(this: &CreateSignedExchangedOptions) -> JsFunction;
+    #[wasm_bindgen(method, getter, js_name = "headerIntegrityPut")]
+    fn header_integrity_put(this: &CreateSignedExchangedOptions) -> JsFunction;
+}
+
+#[wasm_bindgen]
 impl WasmWorker {
     #[wasm_bindgen(constructor)]
     pub fn new(config_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<WasmWorker, JsValue> {
@@ -97,47 +124,37 @@ impl WasmWorker {
         let output = self.0.process_html(input, option).map_err(to_js_error)?;
         JsValue::from_serde(&output).map_err(to_js_error)
     }
-    #[allow(clippy::too_many_arguments)]
     #[wasm_bindgen(js_name=createSignedExchange)]
-    pub fn create_signed_exchange(
-        &self,
-        fallback_url: String,
-        cert_origin: String,
-        status_code: u16,
-        payload_headers: JsValue,
-        payload_body: Vec<u8>,
-        now_in_seconds: u32,
-        signer: JsFunction,
-        subresource_fetcher: JsFunction,
-        header_integrity_get: JsFunction,
-        header_integrity_put: JsFunction,
-    ) -> JsPromise {
+    pub fn create_signed_exchange(&self, options: CreateSignedExchangedOptions) -> JsPromise {
         let worker = self.0.clone();
         future_to_promise(async move {
-            let payload_headers: Vec<(String, String)> =
-                payload_headers.into_serde().map_err(to_js_error)?;
+            let payload_headers: Vec<(String, String)> = options
+                .payload_headers()
+                .into_serde()
+                .map_err(to_js_error)?;
             let payload_headers = worker
                 .transform_payload_headers(payload_headers)
                 .map_err(to_js_error)?;
-            let signer = crate::signature::js_signer::JsSigner::from_raw_signer(signer);
+            let signer = crate::signature::js_signer::JsSigner::from_raw_signer(options.signer());
             let subresource_fetcher =
-                crate::fetcher::js_fetcher::JsFetcher::new(subresource_fetcher);
+                crate::fetcher::js_fetcher::JsFetcher::new(options.subresource_fetcher());
             let header_integrity_cache = crate::http_cache::js_http_cache::JsHttpCache {
-                get: header_integrity_get,
-                put: header_integrity_put,
+                get: options.header_integrity_get(),
+                put: options.header_integrity_put(),
             };
             let sxg: HttpResponse = worker
                 .create_signed_exchange(crate::CreateSignedExchangeParams {
-                    fallback_url: &fallback_url,
-                    cert_origin: &cert_origin,
+                    fallback_url: &options.fallback_url(),
+                    cert_origin: &options.cert_origin(),
                     now: std::time::UNIX_EPOCH
-                        + std::time::Duration::from_secs(now_in_seconds as u64),
-                    payload_body: &payload_body,
+                        + std::time::Duration::from_secs(options.now_in_seconds() as u64),
+                    payload_body: &options.payload_body(),
                     payload_headers,
                     signer,
-                    status_code,
+                    status_code: options.status_code(),
                     subresource_fetcher,
                     header_integrity_cache,
+                    skip_process_link: options.skip_process_link(),
                 })
                 .await
                 .map_err(to_js_error)?;

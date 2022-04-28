@@ -104,6 +104,7 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
         now: std::time::SystemTime::now(),
         payload_body: &payload_body,
         payload_headers,
+        skip_process_link: false,
         signer,
         status_code: 200,
         fallback_url: fallback_url.as_str(),
