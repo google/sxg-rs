@@ -50,6 +50,7 @@ pub fn write_new_file(path: impl AsRef<Path>, content: impl AsRef<[u8]>) -> Resu
 /// generates a private key, and writes PEM to the file, and returns it.
 pub fn read_or_create_private_key_pem(file: impl AsRef<Path>) -> Result<String> {
     if file.as_ref().exists() {
+        println!("Reading private key from file {:?}", file.as_ref());
         std::fs::read_to_string(file).map_err(Error::new)
     } else {
         let privkey_pem = execute_and_parse_stdout(
@@ -62,6 +63,7 @@ pub fn read_or_create_private_key_pem(file: impl AsRef<Path>) -> Result<String> 
                 .arg("-genkey"),
         )
         .map_err(|e| e.context("Failed to use openssl to generate private key"))?;
+        println!("Writing private key to file {:?}, please keep it in a safe place.", file.as_ref());
         write_new_file(file, &privkey_pem)?;
         Ok(privkey_pem)
     }
