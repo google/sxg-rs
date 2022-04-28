@@ -66,7 +66,7 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcher for HeaderIntegrityFet
             _ => {
                 let response = match self.fetch_subresource(url).await {
                     Ok(response) => {
-                        match self.compute_integrity(url, &response, false).await {
+                        match self.compute_integrity(url, &response, true).await {
                             Ok(integrity) => {
                                 // Keep original cache-control headers, so the integrity is
                                 // up-to-date with the subresource.
@@ -128,7 +128,7 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
         &self,
         url: &str,
         response: &HttpResponse,
-        process_link: bool,
+        skip_process_link: bool,
     ) -> Result<Vec<u8>> {
         let fallback_base =
             Url::parse(url).map_err(|e| Error::new(e).context("parsing fallback URL"))?;
@@ -142,7 +142,7 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
             &payload_headers,
             &response.body,
             &mut header_integrity_fetcher,
-            process_link,
+            skip_process_link,
         )
         .await?;
         Ok([

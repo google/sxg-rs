@@ -106,7 +106,7 @@ impl WasmWorker {
         status_code: u16,
         payload_headers: JsValue,
         payload_body: Vec<u8>,
-        process_link: bool,
+        skip_process_link: bool,
         now_in_seconds: u32,
         signer: JsFunction,
         subresource_fetcher: JsFunction,
@@ -139,7 +139,7 @@ impl WasmWorker {
                     status_code,
                     subresource_fetcher,
                     header_integrity_cache,
-                    process_link,
+                    skip_process_link,
                 })
                 .await
                 .map_err(to_js_error)?;

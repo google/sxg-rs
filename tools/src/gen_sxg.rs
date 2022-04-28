@@ -46,7 +46,7 @@ pub fn main(opts: Opts) -> Result<()> {
         now: std::time::SystemTime::now(),
         payload_body: b"This is a test.",
         payload_headers,
-        process_link: true,
+        skip_process_link: false,
         signer: worker.create_rust_signer().unwrap(),
         status_code: 200,
         subresource_fetcher: NULL_FETCHER,

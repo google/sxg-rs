@@ -67,7 +67,7 @@ pub async fn signed_headers_and_payload(
     payload_headers: &Headers,
     payload_body: &[u8],
     header_integrity_fetcher: &mut dyn HeaderIntegrityFetcher,
-    process_link: bool,
+    skip_process_link: bool,
 ) -> Result<(Vec<u8>, Vec<u8>)> {
     if status_code != 200 {
         return Err(anyhow!("The resource status code is {}.", status_code));
@@ -81,7 +81,7 @@ pub async fn signed_headers_and_payload(
             status_code,
             &mice_digest,
             header_integrity_fetcher,
-            process_link,
+            skip_process_link,
         )
         .await;
     Ok((signed_headers, payload_body))
