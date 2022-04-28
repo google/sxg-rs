@@ -22,6 +22,7 @@
 
 pub mod client;
 pub mod directory;
+pub mod eab;
 pub mod jws;
 
 use crate::crypto::EcPublicKey;
