@@ -122,7 +122,8 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
             )
             .await?;
         let order: Order = parse_response_body(&response)?;
-        let order_url = client::find_header(&response, "location").unwrap();
+        let order_url = client::find_header(&response, "location")
+            .map_err(|e| e.context("Failed to get order URL"))?;
         (order, order_url)
     };
     let authorization_url: String = order
@@ -180,7 +181,7 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
         )
         .await?;
     const POLLING_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
-    // Repeatly checks the challenge object while it is being processed by the server.
+    // Repeatedly checks the challenge object while it is being processed by the server.
     loop {
         tokio::time::sleep(POLLING_INTERVAL).await;
         let challenge = get_http_challenge(&mut client, &account_url, &authorization_url).await?;
