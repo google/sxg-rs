@@ -205,7 +205,7 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
                 ));
             }
         }
-        timer.sleep().await;
+        timer.sleep().await?;
     }
     client
         .post_with_payload(
@@ -237,7 +237,7 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
                 ));
             }
         }
-        timer.sleep().await;
+        timer.sleep().await?;
     };
     let certificate = client
         .post_as_get(AuthMethod::KeyId(&account_url), certificate_url)
