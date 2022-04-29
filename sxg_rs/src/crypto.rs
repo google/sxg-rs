@@ -15,6 +15,10 @@
 #[cfg(feature = "rust_signer")]
 use crate::signature::rust_signer::RustSigner;
 use anyhow::{anyhow, Error, Result};
+use der_parser::{
+    ber::{BerObject, BerObjectContent},
+    oid::Oid,
+};
 use serde::{Deserialize, Serialize};
 
 pub fn get_der_from_pem(pem_text: &str, expected_tag: &str) -> Result<Vec<u8>> {
@@ -88,7 +92,7 @@ impl EcPublicKey {
     /// [RFC7638](https://datatracker.ietf.org/doc/html/rfc7638#section-3).
     pub fn get_jwk_thumbprint(&self) -> Result<Vec<u8>> {
         let message = serde_json::to_string(&self)?;
-        Ok(crate::utils::get_sha(message.as_bytes()))
+        Ok(HashAlgorithm::Sha256.digest(message.as_bytes()))
     }
 }
 
@@ -132,6 +136,44 @@ impl EcPrivateKey {
     #[cfg(feature = "rust_signer")]
     pub fn create_signer(&self) -> Result<RustSigner> {
         RustSigner::new(&self.d)
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum HashAlgorithm {
+    Sha1,
+    Sha256,
+}
+
+impl HashAlgorithm {
+    // https://tools.ietf.org/html/rfc5280#section-4.1.1.2
+    // AlgorithmIdentifier  ::=  SEQUENCE  {
+    //      algorithm               OBJECT IDENTIFIER,
+    //      parameters              ANY DEFINED BY algorithm OPTIONAL  }
+    pub fn to_ber(&self) -> BerObject<'static> {
+        BerObject::from_seq(vec![
+            BerObject::from_obj(BerObjectContent::OID(match self {
+                HashAlgorithm::Sha1 => Oid::from(&[1, 3, 14, 3, 2, 26]).unwrap(),
+                HashAlgorithm::Sha256 => Oid::from(&[2, 16, 840, 1, 101, 3, 4, 2, 1]).unwrap(),
+            })),
+            BerObject::from_obj(BerObjectContent::Null),
+        ])
+    }
+    pub fn digest(&self, bytes: &[u8]) -> Vec<u8> {
+        match self {
+            HashAlgorithm::Sha1 => {
+                use sha1::{Digest, Sha1};
+                let mut hasher = Sha1::new();
+                hasher.update(bytes);
+                hasher.finalize().to_vec()
+            }
+            HashAlgorithm::Sha256 => {
+                use sha2::{Digest, Sha256};
+                let mut hasher = Sha256::new();
+                hasher.update(bytes);
+                hasher.finalize().to_vec()
+            }
+        }
     }
 }
 

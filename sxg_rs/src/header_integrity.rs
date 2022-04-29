@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::crypto::HashAlgorithm;
 use crate::fetcher::{Fetcher, NULL_FETCHER};
 use crate::headers::Headers;
 use crate::http::{HttpRequest, HttpResponse, Method};
 use crate::http_cache::{HttpCache, NullCache};
-use crate::utils::{get_sha, signed_headers_and_payload};
+use crate::utils::signed_headers_and_payload;
 use anyhow::{anyhow, Error, Result};
 use async_trait::async_trait;
 use once_cell::sync::Lazy;
@@ -147,7 +148,7 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
         .await?;
         Ok([
             b"sha256-",
-            base64::encode(get_sha(&signed_headers)).as_bytes(),
+            base64::encode(HashAlgorithm::Sha256.digest(&signed_headers)).as_bytes(),
         ]
         .concat())
     }

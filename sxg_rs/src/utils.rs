@@ -45,13 +45,6 @@ macro_rules! console_dbg {
 #[allow(unused_imports)]
 pub(crate) use console_dbg;
 
-pub fn get_sha(bytes: &[u8]) -> Vec<u8> {
-    use ::sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(bytes);
-    hasher.finalize().to_vec()
-}
-
 #[cfg(feature = "wasm")]
 pub fn to_js_error<E: std::fmt::Debug>(e: E) -> wasm_bindgen::JsValue {
     // TODO: The `JsValue::from_str()` constructs a `string` in JavaScript.
