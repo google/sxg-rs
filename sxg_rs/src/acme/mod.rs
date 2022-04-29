@@ -24,6 +24,7 @@ pub mod client;
 pub mod directory;
 pub mod eab;
 pub mod jws;
+mod polling_timer;
 
 use crate::crypto::EcPublicKey;
 use crate::fetcher::Fetcher;
@@ -34,6 +35,7 @@ use directory::{
     Authorization, Challenge, FinalizeRequest, Identifier, IdentifierType,
     NewAccountRequestPayload, NewAccountResponsePayload, NewOrderRequestPayload, Order, Status,
 };
+use polling_timer::PoolingTimer;
 
 /// The runtime context of an ongoing ACME certificate request, which is
 /// waiting for HTTP challenge.
@@ -180,16 +182,15 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
             serde_json::Map::new(),
         )
         .await?;
-    const POLLING_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
     // Repeatedly checks the challenge object while it is being processed by the server.
+    let mut timer = PoolingTimer::new();
     loop {
-        tokio::time::sleep(POLLING_INTERVAL).await;
         let challenge = get_http_challenge(&mut client, &account_url, &authorization_url).await?;
         // The status of a challenge object is defined in
         // https://datatracker.ietf.org/doc/html/rfc8555#section-7.1.6
         match challenge.status {
             Status::Valid => break,
-            Status::Processing => continue,
+            Status::Processing => (),
             Status::Invalid => {
                 return Err(anyhow!(
                     "The challenge is rejected by server with the error {}",
@@ -204,6 +205,7 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
                 ));
             }
         }
+        timer.sleep().await;
     }
     client
         .post_with_payload(
@@ -215,13 +217,12 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
         )
         .await?;
     let certificate_url = loop {
-        tokio::time::sleep(POLLING_INTERVAL).await;
         let response = client
             .post_as_get(AuthMethod::KeyId(&account_url), order_url.clone())
             .await?;
         let order: Order = parse_response_body(&response)?;
         match order.status {
-            Status::Processing => continue,
+            Status::Processing => (),
             Status::Valid => {
                 let certificate_url = order.certificate.ok_or_else(|| {
                     anyhow!("The order status is Valid, but there is no certificate URL")
@@ -236,6 +237,7 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
                 ));
             }
         }
+        timer.sleep().await;
     };
     let certificate = client
         .post_as_get(AuthMethod::KeyId(&account_url), certificate_url)
