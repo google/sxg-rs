@@ -174,11 +174,28 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
             serde_json::Map::new(),
         )
         .await?;
+    // Repeatly checks the challenge object while it is being processed by the server.
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         let challenge = get_http_challenge(&mut client, &account_url, &authorization_url).await?;
-        if challenge.status == Status::Valid {
-            break;
+        // The status of a challenge object is defined in
+        // https://datatracker.ietf.org/doc/html/rfc8555#section-7.1.6
+        match challenge.status {
+            Status::Valid => break,
+            Status::Processing => continue,
+            Status::Invalid => {
+                return Err(anyhow!(
+                    "The challenge is rejected by server with the error {}",
+                    challenge.error.unwrap_or(serde_json::Value::Null)
+                ));
+            }
+            _ => {
+                return Err(anyhow!(
+                    "This code is unreachable, \
+                    but the challenge now has the status {:?}.",
+                    challenge.status
+                ));
+            }
         }
     }
     let order: Order = {
