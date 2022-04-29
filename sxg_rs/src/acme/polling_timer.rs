@@ -24,7 +24,10 @@ impl PoolingTimer {
         PoolingTimer(MIN_SLEEP)
     }
     pub async fn sleep(&mut self) {
-        println!("Wait ACME server processing for {} seconds...", self.0.as_secs());
+        println!(
+            "Wait ACME server processing for {} seconds...",
+            self.0.as_secs()
+        );
         tokio::time::sleep(self.0).await;
         self.0 *= 2;
         if self.0 > MAX_SLEEP {
