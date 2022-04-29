@@ -44,7 +44,8 @@ pub struct OngoingCertificateRequest<F: Fetcher, S: Signer> {
     challenge: Challenge,
     pub challenge_answer: String,
     client: Client<F, S>,
-    order: Order,
+    order_url: String,
+    finalize_url: String,
 }
 
 pub struct AcmeStartupParams<'a, F: Fetcher, S: Signer> {
@@ -104,7 +105,7 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
         }
         client::find_header(&response, "Location")?
     };
-    let order: Order = {
+    let (order, order_url) = {
         let request_payload = NewOrderRequestPayload {
             identifiers: vec![Identifier {
                 r#type: IdentifierType::Dns,
@@ -120,7 +121,9 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
                 request_payload,
             )
             .await?;
-        parse_response_body(&response)?
+        let order: Order = parse_response_body(&response)?;
+        let order_url = client::find_header(&response, "location").unwrap();
+        (order, order_url)
     };
     let authorization_url: String = order
         .authorizations
@@ -145,7 +148,8 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
         challenge,
         challenge_answer,
         client,
-        order,
+        order_url,
+        finalize_url: order.finalize,
     })
 }
 
@@ -161,7 +165,8 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
         challenge,
         challenge_answer: _,
         mut client,
-        order,
+        order_url,
+        finalize_url,
     } = ongoing_certificate_request;
     // https://datatracker.ietf.org/doc/html/rfc8555#section-7.5.1
     // The client indicates to the server that it is ready for the challenge
@@ -174,9 +179,10 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
             serde_json::Map::new(),
         )
         .await?;
+    const POLLING_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
     // Repeatly checks the challenge object while it is being processed by the server.
     loop {
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        tokio::time::sleep(POLLING_INTERVAL).await;
         let challenge = get_http_challenge(&mut client, &account_url, &authorization_url).await?;
         // The status of a challenge object is defined in
         // https://datatracker.ietf.org/doc/html/rfc8555#section-7.1.6
@@ -198,19 +204,38 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
             }
         }
     }
-    let order: Order = {
+    client
+        .post_with_payload(
+            AuthMethod::KeyId(&account_url),
+            finalize_url,
+            FinalizeRequest {
+                csr: &base64::encode_config(cert_request_der, base64::URL_SAFE_NO_PAD),
+            },
+        )
+        .await?;
+    let certificate_url = loop {
+        tokio::time::sleep(POLLING_INTERVAL).await;
         let response = client
-            .post_with_payload(
-                AuthMethod::KeyId(&account_url),
-                order.finalize,
-                FinalizeRequest {
-                    csr: &base64::encode_config(cert_request_der, base64::URL_SAFE_NO_PAD),
-                },
-            )
+            .post_as_get(AuthMethod::KeyId(&account_url), order_url.clone())
             .await?;
-        parse_response_body(&response)?
+        let order: Order = parse_response_body(&response)?;
+        match order.status {
+            Status::Processing => continue,
+            Status::Valid => {
+                let certificate_url = order.certificate.ok_or_else(|| {
+                    anyhow!("The order status is Valid, but there is no certificate URL")
+                })?;
+                break certificate_url;
+            }
+            _ => {
+                return Err(anyhow!(
+                    "This code is unreachable, \
+                    but the order now has the status {:?}.",
+                    order.status
+                ));
+            }
+        }
     };
-    let certificate_url = order.certificate.unwrap();
     let certificate = client
         .post_as_get(AuthMethod::KeyId(&account_url), certificate_url)
         .await?;
@@ -383,7 +408,13 @@ mod tests {
             };
             let res = HttpResponse {
                 status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "3".to_string())],
+                headers: vec![
+                    ("Replay-Nonce".to_string(), "3".to_string()),
+                    (
+                        "Location".to_string(),
+                        "https://acme.server/order/46540038".to_string(),
+                    ),
+                ],
                 body: r#"{
                     "status": "pending",
                     "expires": "2022-03-15T19:38:31Z",
@@ -534,6 +565,41 @@ mod tests {
                 status: 200,
                 headers: vec![("Replay-Nonce".to_string(), "7".to_string())],
                 body: r#"{
+                    "status": "processing",
+                    "expires": "2022-03-15T19:38:31Z",
+                    "identifiers": [
+                        {
+                            "type": "dns",
+                            "value": "example.com"
+                        }
+                    ],
+                    "authorizations": [
+                        "https://acme.server/authz-v3/1866692048"
+                    ],
+                    "finalize": "https://acme.server/finalize/46540038/1977802858",
+                }"#
+                .to_string()
+                .into_bytes(),
+            };
+            server.handle_next_request(req, res).await.unwrap();
+
+            let req = HttpRequest {
+                body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
+                    r#"{"alg":"ES256","nonce":"7","url":"https://acme.server/order/46540038","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
+                    "",
+                    &signer,
+                ).await.unwrap()).unwrap(),
+                method: Method::Post,
+                headers: vec![(
+                    "content-type".to_string(),
+                    "application/jose+json".to_string(),
+                )],
+                url: "https://acme.server/order/46540038".to_string(),
+            };
+            let res = HttpResponse {
+                status: 200,
+                headers: vec![("Replay-Nonce".to_string(), "8".to_string())],
+                body: r#"{
                     "status": "valid",
                     "expires": "2022-03-15T19:38:31Z",
                     "identifiers": [
@@ -555,7 +621,7 @@ mod tests {
 
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
-                    r#"{"alg":"ES256","nonce":"7","url":"https://acme.server/cert/fa7af446e23117a13137f4cf64f24c3cdb5b","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
+                    r#"{"alg":"ES256","nonce":"8","url":"https://acme.server/cert/fa7af446e23117a13137f4cf64f24c3cdb5b","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
                     "",
                     &signer,
                 ).await.unwrap()).unwrap(),
@@ -568,7 +634,7 @@ mod tests {
             };
             let res = HttpResponse {
                 status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "8".to_string())],
+                headers: vec![("Replay-Nonce".to_string(), "9".to_string())],
                 body: "content of certificate".to_string().into_bytes(),
             };
             server.handle_next_request(req, res).await.unwrap();
