@@ -128,6 +128,11 @@ pub struct Challenge {
     pub token: String,
     pub url: String,
     pub status: Status,
+    // https://datatracker.ietf.org/doc/html/rfc8555#:~:text=it%20SHOULD%20also%0A%20%20%20include%20the%20%22error%22%20field
+    // The `error` field is added when the challenge object is in an invalid status.
+    // We only use this field to print to console, hence we define it as a
+    // generic JSON type without internal details.
+    pub error: Option<serde_json::Value>,
 }
 
 // https://datatracker.ietf.org/doc/html/rfc8555#:~:text=it%20should%20send%20a%20POST%20request%20to%20the%20order%20resource%27s%20finalize%20URL
@@ -138,7 +143,7 @@ pub struct FinalizeRequest<'a> {
 }
 
 // https://datatracker.ietf.org/doc/html/rfc8555#section-7.1.6
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Status {
     Pending,
