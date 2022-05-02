@@ -12,26 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use anyhow::{anyhow, Result};
 use std::time::Duration;
 
-pub struct PoolingTimer(Duration);
+pub struct PoolingTimer {
+    duration: Duration,
+    remaining_tries: usize,
+}
 
 const MIN_SLEEP: Duration = Duration::from_secs(60);
 const MAX_SLEEP: Duration = Duration::from_secs(600);
+const MAX_TRIES: usize = 10;
 
 impl PoolingTimer {
     pub fn new() -> Self {
-        PoolingTimer(MIN_SLEEP)
+        PoolingTimer {
+            duration: MIN_SLEEP,
+            remaining_tries: MAX_TRIES,
+        }
     }
-    pub async fn sleep(&mut self) {
+    pub async fn sleep(&mut self) -> Result<()> {
+        if self.remaining_tries == 0 {
+            return Err(anyhow!("Stop trying after failed {} times", MAX_TRIES));
+        }
         println!(
             "Wait ACME server processing for {} seconds...",
-            self.0.as_secs()
+            self.duration.as_secs()
         );
-        tokio::time::sleep(self.0).await;
-        self.0 *= 2;
-        if self.0 > MAX_SLEEP {
-            self.0 = MAX_SLEEP;
+        tokio::time::sleep(self.duration).await;
+        self.duration *= 2;
+        if self.duration > MAX_SLEEP {
+            self.duration = MAX_SLEEP;
         }
+        self.remaining_tries -= 1;
+        Ok(())
     }
 }
