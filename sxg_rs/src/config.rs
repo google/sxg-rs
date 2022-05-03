@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::crypto::get_der_from_pem;
-use crate::crypto::HashAlgorithm;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -21,7 +19,7 @@ use std::collections::BTreeSet;
 // This struct is source-of-truth of the sxg config. The user need to create
 // a file (like `config.yaml`) to provide this config input.
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct ConfigInput {
+pub struct Config {
     pub cert_url_dirname: String,
     pub forward_request_headers: BTreeSet<String>,
     // This field is only needed by Fastly, because Cloudflare uses [vars]
@@ -38,73 +36,29 @@ pub struct ConfigInput {
     pub validity_url_dirname: String,
 }
 
-// This contains not only source-of-truth ConfigInput, but also a few more
-// attributes which are computed from ConfigInput.
-#[derive(Debug, Clone)]
-pub struct Config {
-    input: ConfigInput,
-    pub cert_der: Vec<u8>,
-    pub cert_sha256: Vec<u8>,
-    pub issuer_der: Vec<u8>,
-}
-
-impl std::ops::Deref for Config {
-    type Target = ConfigInput;
-    #[must_use]
-    fn deref(&self) -> &Self::Target {
-        &self.input
-    }
-}
-
-fn lowercase_all(names: BTreeSet<String>) -> BTreeSet<String> {
-    names.into_iter().map(|h| h.to_ascii_lowercase()).collect()
-}
-
-fn normalize_config_input(input: ConfigInput) -> ConfigInput {
-    ConfigInput {
-        cert_url_dirname: to_url_prefix(&input.cert_url_dirname),
-        forward_request_headers: lowercase_all(input.forward_request_headers),
-        reserved_path: to_url_prefix(&input.reserved_path),
-        strip_request_headers: lowercase_all(input.strip_request_headers),
-        strip_response_headers: lowercase_all(input.strip_response_headers),
-        validity_url_dirname: to_url_prefix(&input.validity_url_dirname),
-        ..input
-    }
-}
-
 impl Config {
+    pub fn normalize(&mut self) {
+        self.cert_url_dirname = to_url_prefix(&self.cert_url_dirname);
+        lowercase_all(&mut self.forward_request_headers);
+        self.reserved_path = to_url_prefix(&self.reserved_path);
+        lowercase_all(&mut self.strip_request_headers);
+        lowercase_all(&mut self.strip_response_headers);
+        self.validity_url_dirname = to_url_prefix(&self.validity_url_dirname);
+    }
     /// Creates config from text
-    pub fn new(input_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<Self> {
-        let input: ConfigInput = serde_yaml::from_str(input_yaml)?;
-        let cert_der = get_der_from_pem(cert_pem, "CERTIFICATE")?;
-        let issuer_der = get_der_from_pem(issuer_pem, "CERTIFICATE")?;
+    pub fn new(input_yaml: &str) -> Result<Self> {
+        let mut input: Self = serde_yaml::from_str(input_yaml)?;
+        input.normalize();
+        Ok(input)
+    }
+}
 
-        let config = Self::new_with_parsed_data(input, cert_der, issuer_der);
-
-        Ok(config)
-    }
-    /// Creates config from parsed input and der
-    pub fn new_with_parsed_data(
-        input: ConfigInput,
-        cert_der: Vec<u8>,
-        issuer_der: Vec<u8>,
-    ) -> Self {
-        let input = normalize_config_input(input);
-        Self::new_with_parsed_and_normalized_data(input, cert_der, issuer_der)
-    }
-    /// Creates config without normalizing input
-    pub fn new_with_parsed_and_normalized_data(
-        input: ConfigInput,
-        cert_der: Vec<u8>,
-        issuer_der: Vec<u8>,
-    ) -> Self {
-        Config {
-            cert_sha256: HashAlgorithm::Sha256.digest(&cert_der),
-            cert_der,
-            issuer_der,
-            input,
-        }
-    }
+fn lowercase_all(names: &mut BTreeSet<String>) {
+    let old_names = std::mem::take(names);
+    *names = old_names
+        .into_iter()
+        .map(|h| h.to_ascii_lowercase())
+        .collect();
 }
 
 fn to_url_prefix(dirname: &str) -> String {
@@ -114,7 +68,6 @@ fn to_url_prefix(dirname: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::tests::SELF_SIGNED_CERT_PEM;
     #[test]
     fn processes_input() {
         let yaml = r#"
@@ -129,7 +82,7 @@ strip_request_headers: ["Forwarded"]
 strip_response_headers: ["Set-Cookie", "STRICT-TRANSPORT-SECURITY"]
 validity_url_dirname: "//.well-known/sxg-validity"
         "#;
-        let config = Config::new(yaml, SELF_SIGNED_CERT_PEM, SELF_SIGNED_CERT_PEM).unwrap();
+        let config = Config::new(yaml).unwrap();
         assert_eq!(config.cert_url_dirname, "/.well-known/sxg-certs/");
         assert_eq!(
             config.forward_request_headers,
