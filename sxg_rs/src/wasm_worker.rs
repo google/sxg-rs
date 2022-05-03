@@ -73,18 +73,17 @@ impl WasmWorker {
         })
     }
     #[wasm_bindgen(js_name=servePresetContent)]
-    pub fn serve_preset_content(
-        &self,
-        req_url: &str,
-        ocsp_base64: &str,
-    ) -> Result<JsValue, JsValue> {
+    pub fn serve_preset_content(&self, req_url: String, ocsp_base64: &str) -> JsPromise {
         let ocsp_der = ::base64::decode(ocsp_base64).unwrap();
-        Ok(self
-            .0
-            .serve_preset_content(req_url, &ocsp_der)
-            .map_or(JsValue::UNDEFINED, |preset_content| {
-                JsValue::from_serde(&preset_content).unwrap()
-            }))
+        let worker = self.0.clone();
+        future_to_promise(async move {
+            Ok(worker
+                .serve_preset_content(&req_url, &ocsp_der)
+                .await
+                .map_or(JsValue::UNDEFINED, |preset_content| {
+                    JsValue::from_serde(&preset_content).unwrap()
+                }))
+        })
     }
     #[wasm_bindgen(js_name=shouldRespondDebugInfo)]
     pub fn should_respond_debug_info(&self) -> Result<bool, JsValue> {

@@ -83,7 +83,7 @@ export interface WasmWorker {
     fetcher: (request: WasmRequest) => Promise<WasmResponse>
   ): Uint8Array;
   getLastErrorMessage(): string;
-  servePresetContent(url: string, ocsp: string): PresetContent | undefined;
+  servePresetContent(url: string, ocsp: string): Promise<PresetContent | undefined>;
   shouldRespondDebugInfo(): boolean;
   validatePayloadHeaders(fields: HeaderFields): void;
 }

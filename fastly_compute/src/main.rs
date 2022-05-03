@@ -119,14 +119,17 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
     sxg_rs_response_to_fastly_response(sxg)
 }
 
-fn handle_request(req: Request) -> Result<Response> {
+async fn handle_request(req: Request) -> Result<Response> {
     let fetcher = FastlyFetcher::new("OCSP server");
     // TODO: store OCSP in database
     let ocsp_der = WORKER.fetch_ocsp_from_ca(fetcher);
     let ocsp_der = block_on(ocsp_der);
     let fallback_url: Url;
     let sxg_payload;
-    match WORKER.serve_preset_content(req.get_url_str(), &ocsp_der) {
+    match WORKER
+        .serve_preset_content(req.get_url_str(), &ocsp_der)
+        .await
+    {
         Some(PresetContent::Direct(response)) => {
             return sxg_rs_response_to_fastly_response(response)
         }
@@ -146,10 +149,15 @@ fn handle_request(req: Request) -> Result<Response> {
 
 #[fastly::main]
 fn main(req: Request) -> Result<Response, std::convert::Infallible> {
-    let response = handle_request(req).unwrap_or_else(|msg| {
-        text_response(&format!("A message is gracefully thrown.\n{:?}", msg))
-    });
-    Ok(response)
+    tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap()
+        .block_on(async {
+            let response = handle_request(req).await.unwrap_or_else(|msg| {
+                text_response(&format!("A message is gracefully thrown.\n{:?}", msg))
+            });
+            Ok(response)
+        })
 }
 
 #[cfg(test)]
