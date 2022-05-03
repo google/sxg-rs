@@ -19,7 +19,7 @@ use std::collections::BTreeSet;
 // This struct is source-of-truth of the sxg config. The user need to create
 // a file (like `config.yaml`) to provide this config input.
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct ConfigInput {
+pub struct Config {
     pub cert_url_dirname: String,
     pub forward_request_headers: BTreeSet<String>,
     // This field is only needed by Fastly, because Cloudflare uses [vars]
@@ -36,59 +36,29 @@ pub struct ConfigInput {
     pub validity_url_dirname: String,
 }
 
-// This contains not only source-of-truth ConfigInput, but also a few more
-// attributes which are computed from ConfigInput.
-#[derive(Debug, Clone)]
-pub struct Config {
-    input: ConfigInput,
-}
-
-impl std::ops::Deref for Config {
-    type Target = ConfigInput;
-    #[must_use]
-    fn deref(&self) -> &Self::Target {
-        &self.input
-    }
-}
-
-fn lowercase_all(names: BTreeSet<String>) -> BTreeSet<String> {
-    names.into_iter().map(|h| h.to_ascii_lowercase()).collect()
-}
-
-fn normalize_config_input(input: ConfigInput) -> ConfigInput {
-    ConfigInput {
-        cert_url_dirname: to_url_prefix(&input.cert_url_dirname),
-        forward_request_headers: lowercase_all(input.forward_request_headers),
-        reserved_path: to_url_prefix(&input.reserved_path),
-        strip_request_headers: lowercase_all(input.strip_request_headers),
-        strip_response_headers: lowercase_all(input.strip_response_headers),
-        validity_url_dirname: to_url_prefix(&input.validity_url_dirname),
-        ..input
-    }
-}
-
 impl Config {
+    pub fn normalize(&mut self) {
+        self.cert_url_dirname = to_url_prefix(&self.cert_url_dirname);
+        lowercase_all(&mut self.forward_request_headers);
+        self.reserved_path = to_url_prefix(&self.reserved_path);
+        lowercase_all(&mut self.strip_request_headers);
+        lowercase_all(&mut self.strip_response_headers);
+        self.validity_url_dirname = to_url_prefix(&&self.validity_url_dirname);
+    }
     /// Creates config from text
     pub fn new(input_yaml: &str) -> Result<Self> {
-        let input: ConfigInput = serde_yaml::from_str(input_yaml)?;
+        let mut input: Self = serde_yaml::from_str(input_yaml)?;
+        input.normalize();
+        Ok(input)
+    }
+}
 
-        let config = Self::new_with_parsed_data(input);
-
-        Ok(config)
-    }
-    /// Creates config from parsed input and der
-    pub fn new_with_parsed_data(
-        input: ConfigInput,
-    ) -> Self {
-        let input = normalize_config_input(input);
-        Self::new_with_parsed_and_normalized_data(input)
-    }
-    /// Creates config without normalizing input
-    pub fn new_with_parsed_and_normalized_data(
-        input: ConfigInput,
-    ) -> Self {
-        Config { input }
-    }
+fn lowercase_all(names: &mut BTreeSet<String>) {
+    let old_names = std::mem::take(names);
+    *names = old_names
+        .into_iter()
+        .map(|h| h.to_ascii_lowercase())
+        .collect();
 }
 
 fn to_url_prefix(dirname: &str) -> String {
