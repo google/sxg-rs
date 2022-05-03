@@ -43,7 +43,7 @@ impl Config {
         self.reserved_path = to_url_prefix(&self.reserved_path);
         lowercase_all(&mut self.strip_request_headers);
         lowercase_all(&mut self.strip_response_headers);
-        self.validity_url_dirname = to_url_prefix(&&self.validity_url_dirname);
+        self.validity_url_dirname = to_url_prefix(&self.validity_url_dirname);
     }
     /// Creates config from text
     pub fn new(input_yaml: &str) -> Result<Self> {
