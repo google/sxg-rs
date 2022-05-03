@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::crypto::get_der_from_pem;
+use crate::crypto::HashAlgorithm;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -98,7 +99,7 @@ impl Config {
         issuer_der: Vec<u8>,
     ) -> Self {
         Config {
-            cert_sha256: crate::utils::get_sha(&cert_der),
+            cert_sha256: HashAlgorithm::Sha256.digest(&cert_der),
             cert_der,
             issuer_der,
             input,

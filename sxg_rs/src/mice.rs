@@ -14,12 +14,13 @@
 
 // https://tools.ietf.org/html/draft-thomson-http-mice-03
 
+use crate::crypto::HashAlgorithm;
 use ::sha2::{Digest, Sha256};
 use std::collections::VecDeque;
 
 pub fn calculate(input: &[u8], record_size: usize) -> (Vec<u8>, Vec<u8>) {
     if input.is_empty() {
-        return (crate::utils::get_sha(&[0]), vec![]);
+        return (HashAlgorithm::Sha256.digest(&[0]), vec![]);
     }
     let record_size = std::cmp::min(record_size, input.len());
     let records: Vec<_> = if record_size > 0 {
