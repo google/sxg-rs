@@ -27,6 +27,7 @@ mod link;
 mod mice;
 mod ocsp;
 pub mod process_html;
+pub mod runtime;
 pub mod serde_helpers;
 pub mod signature;
 mod structured_header;
@@ -38,9 +39,9 @@ mod wasm_worker;
 use crate::http::{HeaderFields, HttpResponse};
 use anyhow::{anyhow, Error, Result};
 use config::Config;
-use fetcher::Fetcher;
 use headers::{AcceptFilter, Headers};
 use http_cache::HttpCache;
+use runtime::Runtime;
 use serde::Serialize;
 use std::time::Duration;
 use url::Url;
@@ -125,20 +126,18 @@ impl SxgWorker {
     ) -> Result<HttpResponse> {
         process_html::process_html(input, option)
     }
-    pub async fn create_signed_exchange<S: signature::Signer, F: Fetcher, C: HttpCache>(
+    pub async fn create_signed_exchange<C: HttpCache>(
         &self,
-        params: CreateSignedExchangeParams<'_, S, F, C>,
+        runtime: Runtime,
+        params: CreateSignedExchangeParams<'_, C>,
     ) -> Result<HttpResponse> {
         let CreateSignedExchangeParams {
             fallback_url,
             cert_origin,
-            now,
             payload_body,
             payload_headers,
             skip_process_link,
-            signer,
             status_code,
-            subresource_fetcher,
             header_integrity_cache,
         } = params;
         if payload_body.len() > MAX_PAYLOAD_SIZE {
@@ -154,7 +153,7 @@ impl SxgWorker {
         let cert_base = Url::parse(cert_origin)
             .map_err(|e| Error::new(e).context("Failed to parse cert origin"))?;
         let mut header_integrity_fetcher = header_integrity::new_fetcher(
-            subresource_fetcher,
+            runtime.fetcher()?,
             header_integrity_cache,
             &self.config.strip_response_headers,
         );
@@ -180,10 +179,13 @@ impl SxgWorker {
                 &self.config.validity_url_dirname, "validity"
             ))
             .map_err(|e| Error::new(e).context("Failed to parse validity_url_dirname"))?;
-        let date = now
+        let date = runtime
+            .now
             .checked_sub(BACKDATING)
             .ok_or_else(|| anyhow!("Failed to construct date"))?;
-        let expires = now.checked_add(payload_headers.signature_duration()?);
+        let expires = runtime
+            .now
+            .checked_add(payload_headers.signature_duration()?);
         let signature = signature::Signature::new(signature::SignatureParams {
             cert_url: cert_url.as_str(),
             cert_sha256: &self.cert_sha256,
@@ -192,7 +194,7 @@ impl SxgWorker {
             headers: &signed_headers,
             id: "sig",
             request_url: fallback_url,
-            signer,
+            signer: runtime.sxg_signer()?,
             validity_url: validity_url.as_str(),
         })
         .await;
@@ -355,16 +357,13 @@ impl SxgWorker {
     }
 }
 
-pub struct CreateSignedExchangeParams<'a, S: signature::Signer, F: Fetcher, C: HttpCache> {
+pub struct CreateSignedExchangeParams<'a, C: HttpCache> {
     pub fallback_url: &'a str,
     pub cert_origin: &'a str,
-    pub now: std::time::SystemTime,
     pub payload_body: &'a [u8],
     pub payload_headers: headers::Headers,
     pub skip_process_link: bool,
-    pub signer: S,
     pub status_code: u16,
-    pub subresource_fetcher: F,
     pub header_integrity_cache: C,
 }
 
