@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::crypto::get_der_from_pem;
-use crate::crypto::HashAlgorithm;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -43,9 +41,6 @@ pub struct ConfigInput {
 #[derive(Debug, Clone)]
 pub struct Config {
     input: ConfigInput,
-    pub cert_der: Vec<u8>,
-    pub cert_sha256: Vec<u8>,
-    pub issuer_der: Vec<u8>,
 }
 
 impl std::ops::Deref for Config {
@@ -74,36 +69,25 @@ fn normalize_config_input(input: ConfigInput) -> ConfigInput {
 
 impl Config {
     /// Creates config from text
-    pub fn new(input_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<Self> {
+    pub fn new(input_yaml: &str) -> Result<Self> {
         let input: ConfigInput = serde_yaml::from_str(input_yaml)?;
-        let cert_der = get_der_from_pem(cert_pem, "CERTIFICATE")?;
-        let issuer_der = get_der_from_pem(issuer_pem, "CERTIFICATE")?;
 
-        let config = Self::new_with_parsed_data(input, cert_der, issuer_der);
+        let config = Self::new_with_parsed_data(input);
 
         Ok(config)
     }
     /// Creates config from parsed input and der
     pub fn new_with_parsed_data(
         input: ConfigInput,
-        cert_der: Vec<u8>,
-        issuer_der: Vec<u8>,
     ) -> Self {
         let input = normalize_config_input(input);
-        Self::new_with_parsed_and_normalized_data(input, cert_der, issuer_der)
+        Self::new_with_parsed_and_normalized_data(input)
     }
     /// Creates config without normalizing input
     pub fn new_with_parsed_and_normalized_data(
         input: ConfigInput,
-        cert_der: Vec<u8>,
-        issuer_der: Vec<u8>,
     ) -> Self {
-        Config {
-            cert_sha256: HashAlgorithm::Sha256.digest(&cert_der),
-            cert_der,
-            issuer_der,
-            input,
-        }
+        Config { input }
     }
 }
 
@@ -114,7 +98,6 @@ fn to_url_prefix(dirname: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::tests::SELF_SIGNED_CERT_PEM;
     #[test]
     fn processes_input() {
         let yaml = r#"
@@ -129,7 +112,7 @@ strip_request_headers: ["Forwarded"]
 strip_response_headers: ["Set-Cookie", "STRICT-TRANSPORT-SECURITY"]
 validity_url_dirname: "//.well-known/sxg-validity"
         "#;
-        let config = Config::new(yaml, SELF_SIGNED_CERT_PEM, SELF_SIGNED_CERT_PEM).unwrap();
+        let config = Config::new(yaml).unwrap();
         assert_eq!(config.cert_url_dirname, "/.well-known/sxg-certs/");
         assert_eq!(
             config.forward_request_headers,

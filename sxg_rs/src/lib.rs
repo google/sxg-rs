@@ -48,6 +48,9 @@ use url::Url;
 #[derive(Debug)]
 pub struct SxgWorker {
     config: Config,
+    cert_der: Vec<u8>,
+    cert_sha256: Vec<u8>,
+    issuer_der: Vec<u8>,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
@@ -69,12 +72,24 @@ const BACKDATING: Duration = Duration::from_secs(60 * 60);
 pub(crate) const MAX_PAYLOAD_SIZE: usize = 8_000_000;
 
 impl SxgWorker {
-    pub fn new(config_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<SxgWorker> {
-        let config = Config::new(config_yaml, cert_pem, issuer_pem)?;
-        Ok(SxgWorker { config })
+    pub fn new(config_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<Self> {
+        let config = Config::new(config_yaml)?;
+        let cert_der = crypto::get_der_from_pem(cert_pem, "CERTIFICATE")?;
+        let issuer_der = crypto::get_der_from_pem(issuer_pem, "CERTIFICATE")?;
+        Ok(Self::from_parsed(config, cert_der, issuer_der))
     }
-    pub fn new_with_config(config: Config) -> Self {
-        Self { config }
+    pub fn from_parsed(config: Config, cert_der: Vec<u8>, issuer_der: Vec<u8>) -> Self {
+        SxgWorker {
+            config,
+            cert_sha256: crypto::HashAlgorithm::Sha256.digest(&cert_der),
+            cert_der,
+            issuer_der,
+        }
+    }
+    pub fn set_cert_and_issuer(&mut self, cert_der: Vec<u8>, issuer_der: Vec<u8>) {
+        self.cert_sha256 = crypto::HashAlgorithm::Sha256.digest(&cert_der);
+        self.cert_der = cert_der;
+        self.issuer_der = issuer_der;
     }
     pub fn config(&self) -> &Config {
         &self.config
@@ -89,19 +104,19 @@ impl SxgWorker {
             DataItem::Map(vec![
                 (
                     DataItem::TextString("cert"),
-                    DataItem::ByteString(&self.config.cert_der),
+                    DataItem::ByteString(&self.cert_der),
                 ),
                 (DataItem::TextString("ocsp"), DataItem::ByteString(ocsp_der)),
             ]),
             DataItem::Map(vec![(
                 DataItem::TextString("cert"),
-                DataItem::ByteString(&self.config.issuer_der),
+                DataItem::ByteString(&self.issuer_der),
             )]),
         ]);
         cert_cbor.serialize()
     }
     pub fn cert_basename(&self) -> String {
-        base64::encode_config(&self.config.cert_sha256, base64::URL_SAFE_NO_PAD)
+        base64::encode_config(&self.cert_sha256, base64::URL_SAFE_NO_PAD)
     }
     pub fn process_html(
         &self,
@@ -171,7 +186,7 @@ impl SxgWorker {
         let expires = now.checked_add(payload_headers.signature_duration()?);
         let signature = signature::Signature::new(signature::SignatureParams {
             cert_url: cert_url.as_str(),
-            cert_sha256: &self.config.cert_sha256,
+            cert_sha256: &self.cert_sha256,
             date,
             expires,
             headers: &signed_headers,
@@ -207,8 +222,7 @@ impl SxgWorker {
         validity.serialize()
     }
     pub async fn fetch_ocsp_from_ca<F: fetcher::Fetcher>(&self, fetcher: F) -> Vec<u8> {
-        let result =
-            ocsp::fetch_from_ca(&self.config.cert_der, &self.config.issuer_der, fetcher).await;
+        let result = ocsp::fetch_from_ca(&self.cert_der, &self.issuer_der, fetcher).await;
         // TODO: Remove panic
         result.unwrap()
     }
