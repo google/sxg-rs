@@ -167,7 +167,7 @@ export async function spawnSxgServer({
     return JSON.stringify(response);
   });
   fastify.get('/.well-known/sxg-certs/*', async (request, reply) => {
-    const x = worker.servePresetContent(
+    const x = await worker.servePresetContent(
       `https://localhost:8443${request.url}`,
       'abcd'
     );

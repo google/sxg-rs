@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
     match Opts::parse().sub_command {
         SubCommand::ApplyAcmeCert(opts) => apply_acme_cert::main(opts).await,
         SubCommand::GenConfig => gen_config::main(),
-        SubCommand::GenSxg(opts) => gen_sxg::main(opts),
+        SubCommand::GenSxg(opts) => gen_sxg::main(opts).await,
         SubCommand::GenDevCert(opts) => gen_dev_cert::main(opts),
     }
 }

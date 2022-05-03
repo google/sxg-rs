@@ -97,7 +97,7 @@ impl SxgWorker {
     // TODO: Make OCSP status as an internal state of SxgWorker, so that
     // SxgWorker is able to fetch OCSP. This will need a definition of a
     // Fetcher trait. Both js and rust callers need to implement this trait.
-    pub fn create_cert_cbor(&self, ocsp_der: &[u8]) -> Vec<u8> {
+    pub async fn create_cert_cbor(&self, ocsp_der: &[u8]) -> Vec<u8> {
         use cbor::DataItem;
         let cert_cbor = DataItem::Array(vec![
             DataItem::TextString("📜⛓"),
@@ -226,7 +226,11 @@ impl SxgWorker {
         // TODO: Remove panic
         result.unwrap()
     }
-    pub fn serve_preset_content(&self, req_url: &str, ocsp_der: &[u8]) -> Option<PresetContent> {
+    pub async fn serve_preset_content(
+        &self,
+        req_url: &str,
+        ocsp_der: &[u8],
+    ) -> Option<PresetContent> {
         let req_url = url::Url::parse(req_url).ok()?;
         let path = req_url.path();
         if let Some(basename) = path.strip_prefix(&self.config.reserved_path) {
@@ -275,7 +279,7 @@ impl SxgWorker {
         } else if let Some(cert_name) = path.strip_prefix(&self.config.cert_url_dirname) {
             if cert_name == self.cert_basename() {
                 Some(PresetContent::Direct(HttpResponse {
-                    body: self.create_cert_cbor(ocsp_der),
+                    body: self.create_cert_cbor(ocsp_der).await,
                     headers: vec![(
                         String::from("content-type"),
                         String::from("application/cert-chain+cbor"),
@@ -390,47 +394,61 @@ validity_url_dirname: "//.well-known/sxg-validity"
     fn cert_basename() {
         assert_eq!(new_worker().cert_basename(), util::SELF_SIGNED_CERT_SHA256);
     }
-    #[test]
-    fn serve_preset_content() {
+    #[tokio::test]
+    async fn serve_preset_content() {
         let worker = new_worker();
         assert_eq!(
-            worker.serve_preset_content("https://my_domain.com/unknown", &[]),
+            worker
+                .serve_preset_content("https://my_domain.com/unknown", &[])
+                .await,
             None
         );
         assert!(matches!(
-            worker.serve_preset_content("https://my_domain.com/.sxg/test.html", &[]),
+            worker
+                .serve_preset_content("https://my_domain.com/.sxg/test.html", &[])
+                .await,
             Some(PresetContent::Direct(HttpResponse { status: 200, .. }))
         ));
         assert!(matches!(
-            worker.serve_preset_content("https://my_domain.com/.sxg/test.sxg", &[]),
+            worker
+                .serve_preset_content("https://my_domain.com/.sxg/test.sxg", &[])
+                .await,
             Some(PresetContent::ToBeSigned { .. })
         ));
         assert!(matches!(
-            worker.serve_preset_content(
-                &format!(
-                    "https://my_domain.com/.well-known/sxg-certs/{}",
-                    util::SELF_SIGNED_CERT_SHA256
-                ),
-                &[]
-            ),
+            worker
+                .serve_preset_content(
+                    &format!(
+                        "https://my_domain.com/.well-known/sxg-certs/{}",
+                        util::SELF_SIGNED_CERT_SHA256
+                    ),
+                    &[]
+                )
+                .await,
             Some(PresetContent::Direct(HttpResponse { status: 200, .. }))
         ));
         assert!(matches!(
-            worker.serve_preset_content("https://my_domain.com/.well-known/sxg-certs/unknown", &[]),
+            worker
+                .serve_preset_content("https://my_domain.com/.well-known/sxg-certs/unknown", &[])
+                .await,
             Some(PresetContent::Direct(HttpResponse { status: 404, .. }))
         ));
         assert!(matches!(
-            worker.serve_preset_content(
-                "https://my_domain.com/.well-known/sxg-validity/validity",
-                &[]
-            ),
+            worker
+                .serve_preset_content(
+                    "https://my_domain.com/.well-known/sxg-validity/validity",
+                    &[]
+                )
+                .await,
             Some(PresetContent::Direct(HttpResponse { status: 200, .. }))
         ));
         assert!(matches!(
-            worker.serve_preset_content(
-                "https://my_domain.com/.well-known/sxg-validity/unknown",
-                &[]
-            ),
+            worker
+                .serve_preset_content(
+                    "https://my_domain.com/.well-known/sxg-validity/unknown",
+                    &[]
+                )
+                .await,
             Some(PresetContent::Direct(HttpResponse { status: 404, .. }))
         ));
     }

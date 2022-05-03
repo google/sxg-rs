@@ -157,7 +157,7 @@ async function handleRequest(request: Request) {
   let response: Response | undefined;
   try {
     const ocsp = await getOcsp();
-    const presetContent = worker.servePresetContent(request.url, ocsp);
+    const presetContent = await worker.servePresetContent(request.url, ocsp);
     let fallbackUrl: string;
     let certOrigin: string;
     if (presetContent) {

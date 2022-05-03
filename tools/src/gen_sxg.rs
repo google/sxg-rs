@@ -29,14 +29,14 @@ pub struct Opts {
     out_sxg: String,
 }
 
-pub fn main(opts: Opts) -> Result<()> {
+pub async fn main(opts: Opts) -> Result<()> {
     let worker = SxgWorker::new(
         &fs::read_to_string(opts.config_yaml).unwrap(),
         &fs::read_to_string(opts.cert_pem).unwrap(),
         &fs::read_to_string(opts.issuer_pem).unwrap(),
     )
     .unwrap();
-    fs::write(opts.out_cert_cbor, &worker.create_cert_cbor(b"ocsp"))?;
+    fs::write(opts.out_cert_cbor, &worker.create_cert_cbor(b"ocsp").await)?;
     let payload_headers = worker
         .transform_payload_headers(vec![("content-type".into(), "text/html".into())])
         .unwrap();
