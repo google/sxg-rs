@@ -14,7 +14,7 @@
 
 use crate::header_integrity::HeaderIntegrityFetcher;
 use crate::headers::Headers;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Error, Result};
 use url::Url;
 
 #[cfg(all(target_family = "wasm", feature = "wasm"))]
@@ -51,6 +51,22 @@ pub fn to_js_error<E: std::fmt::Debug>(e: E) -> wasm_bindgen::JsValue {
     // We should switch to `js_sys::Error::new()`
     // so that JavaScript's `try catch` can catch an `Error` object.
     wasm_bindgen::JsValue::from_str(&format!("{:?}", e))
+}
+
+/// Given the return value from a JavaScript async function, waits for the
+/// JavaScript Promise ,and returns the resolved value.
+#[cfg(feature = "wasm")]
+pub async fn await_js_promise(
+    result: Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>,
+) -> Result<wasm_bindgen::JsValue> {
+    use std::convert::TryFrom;
+    let value =
+        result.map_err(|e| anyhow!("{:?}", e).context("JavaScript function throws an error"))?;
+    let promise = js_sys::Promise::try_from(value)
+        .map_err(|e| Error::new(e).context("Expecting a JavaScript Promise"))?;
+    wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .map_err(|e| anyhow!("{:?}", e).context("JavaScript throws an error asynchronously"))
 }
 
 // #[warn(clippy::too_many_arguments)]
