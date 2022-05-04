@@ -30,7 +30,6 @@ pub struct Config {
     // TODO: check if Fastly edge dictionary is ok to store private key.
     pub private_key_base64: Option<String>,
     pub reserved_path: String,
-    pub respond_debug_info: bool,
     pub strip_request_headers: BTreeSet<String>,
     pub strip_response_headers: BTreeSet<String>,
     pub validity_url_dirname: String,

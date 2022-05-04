@@ -46,6 +46,7 @@ if (typeof PRIVATE_KEY_JWK === 'undefined') {
 const signer = createSignerFromJwk(crypto.subtle, JSON.parse(PRIVATE_KEY_JWK));
 
 addEventListener('fetch', (event: FetchEvent) => {
+  event.passThroughOnException();
   event.respondWith(handleRequest(event.request));
 });
 
@@ -195,6 +196,7 @@ async function handleRequest(request: Request) {
     response = await generateSxgResponse(fallbackUrl, certOrigin, sxgPayload);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
+    console.error(e);
     sxgPayload?.body?.cancel();
     if (!fallback) {
       // The error occurs before fetching from origin server, hence we need to
@@ -208,22 +210,12 @@ async function handleRequest(request: Request) {
       // If the body is HTML >8MB, processHTML will fail.
       fallback = await processHTML(fallback, [new SXGOnly(false)]);
       fallwayback.body?.cancel();
-    } catch {
+    } catch (e: any) {
+      console.error(e);
       fallback.body?.cancel();
       fallback = fallwayback;
     }
-    if (worker.shouldRespondDebugInfo() && e.toString) {
-      const message: string = e.toString();
-      return new Response(fallback.body, {
-        status: fallback.status,
-        headers: [
-          ...Array.from(fallback.headers || []),
-          ['sxg-edge-worker-debug-info', message],
-        ],
-      });
-    } else {
-      return fallback;
-    }
+    return fallback;
   }
   fallback.body?.cancel();
   return response;

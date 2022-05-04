@@ -47,7 +47,6 @@ forward_request_headers:
   - user-agent
   - cf-ipcountry
 reserved_path: ".sxg"
-respond_debug_info: false
 strip_request_headers: []
 strip_response_headers:
   - set-cookie
