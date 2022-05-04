@@ -342,9 +342,6 @@ impl SxgWorker {
         signature::rust_signer::RustSigner::new(&private_key_der)
             .map_err(|e| e.context("Failed to call RustSigner::new()."))
     }
-    pub fn should_respond_debug_info(&self) -> bool {
-        self.config.respond_debug_info
-    }
     /// Replaces the host name to be the html_host in the config.
     // TODO: implement get_fallback_url_and_cert_origin, so that Cloudflare Worker can use it.
     pub fn get_fallback_url(&self, original_url: &Url) -> Result<Url> {

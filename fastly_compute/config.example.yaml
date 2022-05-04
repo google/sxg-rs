@@ -20,7 +20,6 @@ forward_request_headers:
 html_host: my_domain.com
 private_key_base64: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXU="
 reserved_path: ".sxg"
-respond_debug_info: true
 strip_request_headers: []
 strip_response_headers: ["set-cookie", "strict-transport-security"]
 validity_url_dirname: ".well-known/sxg-validity"

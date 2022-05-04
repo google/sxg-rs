@@ -87,7 +87,6 @@ export interface WasmWorker {
     url: string,
     ocsp: string
   ): Promise<PresetContent | undefined>;
-  shouldRespondDebugInfo(): boolean;
   validatePayloadHeaders(fields: HeaderFields): void;
 }
 

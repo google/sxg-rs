@@ -85,10 +85,6 @@ impl WasmWorker {
                 }))
         })
     }
-    #[wasm_bindgen(js_name=shouldRespondDebugInfo)]
-    pub fn should_respond_debug_info(&self) -> Result<bool, JsValue> {
-        Ok(self.0.should_respond_debug_info())
-    }
 
     #[wasm_bindgen(js_name=createRequestHeaders)]
     pub fn create_request_headers(
