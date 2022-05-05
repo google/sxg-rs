@@ -14,6 +14,7 @@
 
 use super::Fetcher;
 use crate::http::{HttpRequest, HttpResponse};
+use crate::utils::await_js_promise;
 use anyhow::{Error, Result};
 use async_trait::async_trait;
 use js_sys::Function as JsFunction;
@@ -42,15 +43,7 @@ impl Fetcher for JsFetcher {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse> {
         let request = JsValue::from_serde(&request)
             .map_err(|e| Error::new(e).context("Failed to parse request."))?;
-        let this = JsValue::null();
-        let response = self.0.call1(&this, &request).map_err(|e| {
-            Error::msg(format!("{:?}", e)).context("JavaScript fetcher throws an error.")
-        })?;
-        let response = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(response));
-        let response = response.await.map_err(|e| {
-            Error::msg(format!("{:?}", e))
-                .context("JavaScript fetcher throws an error asynchronously.")
-        })?;
+        let response = await_js_promise(self.0.call1(&JsValue::NULL, &request)).await?;
         let response: HttpResponse = response
             .into_serde()
             .map_err(|e| Error::new(e).context("Failed to serialize response."))?;

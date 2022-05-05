@@ -13,7 +13,8 @@
 // limitations under the License.
 
 use super::{Format, Signer};
-use anyhow::{Error, Result};
+use crate::utils::await_js_promise;
+use anyhow::Result;
 use async_trait::async_trait;
 use js_sys::{Function as JsFunction, Uint8Array};
 use wasm_bindgen::JsValue;
@@ -53,15 +54,7 @@ impl Signer for JsSigner {
     async fn sign(&self, message: &[u8], format: Format) -> Result<Vec<u8>> {
         let a = Uint8Array::new_with_length(message.len() as u32);
         a.copy_from(message);
-        let this = JsValue::null();
-        let sig = self.js_function.call1(&this, &a).map_err(|e| {
-            Error::msg(format!("{:?}", e)).context("JavaScript signer throws an error.")
-        })?;
-        let sig = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(sig));
-        let sig = sig.await.map_err(|e| {
-            Error::msg(format!("{:?}", e))
-                .context("JavaScript signer throws an error asynchronously.")
-        })?;
+        let sig = await_js_promise(self.js_function.call1(&JsValue::NULL, &a)).await?;
         let sig = Uint8Array::from(sig);
         let sig = sig.to_vec();
         match (self.js_sig_format, format) {
