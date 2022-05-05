@@ -14,7 +14,7 @@
 
 use super::Runtime;
 use crate::fetcher::{js_fetcher::JsFetcher, Fetcher, NullFetcher};
-use crate::signature::{js_signer::JsSigner, Signer, mock_signer::MockSigner};
+use crate::signature::{js_signer::JsSigner, mock_signer::MockSigner, Signer};
 use anyhow::{Error, Result};
 use js_sys::Function as JsFunction;
 use std::time::{Duration, SystemTime};
