@@ -57,7 +57,7 @@ export type JsRuntimeInitParams = {
   fetcher: ((request: WasmRequest) => Promise<WasmResponse>) | undefined;
   sxgAsn1Signer: ((input: Uint8Array) => Promise<Uint8Array>) | undefined;
   sxgRawSigner: ((input: Uint8Array) => Promise<Uint8Array>) | undefined;
-}
+};
 
 export type CreateSignedExchangedOptions = {
   fallbackUrl: string;
@@ -82,7 +82,10 @@ export interface WasmWorker {
     fields: HeaderFields
   ): HeaderFields;
   processHtml(input: WasmResponse, option: ProcessHtmlOption): WasmResponse;
-  createSignedExchange(runtime: JsRuntimeInitParams, options: CreateSignedExchangedOptions): WasmResponse;
+  createSignedExchange(
+    runtime: JsRuntimeInitParams,
+    options: CreateSignedExchangedOptions
+  ): WasmResponse;
   fetchOcspFromCa(
     fetcher: (request: WasmRequest) => Promise<WasmResponse>
   ): Uint8Array;
