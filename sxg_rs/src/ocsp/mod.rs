@@ -21,12 +21,16 @@
 use crate::crypto::HashAlgorithm;
 use crate::fetcher::Fetcher;
 use crate::http::{HttpRequest, Method};
+use crate::runtime::Runtime;
 use anyhow::{anyhow, Error, Result};
 use der_parser::{
     ber::{BerObject, BerObjectContent},
     oid,
     oid::Oid,
 };
+use serde::{Deserialize, Serialize};
+use std::time::{Duration, SystemTime};
+use tokio::sync::Mutex;
 use x509_parser::{
     certificate::X509Certificate,
     extensions::{GeneralName, ParsedExtension},
@@ -77,10 +81,10 @@ const AIA: Oid<'static> = oid!(1.3.6 .1 .5 .5 .7 .1 .1);
 // https://www.iana.org/assignments/smi-numbers/smi-numbers.xhtml#smi-numbers-1.3.6.1.5.5.7.48.1
 const AIA_OCSP: Oid<'static> = oid!(1.3.6 .1 .5 .5 .7 .48 .1);
 
-pub async fn fetch_from_ca<'a, F: Fetcher>(
-    cert_der: &'a [u8],
-    issuer_der: &'a [u8],
-    fetcher: F,
+pub async fn fetch_from_ca(
+    cert_der: &[u8],
+    issuer_der: &[u8],
+    fetcher: &dyn Fetcher,
 ) -> Result<Vec<u8>> {
     let cert = x509_parser::parse_x509_certificate(cert_der)
         .map_err(|e| Error::from(e).context("Failed to parse cert DER"))?
@@ -129,4 +133,71 @@ pub async fn fetch_from_ca<'a, F: Fetcher>(
         .await
         .map_err(|e| e.context("Failed to fetch OCSP"))?;
     Ok(rsp.body)
+}
+
+const OCSP_KEY: &str = "OCSP";
+
+#[derive(Serialize, Deserialize)]
+struct OcspData {
+    pub expiration_time: SystemTime,
+    pub recommended_update_time: SystemTime,
+    #[serde(with = "crate::serde_helpers::base64")]
+    pub value: Vec<u8>,
+}
+
+pub enum OcspUpdateStrategy {
+    EarlyAsRecommended,
+    LazyIfUnexpired,
+}
+
+/// Reads OCSP in storage, checks the expiration status, and returns latest.
+/// If OCSP in storage needs update, fetches it from the server and writes it
+/// into storage. The outging traffic to the server is throttled to be a
+/// single task.
+pub async fn read_and_update_ocsp_in_storage(
+    cert_der: &[u8],
+    issuer_der: &[u8],
+    runtime: &Runtime,
+    strategy: OcspUpdateStrategy,
+) -> Result<Vec<u8>> {
+    // Checks whether we can directly return the existing OCSP in storage.
+    if let Some(old_ocsp) = runtime.storage.read(OCSP_KEY).await? {
+        if let Ok(old_ocsp) = serde_json::from_str::<OcspData>(&old_ocsp) {
+            match strategy {
+                OcspUpdateStrategy::EarlyAsRecommended => {
+                    if old_ocsp.recommended_update_time > runtime.now {
+                        return Ok(old_ocsp.value);
+                    }
+                }
+                OcspUpdateStrategy::LazyIfUnexpired => {
+                    if old_ocsp.expiration_time > runtime.now {
+                        return Ok(old_ocsp.value);
+                    }
+                }
+            }
+        } else {
+            // The existing OCSP in storage can't be parsed as `OcspData`.
+        }
+    } else {
+        // There is no OCSP in storage.
+    }
+    let new_ocsp_value = {
+        static SINGLE_TASK: Mutex<()> = Mutex::const_new(());
+        let guard = SINGLE_TASK.lock().await;
+        let ocsp = fetch_from_ca(cert_der, issuer_der, runtime.fetcher.as_ref()).await?;
+        std::mem::drop(guard);
+        ocsp
+    };
+    const SIX_DAYS: Duration = Duration::from_secs(3600 * 24 * 6);
+    const ONE_DAY: Duration = Duration::from_secs(3600 * 24);
+    let new_ocsp = OcspData {
+        expiration_time: runtime.now + SIX_DAYS,
+        recommended_update_time: runtime.now + ONE_DAY,
+        value: new_ocsp_value,
+    };
+    runtime
+        .storage
+        .write(OCSP_KEY, &serde_json::to_string(&new_ocsp)?)
+        .await?;
+    Ok(new_ocsp.value)
 }

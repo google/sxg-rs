@@ -100,11 +100,12 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
     let cert_origin = fallback_url.origin().ascii_serialization();
     let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
+        storage: Box::new(sxg_rs::storage::InMemoryStorage::new()),
         sxg_signer: Box::new(WORKER.create_rust_signer()?),
         fetcher: Box::new(FastlyFetcher::new("subresources")),
     };
     let sxg = WORKER.create_signed_exchange(
-        runtime,
+        &runtime,
         sxg_rs::CreateSignedExchangeParams {
             payload_body: &payload_body,
             payload_headers,
@@ -123,16 +124,18 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
 }
 
 async fn handle_request(req: Request) -> Result<Response> {
-    let fetcher = FastlyFetcher::new("OCSP server");
-    // TODO: store OCSP in database
-    let ocsp_der = WORKER.fetch_ocsp_from_ca(fetcher);
-    let ocsp_der = block_on(ocsp_der);
+    let runtime = sxg_rs::runtime::Runtime {
+        now: std::time::SystemTime::now(),
+        storage: Box::new(sxg_rs::storage::InMemoryStorage::new()),
+        sxg_signer: Box::new(WORKER.create_rust_signer()?),
+        fetcher: Box::new(FastlyFetcher::new("OCSP server")),
+    };
     let fallback_url: Url;
     let sxg_payload;
-    match WORKER
-        .serve_preset_content(req.get_url_str(), &ocsp_der)
-        .await
-    {
+    let preset_content = WORKER
+        .serve_preset_content(&runtime, req.get_url_str())
+        .await;
+    match preset_content {
         Some(PresetContent::Direct(response)) => {
             return sxg_rs_response_to_fastly_response(response)
         }

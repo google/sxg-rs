@@ -17,10 +17,12 @@ pub mod js_runtime;
 
 use crate::fetcher::Fetcher;
 use crate::signature::Signer;
+use crate::storage::Storage;
 use std::time::SystemTime;
 
 pub struct Runtime {
     pub now: SystemTime,
     pub fetcher: Box<dyn Fetcher>,
+    pub storage: Box<dyn Storage>,
     pub sxg_signer: Box<dyn Signer>,
 }
