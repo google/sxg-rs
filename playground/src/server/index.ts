@@ -116,7 +116,7 @@ export async function spawnSxgServer({
         skipProcessLink: false,
         headerIntegrityGet: urlRecorder.get,
         headerIntegrityPut: urlRecorder.put,
-      },
+      }
     );
     const subresourceUrls = isTopLevel
       ? Array.from(urlRecorder.visitedUrls())
