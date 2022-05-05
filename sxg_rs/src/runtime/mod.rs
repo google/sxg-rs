@@ -17,26 +17,10 @@ pub mod js_runtime;
 
 use crate::fetcher::Fetcher;
 use crate::signature::Signer;
-use anyhow::{anyhow, Result};
 use std::time::SystemTime;
 
 pub struct Runtime {
     pub now: SystemTime,
-    pub fetcher: Option<Box<dyn Fetcher>>,
-    pub sxg_signer: Option<Box<dyn Signer>>,
-}
-
-impl Runtime {
-    pub fn fetcher(&self) -> Result<&dyn Fetcher> {
-        self.fetcher
-            .as_ref()
-            .ok_or_else(|| anyhow!("Runtime does not contain fetcher"))
-            .map(|x| x.as_ref())
-    }
-    pub fn sxg_signer(&self) -> Result<&dyn Signer> {
-        self.sxg_signer
-            .as_ref()
-            .ok_or_else(|| anyhow!("Runtime does not contain SXG signer"))
-            .map(|x| x.as_ref())
-    }
+    pub fetcher: Box<dyn Fetcher>,
+    pub sxg_signer: Box<dyn Signer>,
 }

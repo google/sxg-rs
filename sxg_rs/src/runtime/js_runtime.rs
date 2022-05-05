@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use super::Runtime;
-use crate::fetcher::{js_fetcher::JsFetcher, Fetcher};
-use crate::signature::{js_signer::JsSigner, Signer};
+use crate::fetcher::{js_fetcher::JsFetcher, Fetcher, NullFetcher};
+use crate::signature::{js_signer::JsSigner, Signer, mock_signer::MockSigner};
 use anyhow::{Error, Result};
 use js_sys::Function as JsFunction;
 use std::time::{Duration, SystemTime};
@@ -50,8 +50,8 @@ impl std::convert::TryFrom<JsRuntimeInitParams> for Runtime {
         let sxg_signer = sxg_asn1_signer.or(sxg_raw_signer);
         Ok(Runtime {
             now,
-            fetcher,
-            sxg_signer,
+            fetcher: fetcher.unwrap_or_else(|| Box::new(NullFetcher)),
+            sxg_signer: sxg_signer.unwrap_or_else(|| Box::new(MockSigner)),
         })
     }
 }

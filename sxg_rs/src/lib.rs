@@ -153,7 +153,7 @@ impl SxgWorker {
         let cert_base = Url::parse(cert_origin)
             .map_err(|e| Error::new(e).context("Failed to parse cert origin"))?;
         let mut header_integrity_fetcher = header_integrity::new_fetcher(
-            runtime.fetcher()?,
+            runtime.fetcher.as_ref(),
             header_integrity_cache,
             &self.config.strip_response_headers,
         );
@@ -194,7 +194,7 @@ impl SxgWorker {
             headers: &signed_headers,
             id: "sig",
             request_url: fallback_url,
-            signer: runtime.sxg_signer()?,
+            signer: runtime.sxg_signer.as_ref(),
             validity_url: validity_url.as_str(),
         })
         .await;

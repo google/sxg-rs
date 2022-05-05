@@ -100,8 +100,8 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
     let cert_origin = fallback_url.origin().ascii_serialization();
     let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
-        sxg_signer: Some(Box::new(WORKER.create_rust_signer()?)),
-        fetcher: Some(Box::new(FastlyFetcher::new("subresources"))),
+        sxg_signer: Box::new(WORKER.create_rust_signer()?),
+        fetcher: Box::new(FastlyFetcher::new("subresources")),
     };
     let sxg = WORKER.create_signed_exchange(
         runtime,
