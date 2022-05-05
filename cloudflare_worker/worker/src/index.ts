@@ -210,6 +210,7 @@ async function handleRequest(request: Request) {
       // If the body is HTML >8MB, processHTML will fail.
       fallback = await processHTML(fallback, [new SXGOnly(false)]);
       fallwayback.body?.cancel();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       console.error(e);
       fallback.body?.cancel();
