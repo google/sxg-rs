@@ -22,13 +22,13 @@ use crate::signature::{Format as SignatureFormat, Signer};
 use anyhow::{Error, Result};
 use serde::{Serialize, Serializer};
 
-pub async fn create_acme_request_body<S: Signer, P: Serialize>(
+pub async fn create_acme_request_body<P: Serialize>(
     jwk: Option<&EcPublicKey>,
     kid: Option<&str>,
     nonce: String,
     url: &str,
     payload: Option<P>,
-    signer: &S,
+    signer: &dyn Signer,
 ) -> Result<Vec<u8>> {
     let protected_header = AcmeProtectedHeader {
         alg: Algorithm::ES256,
@@ -86,10 +86,10 @@ impl JsonWebSignature {
     /// Constructs a signature from serialiable header and payload.
     /// If the given `payload` is `None`, it will be serialized into an empty
     /// string.
-    pub async fn new<H: Serialize, P: Serialize, S: Signer>(
+    pub async fn new<H: Serialize, P: Serialize>(
         protected_header: H,
         payload: Option<P>,
-        signer: &S,
+        signer: &dyn Signer,
     ) -> Result<Self> {
         let protected_header = serde_json::to_string(&protected_header)
             .map_err(|e| Error::new(e).context("Failed to serialize protected header."))?;
@@ -102,10 +102,10 @@ impl JsonWebSignature {
         Self::new_from_serialized(&protected_header, &payload, signer).await
     }
     /// Constructs a signature from strings of serialized header and payload.
-    pub async fn new_from_serialized<S: Signer>(
+    pub async fn new_from_serialized(
         protected_header: &str,
         payload: &str,
-        signer: &S,
+        signer: &dyn Signer,
     ) -> Result<Self> {
         let protected_header = base64::encode_config(protected_header, base64::URL_SAFE_NO_PAD);
         let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);

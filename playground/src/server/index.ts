@@ -93,6 +93,7 @@ export async function spawnSxgServer({
       storageWrite: storage.write,
       sxgAsn1Signer: undefined,
       sxgRawSigner: signer,
+      acmeRawSigner: undefined, // Playground uses self-signed certificate, and does not use ACME.
       fetcher,
     };
   }
