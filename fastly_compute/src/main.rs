@@ -100,9 +100,9 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
     let cert_origin = fallback_url.origin().ascii_serialization();
     let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
-        storage: Box::new(sxg_rs::storage::InMemoryStorage::new()),
         sxg_signer: Box::new(WORKER.create_rust_signer()?),
         fetcher: Box::new(FastlyFetcher::new("subresources")),
+        ..Default::default()
     };
     let sxg = WORKER.create_signed_exchange(
         &runtime,
@@ -126,9 +126,9 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
 async fn handle_request(req: Request) -> Result<Response> {
     let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
-        storage: Box::new(sxg_rs::storage::InMemoryStorage::new()),
         sxg_signer: Box::new(WORKER.create_rust_signer()?),
         fetcher: Box::new(FastlyFetcher::new("OCSP server")),
+        ..Default::default()
     };
     let fallback_url: Url;
     let sxg_payload;

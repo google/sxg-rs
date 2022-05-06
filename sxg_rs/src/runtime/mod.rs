@@ -15,9 +15,9 @@
 #[cfg(feature = "wasm")]
 pub mod js_runtime;
 
-use crate::fetcher::Fetcher;
-use crate::signature::Signer;
-use crate::storage::Storage;
+use crate::fetcher::{Fetcher, NullFetcher};
+use crate::signature::{mock_signer::MockSigner, Signer};
+use crate::storage::{InMemoryStorage, Storage};
 use std::time::SystemTime;
 
 pub struct Runtime {
@@ -25,4 +25,15 @@ pub struct Runtime {
     pub fetcher: Box<dyn Fetcher>,
     pub storage: Box<dyn Storage>,
     pub sxg_signer: Box<dyn Signer>,
+}
+
+impl Default for Runtime {
+    fn default() -> Self {
+        Runtime {
+            now: SystemTime::UNIX_EPOCH,
+            fetcher: Box::new(NullFetcher),
+            storage: Box::new(InMemoryStorage::default()),
+            sxg_signer: Box::new(MockSigner),
+        }
+    }
 }
