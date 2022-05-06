@@ -21,16 +21,13 @@ import {
   // eslint-disable-next-line node/no-unpublished-import
 } from '../../../typescript_utilities/src/processor';
 import {fromJwk as createSignerFromJwk} from './signer';
+import {storageRead, storageWrite} from './storage';
 import {
   PAYLOAD_SIZE_LIMIT,
   readIntoArray,
   teeResponse,
   // eslint-disable-next-line node/no-unpublished-import
 } from '../../../typescript_utilities/src/streams';
-import {
-  arrayBufferToBase64,
-  // eslint-disable-next-line node/no-unpublished-import
-} from '../../../typescript_utilities/src/utils';
 import {WasmResponse, WasmRequest, createWorker} from './wasmFunctions';
 
 // This variable is added by the runtime of Cloudflare worker. It contains the
@@ -65,61 +62,6 @@ async function wasmFromResponse(response: Response): Promise<WasmResponse> {
   };
 }
 
-// Fetches latest OCSP from the CA, and writes it into key-value store.
-// The outgoing traffic to the CA is throttled; when this function is called
-// concurrently, the first fetched OCSP will be reused to be returned to all
-// callers.
-const fetchOcspFromCa = (() => {
-  // The un-throttled implementation to fetch OCSP
-  async function fetchOcspFromCaImpl() {
-    const worker = await workerPromise;
-    const ocspDer = await worker.fetchOcspFromCa(fetcher);
-    const ocspBase64 = arrayBufferToBase64(ocspDer);
-    const now = Date.now() / 1000;
-    OCSP.put(
-      /*key=*/ 'ocsp',
-      /*value=*/ JSON.stringify({
-        expirationTime: now + 3600 * 24 * 6,
-        nextFetchTime: now + 3600 * 24,
-        ocspBase64,
-      }),
-      {
-        expirationTtl: 3600 * 24 * 6, // in seconds
-      }
-    );
-    return ocspBase64;
-  }
-  let singletonTask: Promise<string> | null = null;
-  return async function () {
-    if (singletonTask !== null) {
-      return await singletonTask;
-    } else {
-      singletonTask = fetchOcspFromCaImpl();
-      const result = await singletonTask;
-      singletonTask = null;
-      return result;
-    }
-  };
-})();
-
-async function getOcsp() {
-  const ocspInCache = await OCSP.get('ocsp');
-  if (ocspInCache) {
-    const {expirationTime, nextFetchTime, ocspBase64} = JSON.parse(ocspInCache);
-    const now = Date.now() / 1000;
-    if (now >= expirationTime) {
-      return await fetchOcspFromCa();
-    }
-    if (now >= nextFetchTime) {
-      // Spawns a non-blocking task to update latest OCSP in store
-      fetchOcspFromCa();
-    }
-    return ocspBase64;
-  } else {
-    return await fetchOcspFromCa();
-  }
-}
-
 // Returns the proper fallbackUrl and certOrigin. fallbackUrl should be
 // https://my_domain.com in all environments, and certOrigin should be the
 // origin of the worker (localhost, foo.bar.workers.dev, or my_domain.com).
@@ -151,14 +93,27 @@ function fallbackUrlAndCertOrigin(
   return [fallbackUrl.toString(), certOrigin];
 }
 
+function createRuntime() {
+  return {
+    nowInSeconds: Math.floor(Date.now() / 1000),
+    fetcher,
+    storageRead,
+    storageWrite,
+    sxgRawSigner: signer,
+    sxgAsn1Signer: undefined,
+  };
+}
+
 async function handleRequest(request: Request) {
   const worker = await workerPromise;
   let sxgPayload: Response | undefined;
   let fallback: Response | undefined;
   let response: Response | undefined;
   try {
-    const ocsp = await getOcsp();
-    const presetContent = await worker.servePresetContent(request.url, ocsp);
+    const presetContent = await worker.servePresetContent(
+      createRuntime(),
+      request.url
+    );
     let fallbackUrl: string;
     let certOrigin: string;
     if (presetContent) {
@@ -236,24 +191,18 @@ async function generateSxgResponse(
   }
   const {get: headerIntegrityGet, put: headerIntegrityPut} =
     await headerIntegrityCache();
-  const sxg = await worker.createSignedExchange(
-    {
-      nowInSeconds: Math.floor(Date.now() / 1000),
-      fetcher,
-      sxgRawSigner: signer,
-      sxgAsn1Signer: undefined,
-    },
-    {
-      fallbackUrl,
-      certOrigin,
-      statusCode: payload.status,
-      payloadHeaders,
-      payloadBody,
-      skipProcessLink: false,
-      headerIntegrityGet,
-      headerIntegrityPut,
-    }
-  );
+  const sxg = await worker.createSignedExchange(createRuntime(), {
+    fallbackUrl,
+    certOrigin,
+    statusCode: payload.status,
+    payloadHeaders,
+    payloadBody,
+    skipProcessLink: false,
+    headerIntegrityGet,
+    headerIntegrityPut,
+  });
+  // Spawns a non-blocking task to update latest OCSP
+  worker.updateOcspInStorage(createRuntime());
   return responseFromWasm(sxg);
 }
 

@@ -55,6 +55,8 @@ export type PresetContent =
 export type JsRuntimeInitParams = {
   nowInSeconds: number;
   fetcher: ((request: WasmRequest) => Promise<WasmResponse>) | undefined;
+  storageRead: ((k: string) => Promise<string | null>) | undefined;
+  storageWrite: ((k: string, v: string) => Promise<void>) | undefined;
   sxgAsn1Signer: ((input: Uint8Array) => Promise<Uint8Array>) | undefined;
   sxgRawSigner: ((input: Uint8Array) => Promise<Uint8Array>) | undefined;
 };
@@ -86,13 +88,11 @@ export interface WasmWorker {
     runtime: JsRuntimeInitParams,
     options: CreateSignedExchangedOptions
   ): WasmResponse;
-  fetchOcspFromCa(
-    fetcher: (request: WasmRequest) => Promise<WasmResponse>
-  ): Uint8Array;
+  updateOcspInStorage(runtime: JsRuntimeInitParams): Uint8Array;
   getLastErrorMessage(): string;
   servePresetContent(
-    url: string,
-    ocsp: string
+    runtime: JsRuntimeInitParams,
+    url: string
   ): Promise<PresetContent | undefined>;
   validatePayloadHeaders(fields: HeaderFields): void;
 }

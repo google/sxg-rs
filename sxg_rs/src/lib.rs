@@ -30,6 +30,7 @@ pub mod process_html;
 pub mod runtime;
 pub mod serde_helpers;
 pub mod signature;
+pub mod storage;
 mod structured_header;
 mod sxg;
 pub mod utils;
@@ -128,7 +129,7 @@ impl SxgWorker {
     }
     pub async fn create_signed_exchange<C: HttpCache>(
         &self,
-        runtime: Runtime,
+        runtime: &Runtime,
         params: CreateSignedExchangeParams<'_, C>,
     ) -> Result<HttpResponse> {
         let CreateSignedExchangeParams {
@@ -223,15 +224,29 @@ impl SxgWorker {
         let validity = cbor::DataItem::Map(vec![]);
         validity.serialize()
     }
-    pub async fn fetch_ocsp_from_ca<F: fetcher::Fetcher>(&self, fetcher: F) -> Vec<u8> {
-        let result = ocsp::fetch_from_ca(&self.cert_der, &self.issuer_der, fetcher).await;
-        // TODO: Remove panic
-        result.unwrap()
+    async fn get_unexpired_ocsp(&self, runtime: &Runtime) -> Result<Vec<u8>> {
+        ocsp::read_and_update_ocsp_in_storage(
+            &self.cert_der,
+            &self.issuer_der,
+            runtime,
+            ocsp::OcspUpdateStrategy::LazyIfUnexpired,
+        )
+        .await
+    }
+    pub async fn update_oscp_in_storage(&self, runtime: &Runtime) -> Result<()> {
+        ocsp::read_and_update_ocsp_in_storage(
+            &self.cert_der,
+            &self.issuer_der,
+            runtime,
+            ocsp::OcspUpdateStrategy::EarlyAsRecommended,
+        )
+        .await?;
+        Ok(())
     }
     pub async fn serve_preset_content(
         &self,
+        runtime: &Runtime,
         req_url: &str,
-        ocsp_der: &[u8],
     ) -> Option<PresetContent> {
         let req_url = url::Url::parse(req_url).ok()?;
         let path = req_url.path();
@@ -280,8 +295,9 @@ impl SxgWorker {
             }
         } else if let Some(cert_name) = path.strip_prefix(&self.config.cert_url_dirname) {
             if cert_name == self.cert_basename() {
+                let ocsp_der = self.get_unexpired_ocsp(runtime).await.ok()?;
                 Some(PresetContent::Direct(HttpResponse {
-                    body: self.create_cert_cbor(ocsp_der).await,
+                    body: self.create_cert_cbor(&ocsp_der).await,
                     headers: vec![(
                         String::from("content-type"),
                         String::from("application/cert-chain+cbor"),
@@ -393,47 +409,56 @@ validity_url_dirname: "//.well-known/sxg-validity"
     #[tokio::test]
     async fn serve_preset_content() {
         let worker = new_worker();
+        let runtime = Runtime {
+            now: std::time::SystemTime::UNIX_EPOCH,
+            fetcher: Box::new(crate::fetcher::NullFetcher),
+            storage: Box::new(crate::storage::InMemoryStorage::new()),
+            sxg_signer: Box::new(crate::signature::mock_signer::MockSigner),
+        };
         assert_eq!(
             worker
-                .serve_preset_content("https://my_domain.com/unknown", &[])
+                .serve_preset_content(&runtime, "https://my_domain.com/unknown",)
                 .await,
             None
         );
         assert!(matches!(
             worker
-                .serve_preset_content("https://my_domain.com/.sxg/test.html", &[])
+                .serve_preset_content(&runtime, "https://my_domain.com/.sxg/test.html",)
                 .await,
             Some(PresetContent::Direct(HttpResponse { status: 200, .. }))
         ));
         assert!(matches!(
             worker
-                .serve_preset_content("https://my_domain.com/.sxg/test.sxg", &[])
+                .serve_preset_content(&runtime, "https://my_domain.com/.sxg/test.sxg",)
                 .await,
             Some(PresetContent::ToBeSigned { .. })
         ));
         assert!(matches!(
             worker
                 .serve_preset_content(
+                    &runtime,
                     &format!(
                         "https://my_domain.com/.well-known/sxg-certs/{}",
                         util::SELF_SIGNED_CERT_SHA256
                     ),
-                    &[]
                 )
                 .await,
             Some(PresetContent::Direct(HttpResponse { status: 200, .. }))
         ));
         assert!(matches!(
             worker
-                .serve_preset_content("https://my_domain.com/.well-known/sxg-certs/unknown", &[])
+                .serve_preset_content(
+                    &runtime,
+                    "https://my_domain.com/.well-known/sxg-certs/unknown",
+                )
                 .await,
             Some(PresetContent::Direct(HttpResponse { status: 404, .. }))
         ));
         assert!(matches!(
             worker
                 .serve_preset_content(
+                    &runtime,
                     "https://my_domain.com/.well-known/sxg-validity/validity",
-                    &[]
                 )
                 .await,
             Some(PresetContent::Direct(HttpResponse { status: 200, .. }))
@@ -441,8 +466,8 @@ validity_url_dirname: "//.well-known/sxg-validity"
         assert!(matches!(
             worker
                 .serve_preset_content(
+                    &runtime,
                     "https://my_domain.com/.well-known/sxg-validity/unknown",
-                    &[]
                 )
                 .await,
             Some(PresetContent::Direct(HttpResponse { status: 404, .. }))

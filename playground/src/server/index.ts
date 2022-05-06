@@ -75,6 +75,27 @@ export async function spawnSxgServer({
     (crypto.webcrypto as any).subtle,
     privateKeyJwk
   );
+  const storage = (() => {
+    const m = new Map<string, string>();
+    return {
+      async read(k: string) {
+        return m.get(k) ?? null;
+      },
+      async write(k: string, v: string) {
+        m.set(k, v);
+      },
+    };
+  })();
+  function createRuntime() {
+    return {
+      nowInSeconds: Date.now() / 1000,
+      storageRead: storage.read,
+      storageWrite: storage.write,
+      sxgAsn1Signer: undefined,
+      sxgRawSigner: signer,
+      fetcher,
+    };
+  }
   const worker = await createWorker(
     wasmBuffer,
     sxgConfig ?? DEFAULT_SXG_CONFIG,
@@ -100,24 +121,16 @@ export async function spawnSxgServer({
     sxgPayload = worker.processHtml(sxgPayload, {isSxg: true});
     const urlRecorder = subresourceCache.createRecorder();
     // TODO(PR#157): Use `handleRequest` function in `cloudflare_worker/worker/src/index.ts`.
-    const sxg = await worker.createSignedExchange(
-      {
-        nowInSeconds: Date.now() / 1000,
-        sxgAsn1Signer: undefined,
-        sxgRawSigner: signer,
-        fetcher,
-      },
-      {
-        fallbackUrl: innerUrl,
-        certOrigin,
-        statusCode: sxgPayload.status,
-        payloadHeaders: sxgPayload.headers,
-        payloadBody: new Uint8Array(sxgPayload.body),
-        skipProcessLink: false,
-        headerIntegrityGet: urlRecorder.get,
-        headerIntegrityPut: urlRecorder.put,
-      }
-    );
+    const sxg = await worker.createSignedExchange(createRuntime(), {
+      fallbackUrl: innerUrl,
+      certOrigin,
+      statusCode: sxgPayload.status,
+      payloadHeaders: sxgPayload.headers,
+      payloadBody: new Uint8Array(sxgPayload.body),
+      skipProcessLink: false,
+      headerIntegrityGet: urlRecorder.get,
+      headerIntegrityPut: urlRecorder.put,
+    });
     const subresourceUrls = isTopLevel
       ? Array.from(urlRecorder.visitedUrls())
       : [];
@@ -172,8 +185,8 @@ export async function spawnSxgServer({
   });
   fastify.get('/.well-known/sxg-certs/*', async (request, reply) => {
     const x = await worker.servePresetContent(
-      `https://localhost:8443${request.url}`,
-      'abcd'
+      createRuntime(),
+      `https://localhost:8443${request.url}`
     );
     assert(x?.kind === 'direct');
     x.headers.forEach(([k, v]) => reply.header(k, v));

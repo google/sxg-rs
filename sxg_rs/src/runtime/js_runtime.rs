@@ -15,6 +15,7 @@
 use super::Runtime;
 use crate::fetcher::{js_fetcher::JsFetcher, Fetcher, NullFetcher};
 use crate::signature::{js_signer::JsSigner, mock_signer::MockSigner, Signer};
+use crate::storage::{js_storage::JsStorage, Storage};
 use anyhow::{Error, Result};
 use js_sys::Function as JsFunction;
 use std::time::{Duration, SystemTime};
@@ -27,6 +28,10 @@ extern "C" {
     fn now_in_seconds(this: &JsRuntimeInitParams) -> u32;
     #[wasm_bindgen(method, getter, js_name = "fetcher")]
     fn fetcher(this: &JsRuntimeInitParams) -> Option<JsFunction>;
+    #[wasm_bindgen(method, getter, js_name = "storageRead")]
+    fn storage_read(this: &JsRuntimeInitParams) -> Option<JsFunction>;
+    #[wasm_bindgen(method, getter, js_name = "storageWrite")]
+    fn storage_write(this: &JsRuntimeInitParams) -> Option<JsFunction>;
     #[wasm_bindgen(method, getter, js_name = "sxgAsn1Signer")]
     fn sxg_asn1_signer(this: &JsRuntimeInitParams) -> Option<JsFunction>;
     #[wasm_bindgen(method, getter, js_name = "sxgRawSigner")]
@@ -41,6 +46,8 @@ impl std::convert::TryFrom<JsRuntimeInitParams> for Runtime {
         let fetcher = input
             .fetcher()
             .map(|f| Box::new(JsFetcher::new(f)) as Box<dyn Fetcher>);
+        let storage = Box::new(JsStorage::new(input.storage_read(), input.storage_write()))
+            as Box<dyn Storage>;
         let sxg_asn1_signer = input
             .sxg_asn1_signer()
             .map(|f| Box::new(JsSigner::from_asn1_signer(f)) as Box<dyn Signer>);
@@ -51,6 +58,7 @@ impl std::convert::TryFrom<JsRuntimeInitParams> for Runtime {
         Ok(Runtime {
             now,
             fetcher: fetcher.unwrap_or_else(|| Box::new(NullFetcher)),
+            storage,
             sxg_signer: sxg_signer.unwrap_or_else(|| Box::new(MockSigner)),
         })
     }

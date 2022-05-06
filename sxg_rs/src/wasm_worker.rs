@@ -21,7 +21,6 @@ use crate::SxgWorker;
 use anyhow::Result;
 use js_sys::Function as JsFunction;
 use js_sys::Promise as JsPromise;
-use js_sys::Uint8Array;
 use std::convert::TryFrom;
 use std::sync::Arc;
 use wasm_bindgen::prelude::{wasm_bindgen, JsValue};
@@ -58,23 +57,29 @@ impl WasmWorker {
         let sxg_worker = SxgWorker::new(config_yaml, cert_pem, issuer_pem).map_err(to_js_error)?;
         Ok(WasmWorker(Arc::new(sxg_worker)))
     }
-    #[wasm_bindgen(js_name=fetchOcspFromCa)]
-    pub fn fetch_ocsp_from_ca(&self, fetcher: JsFunction) -> JsPromise {
+    #[wasm_bindgen(js_name=updateOcspInStorage)]
+    pub fn update_oscp_in_storage(&self, js_runtime: JsRuntimeInitParams) -> JsPromise {
         let worker = self.0.clone();
         future_to_promise(async move {
-            let fetcher = crate::fetcher::js_fetcher::JsFetcher::new(fetcher);
-            let response = worker.fetch_ocsp_from_ca(fetcher).await;
-            let ocsp = Uint8Array::from(response.as_slice());
-            Ok(JsValue::from(ocsp))
+            let runtime = Runtime::try_from(js_runtime).map_err(to_js_error)?;
+            worker
+                .update_oscp_in_storage(&runtime)
+                .await
+                .map_err(to_js_error)?;
+            Ok(JsValue::UNDEFINED)
         })
     }
     #[wasm_bindgen(js_name=servePresetContent)]
-    pub fn serve_preset_content(&self, req_url: String, ocsp_base64: &str) -> JsPromise {
-        let ocsp_der = ::base64::decode(ocsp_base64).unwrap();
+    pub fn serve_preset_content(
+        &self,
+        js_runtime: JsRuntimeInitParams,
+        req_url: String,
+    ) -> JsPromise {
         let worker = self.0.clone();
         future_to_promise(async move {
+            let runtime = Runtime::try_from(js_runtime).map_err(to_js_error)?;
             Ok(worker
-                .serve_preset_content(&req_url, &ocsp_der)
+                .serve_preset_content(&runtime, &req_url)
                 .await
                 .map_or(JsValue::UNDEFINED, |preset_content| {
                     JsValue::from_serde(&preset_content).unwrap()
@@ -133,7 +138,7 @@ impl WasmWorker {
             };
             let sxg: HttpResponse = worker
                 .create_signed_exchange(
-                    runtime,
+                    &runtime,
                     crate::CreateSignedExchangeParams {
                         fallback_url: &options.fallback_url(),
                         cert_origin: &options.cert_origin(),
