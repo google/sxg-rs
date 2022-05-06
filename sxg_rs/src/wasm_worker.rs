@@ -15,12 +15,14 @@
 use crate::headers::AcceptFilter;
 use crate::http::HttpResponse;
 use crate::process_html::ProcessHtmlOption;
+use crate::runtime::{js_runtime::JsRuntimeInitParams, Runtime};
 use crate::utils::to_js_error;
 use crate::SxgWorker;
 use anyhow::Result;
 use js_sys::Function as JsFunction;
 use js_sys::Promise as JsPromise;
 use js_sys::Uint8Array;
+use std::convert::TryFrom;
 use std::sync::Arc;
 use wasm_bindgen::prelude::{wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
@@ -43,12 +45,6 @@ extern "C" {
     fn payload_body(this: &CreateSignedExchangedOptions) -> Vec<u8>;
     #[wasm_bindgen(method, getter, js_name = "skipProcessLink")]
     fn skip_process_link(this: &CreateSignedExchangedOptions) -> bool;
-    #[wasm_bindgen(method, getter, js_name = "nowInSeconds")]
-    fn now_in_seconds(this: &CreateSignedExchangedOptions) -> u32;
-    #[wasm_bindgen(method, getter, js_name = "signer")]
-    fn signer(this: &CreateSignedExchangedOptions) -> JsFunction;
-    #[wasm_bindgen(method, getter, js_name = "subresourceFetcher")]
-    fn subresource_fetcher(this: &CreateSignedExchangedOptions) -> JsFunction;
     #[wasm_bindgen(method, getter, js_name = "headerIntegrityGet")]
     fn header_integrity_get(this: &CreateSignedExchangedOptions) -> JsFunction;
     #[wasm_bindgen(method, getter, js_name = "headerIntegrityPut")]
@@ -116,9 +112,14 @@ impl WasmWorker {
         JsValue::from_serde(&output).map_err(to_js_error)
     }
     #[wasm_bindgen(js_name=createSignedExchange)]
-    pub fn create_signed_exchange(&self, options: CreateSignedExchangedOptions) -> JsPromise {
+    pub fn create_signed_exchange(
+        &self,
+        js_runtime: JsRuntimeInitParams,
+        options: CreateSignedExchangedOptions,
+    ) -> JsPromise {
         let worker = self.0.clone();
         future_to_promise(async move {
+            let runtime = Runtime::try_from(js_runtime).map_err(to_js_error)?;
             let payload_headers: Vec<(String, String)> = options
                 .payload_headers()
                 .into_serde()
@@ -126,27 +127,23 @@ impl WasmWorker {
             let payload_headers = worker
                 .transform_payload_headers(payload_headers)
                 .map_err(to_js_error)?;
-            let signer = crate::signature::js_signer::JsSigner::from_raw_signer(options.signer());
-            let subresource_fetcher =
-                crate::fetcher::js_fetcher::JsFetcher::new(options.subresource_fetcher());
             let header_integrity_cache = crate::http_cache::js_http_cache::JsHttpCache {
                 get: options.header_integrity_get(),
                 put: options.header_integrity_put(),
             };
             let sxg: HttpResponse = worker
-                .create_signed_exchange(crate::CreateSignedExchangeParams {
-                    fallback_url: &options.fallback_url(),
-                    cert_origin: &options.cert_origin(),
-                    now: std::time::UNIX_EPOCH
-                        + std::time::Duration::from_secs(options.now_in_seconds() as u64),
-                    payload_body: &options.payload_body(),
-                    payload_headers,
-                    signer,
-                    status_code: options.status_code(),
-                    subresource_fetcher,
-                    header_integrity_cache,
-                    skip_process_link: options.skip_process_link(),
-                })
+                .create_signed_exchange(
+                    runtime,
+                    crate::CreateSignedExchangeParams {
+                        fallback_url: &options.fallback_url(),
+                        cert_origin: &options.cert_origin(),
+                        payload_body: &options.payload_body(),
+                        payload_headers,
+                        status_code: options.status_code(),
+                        header_integrity_cache,
+                        skip_process_link: options.skip_process_link(),
+                    },
+                )
                 .await
                 .map_err(to_js_error)?;
             Ok(JsValue::from_serde(&sxg).unwrap())

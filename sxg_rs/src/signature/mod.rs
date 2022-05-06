@@ -37,7 +37,7 @@ pub trait Signer {
     async fn sign(&self, message: &[u8], format: Format) -> Result<Vec<u8>>;
 }
 
-pub struct SignatureParams<'a, S: Signer> {
+pub struct SignatureParams<'a> {
     pub cert_url: &'a str,
     pub cert_sha256: &'a [u8],
     pub date: std::time::SystemTime,
@@ -45,7 +45,7 @@ pub struct SignatureParams<'a, S: Signer> {
     pub headers: &'a [u8],
     pub id: &'a str,
     pub request_url: &'a str,
-    pub signer: S,
+    pub signer: &'a dyn Signer,
     pub validity_url: &'a str,
 }
 
@@ -69,7 +69,7 @@ fn seven_days_from(date: &std::time::SystemTime) -> Result<std::time::SystemTime
 }
 
 impl<'a> Signature<'a> {
-    pub async fn new<S: Signer>(params: SignatureParams<'a, S>) -> Result<Signature<'a>> {
+    pub async fn new(params: SignatureParams<'a>) -> Result<Signature<'a>> {
         let SignatureParams {
             cert_url,
             cert_sha256,

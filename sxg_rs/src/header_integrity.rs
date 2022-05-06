@@ -29,11 +29,11 @@ pub trait HeaderIntegrityFetcher {
     async fn fetch(&self, url: &str) -> Result<String>;
 }
 
-pub fn new_fetcher<F: Fetcher, C: HttpCache>(
-    subresource_fetcher: F,
+pub fn new_fetcher<'a, C: HttpCache>(
+    subresource_fetcher: &'a dyn Fetcher,
     header_integrity_cache: C,
-    strip_response_headers: &'_ BTreeSet<String>,
-) -> HeaderIntegrityFetcherImpl<'_, F, C> {
+    strip_response_headers: &'a BTreeSet<String>,
+) -> HeaderIntegrityFetcherImpl<'a, C> {
     HeaderIntegrityFetcherImpl {
         subresource_fetcher,
         header_integrity_cache,
@@ -41,8 +41,8 @@ pub fn new_fetcher<F: Fetcher, C: HttpCache>(
     }
 }
 
-pub struct HeaderIntegrityFetcherImpl<'a, F: Fetcher, C: HttpCache> {
-    subresource_fetcher: F,
+pub struct HeaderIntegrityFetcherImpl<'a, C: HttpCache> {
+    subresource_fetcher: &'a dyn Fetcher,
     header_integrity_cache: C,
     strip_response_headers: &'a BTreeSet<String>,
 }
@@ -56,7 +56,7 @@ static ERROR_RESPONSE: Lazy<HttpResponse> = Lazy::new(|| HttpResponse {
 });
 
 #[async_trait(?Send)]
-impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcher for HeaderIntegrityFetcherImpl<'a, F, C> {
+impl<'a, C: HttpCache> HeaderIntegrityFetcher for HeaderIntegrityFetcherImpl<'a, C> {
     async fn fetch(&self, url: &str) -> Result<String> {
         let integrity_response = match self.cache_get(url).await {
             // Use cached header-integrity.
@@ -95,7 +95,7 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcher for HeaderIntegrityFet
     }
 }
 
-impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
+impl<'a, C: HttpCache> HeaderIntegrityFetcherImpl<'a, C> {
     async fn cache_get(&self, url: &str) -> Result<HttpResponse> {
         self.header_integrity_cache.get(url).await
     }
@@ -136,7 +136,7 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
         // TODO: Figure out how to reduce the amount of data cloned.
         let payload_headers = Headers::new(response.headers.clone(), self.strip_response_headers);
         let mut header_integrity_fetcher =
-            new_fetcher(NULL_FETCHER, NullCache, self.strip_response_headers);
+            new_fetcher(&NULL_FETCHER, NullCache, self.strip_response_headers);
         let (signed_headers, _) = signed_headers_and_payload(
             &fallback_base,
             response.status,
@@ -171,7 +171,7 @@ impl<'a, F: Fetcher, C: HttpCache> HeaderIntegrityFetcherImpl<'a, F, C> {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::fetcher::{NullFetcher, NULL_FETCHER};
+    use crate::fetcher::NULL_FETCHER;
     use crate::http_cache::NullCache;
     use anyhow::{anyhow, Result};
     use std::cell::RefCell;
@@ -180,8 +180,8 @@ pub mod tests {
     static EMPTY_SET: Lazy<BTreeSet<String>> = Lazy::new(BTreeSet::new);
 
     // For use in other modules' tests.
-    pub fn null_integrity_fetcher() -> HeaderIntegrityFetcherImpl<'static, NullFetcher, NullCache> {
-        new_fetcher(NULL_FETCHER, NullCache {}, &*EMPTY_SET)
+    pub fn null_integrity_fetcher() -> HeaderIntegrityFetcherImpl<'static, NullCache> {
+        new_fetcher(&NULL_FETCHER, NullCache {}, &*EMPTY_SET)
     }
 
     const TEST_URL: &str = "https://signed-exchange-testing.dev/sxgs/image.jpg";
@@ -204,11 +204,16 @@ pub mod tests {
         }
     }
 
+    static FAKE_FETCHER_WITH_TEST_RESPONSE: Lazy<FakeFetcher<'static>> = Lazy::new(|| {
+        let test_response = Box::new(TEST_RESPONSE.clone());
+        FakeFetcher(Box::leak(test_response))
+    });
+
     #[async_std::test]
     async fn computes_integrity() {
         let strip_response_headers = BTreeSet::new();
         let fetcher = new_fetcher(
-            FakeFetcher(&TEST_RESPONSE),
+            &*FAKE_FETCHER_WITH_TEST_RESPONSE,
             NullCache {},
             &strip_response_headers,
         );
@@ -251,7 +256,11 @@ pub mod tests {
         let _ = cache.put(TEST_URL, &response).await;
 
         let strip_response_headers = BTreeSet::new();
-        let fetcher = new_fetcher(FakeFetcher(&TEST_RESPONSE), cache, &strip_response_headers);
+        let fetcher = new_fetcher(
+            &*FAKE_FETCHER_WITH_TEST_RESPONSE,
+            cache,
+            &strip_response_headers,
+        );
 
         assert_eq!(fetcher.fetch(TEST_URL).await.unwrap(), "sha256-blah",);
     }
@@ -267,7 +276,11 @@ pub mod tests {
         let _ = cache.put(TEST_URL, &response).await;
 
         let strip_response_headers = BTreeSet::new();
-        let fetcher = new_fetcher(FakeFetcher(&TEST_RESPONSE), cache, &strip_response_headers);
+        let fetcher = new_fetcher(
+            &*FAKE_FETCHER_WITH_TEST_RESPONSE,
+            cache,
+            &strip_response_headers,
+        );
 
         assert_eq!(
             fetcher.fetch(TEST_URL).await.unwrap_err().to_string(),
@@ -280,7 +293,7 @@ pub mod tests {
 
         let strip_response_headers = BTreeSet::new();
         let fetcher = new_fetcher(
-            FakeFetcher(&TEST_RESPONSE),
+            &*FAKE_FETCHER_WITH_TEST_RESPONSE,
             InMemoryCache(&store),
             &strip_response_headers,
         );
@@ -322,7 +335,11 @@ pub mod tests {
         });
 
         let strip_response_headers = BTreeSet::new();
-        let fetcher = new_fetcher(FakeFetcher(&TEST_RESPONSE), cache, &strip_response_headers);
+        let fetcher = new_fetcher(
+            &*FAKE_FETCHER_WITH_TEST_RESPONSE,
+            cache,
+            &strip_response_headers,
+        );
 
         stream::iter(1..=2)
             .for_each_concurrent(None, |n| {

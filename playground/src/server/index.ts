@@ -100,19 +100,24 @@ export async function spawnSxgServer({
     sxgPayload = worker.processHtml(sxgPayload, {isSxg: true});
     const urlRecorder = subresourceCache.createRecorder();
     // TODO(PR#157): Use `handleRequest` function in `cloudflare_worker/worker/src/index.ts`.
-    const sxg = await worker.createSignedExchange({
-      fallbackUrl: innerUrl,
-      certOrigin,
-      statusCode: sxgPayload.status,
-      payloadHeaders: sxgPayload.headers,
-      payloadBody: new Uint8Array(sxgPayload.body),
-      skipProcessLink: false,
-      nowInSeconds: Date.now() / 1000,
-      signer,
-      subresourceFetcher: fetcher,
-      headerIntegrityGet: urlRecorder.get,
-      headerIntegrityPut: urlRecorder.put,
-    });
+    const sxg = await worker.createSignedExchange(
+      {
+        nowInSeconds: Date.now() / 1000,
+        sxgAsn1Signer: undefined,
+        sxgRawSigner: signer,
+        fetcher,
+      },
+      {
+        fallbackUrl: innerUrl,
+        certOrigin,
+        statusCode: sxgPayload.status,
+        payloadHeaders: sxgPayload.headers,
+        payloadBody: new Uint8Array(sxgPayload.body),
+        skipProcessLink: false,
+        headerIntegrityGet: urlRecorder.get,
+        headerIntegrityPut: urlRecorder.put,
+      }
+    );
     const subresourceUrls = isTopLevel
       ? Array.from(urlRecorder.visitedUrls())
       : [];

@@ -40,18 +40,23 @@ pub async fn main(opts: Opts) -> Result<()> {
     let payload_headers = worker
         .transform_payload_headers(vec![("content-type".into(), "text/html".into())])
         .unwrap();
-    let sxg = worker.create_signed_exchange(CreateSignedExchangeParams {
-        fallback_url: "https://test.example/",
-        cert_origin: "https://test.example",
+    let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
-        payload_body: b"This is a test.",
-        payload_headers,
-        skip_process_link: false,
-        signer: worker.create_rust_signer().unwrap(),
-        status_code: 200,
-        subresource_fetcher: NULL_FETCHER,
-        header_integrity_cache: NullCache {},
-    });
+        sxg_signer: Box::new(worker.create_rust_signer().unwrap()),
+        fetcher: Box::new(NULL_FETCHER),
+    };
+    let sxg = worker.create_signed_exchange(
+        runtime,
+        CreateSignedExchangeParams {
+            fallback_url: "https://test.example/",
+            cert_origin: "https://test.example",
+            payload_body: b"This is a test.",
+            payload_headers,
+            skip_process_link: false,
+            status_code: 200,
+            header_integrity_cache: NullCache {},
+        },
+    );
     let sxg = executor::block_on(sxg);
     fs::write(opts.out_sxg, &sxg.unwrap().body)?;
     Ok(())

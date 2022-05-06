@@ -95,26 +95,29 @@ fn fetch_from_html_server(url: &Url, req_headers: Vec<(String, String)>) -> Resu
 }
 
 fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Response> {
-    let signer = WORKER.create_rust_signer()?;
     let payload_headers = get_rsp_header_fields(&payload)?;
     let payload_body = payload.into_body_bytes();
     let cert_origin = fallback_url.origin().ascii_serialization();
-    let subresource_fetcher = FastlyFetcher::new("subresources");
-    let sxg = WORKER.create_signed_exchange(sxg_rs::CreateSignedExchangeParams {
+    let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
-        payload_body: &payload_body,
-        payload_headers,
-        skip_process_link: false,
-        signer,
-        status_code: 200,
-        fallback_url: fallback_url.as_str(),
-        cert_origin: &cert_origin,
-        subresource_fetcher,
-        // The fastly crate provides only read access to dictionaries, so
-        // header integrities cannot be cached. However, I believe the
-        // subresource_fetcher will go through the cache.
-        header_integrity_cache: sxg_rs::http_cache::NullCache {},
-    });
+        sxg_signer: Box::new(WORKER.create_rust_signer()?),
+        fetcher: Box::new(FastlyFetcher::new("subresources")),
+    };
+    let sxg = WORKER.create_signed_exchange(
+        runtime,
+        sxg_rs::CreateSignedExchangeParams {
+            payload_body: &payload_body,
+            payload_headers,
+            skip_process_link: false,
+            status_code: 200,
+            fallback_url: fallback_url.as_str(),
+            cert_origin: &cert_origin,
+            // The fastly crate provides only read access to dictionaries, so
+            // header integrities cannot be cached. However, I believe the
+            // subresource_fetcher will go through the cache.
+            header_integrity_cache: sxg_rs::http_cache::NullCache {},
+        },
+    );
     let sxg = block_on(sxg)?;
     sxg_rs_response_to_fastly_response(sxg)
 }

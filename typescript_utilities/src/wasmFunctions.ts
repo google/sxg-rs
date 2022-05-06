@@ -52,6 +52,13 @@ export type PresetContent =
       fallback: WasmResponse;
     };
 
+export type JsRuntimeInitParams = {
+  nowInSeconds: number;
+  fetcher: ((request: WasmRequest) => Promise<WasmResponse>) | undefined;
+  sxgAsn1Signer: ((input: Uint8Array) => Promise<Uint8Array>) | undefined;
+  sxgRawSigner: ((input: Uint8Array) => Promise<Uint8Array>) | undefined;
+};
+
 export type CreateSignedExchangedOptions = {
   fallbackUrl: string;
   certOrigin: string;
@@ -59,9 +66,6 @@ export type CreateSignedExchangedOptions = {
   payloadHeaders: HeaderFields;
   payloadBody: Uint8Array;
   skipProcessLink: boolean;
-  nowInSeconds: number;
-  signer: (input: Uint8Array) => Promise<Uint8Array>;
-  subresourceFetcher: (request: WasmRequest) => Promise<WasmResponse>;
   headerIntegrityGet: (url: string) => Promise<WasmResponse>;
   headerIntegrityPut: (url: string, response: WasmResponse) => Promise<void>;
 };
@@ -78,7 +82,10 @@ export interface WasmWorker {
     fields: HeaderFields
   ): HeaderFields;
   processHtml(input: WasmResponse, option: ProcessHtmlOption): WasmResponse;
-  createSignedExchange(options: CreateSignedExchangedOptions): WasmResponse;
+  createSignedExchange(
+    runtime: JsRuntimeInitParams,
+    options: CreateSignedExchangedOptions
+  ): WasmResponse;
   fetchOcspFromCa(
     fetcher: (request: WasmRequest) => Promise<WasmResponse>
   ): Uint8Array;
