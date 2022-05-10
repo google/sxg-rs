@@ -42,9 +42,9 @@ pub async fn main(opts: Opts) -> Result<()> {
         .unwrap();
     let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
-        storage: Box::new(sxg_rs::storage::InMemoryStorage::new()),
         sxg_signer: Box::new(worker.create_rust_signer().unwrap()),
         fetcher: Box::new(NULL_FETCHER),
+        ..Default::default()
     };
     let sxg = worker.create_signed_exchange(
         &runtime,

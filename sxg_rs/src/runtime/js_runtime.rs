@@ -36,7 +36,6 @@ extern "C" {
     fn sxg_asn1_signer(this: &JsRuntimeInitParams) -> Option<JsFunction>;
     #[wasm_bindgen(method, getter, js_name = "sxgRawSigner")]
     fn sxg_raw_signer(this: &JsRuntimeInitParams) -> Option<JsFunction>;
-
 }
 
 impl std::convert::TryFrom<JsRuntimeInitParams> for Runtime {

@@ -409,12 +409,7 @@ validity_url_dirname: "//.well-known/sxg-validity"
     #[tokio::test]
     async fn serve_preset_content() {
         let worker = new_worker();
-        let runtime = Runtime {
-            now: std::time::SystemTime::UNIX_EPOCH,
-            fetcher: Box::new(crate::fetcher::NullFetcher),
-            storage: Box::new(crate::storage::InMemoryStorage::new()),
-            sxg_signer: Box::new(crate::signature::mock_signer::MockSigner),
-        };
+        let runtime = Runtime::default();
         assert_eq!(
             worker
                 .serve_preset_content(&runtime, "https://my_domain.com/unknown",)
