@@ -36,44 +36,54 @@ use directory::{
     NewAccountRequestPayload, NewAccountResponsePayload, NewOrderRequestPayload, Order, Status,
 };
 use polling_timer::PoolingTimer;
+use std::sync::Arc;
+
+pub struct Account {
+    server_directory: Arc<Directory>,
+    account_url: String,
+    domain: String,
+    cert_request_der: Vec<u8>,
+    public_key_thumbprint: String,
+}
 
 /// The runtime context of an ongoing ACME certificate request, which is
 /// waiting for HTTP challenge.
 pub struct OngoingCertificateRequest {
     authorization_url: String,
-    cert_request_der: Vec<u8>,
     challenge: Challenge,
     pub challenge_answer: String,
-    client: Client,
     order_url: String,
     finalize_url: String,
 }
 
-pub struct AcmeStartupParams<'a> {
-    pub directory_url: &'a str,
+pub struct AccountSetupParams<'a> {
+    pub directory_url: String,
     /// This must be the same as what required by ACME server.
     pub agreed_terms_of_service: &'a str,
     pub external_account_binding: Option<jws::JsonWebSignature>,
     pub email: &'a str,
-    pub domain: &'a str,
+    pub domain: String,
     pub public_key: EcPublicKey,
     pub cert_request_der: Vec<u8>,
 }
 
 /// Connects to ACME server to request a certificate, stops after generating
 /// HTTP challenge answer, and returns the running context of this application.
-pub async fn create_request_and_get_challenge_answer(
-    params: AcmeStartupParams<'_>,
+pub async fn create_account(
+    params: AccountSetupParams<'_>,
     fetcher: &dyn Fetcher,
     acme_signer: &dyn Signer,
-) -> Result<OngoingCertificateRequest> {
+) -> Result<Account> {
     let public_key_thumbprint = base64::encode_config(
         params.public_key.get_jwk_thumbprint()?,
         base64::URL_SAFE_NO_PAD,
     );
-    let directory = Directory::new(params.directory_url, fetcher).await?;
-    let mut client =
-        Client::new(directory, client::AuthMethod::JsonWebKey(params.public_key)).await?;
+    let directory = Arc::new(Directory::new(&params.directory_url, fetcher).await?);
+    let mut client = Client::new(
+        directory.clone(),
+        client::AuthMethod::JsonWebKey(params.public_key),
+    )
+    .await?;
     if params.agreed_terms_of_service != client.directory.meta.terms_of_service {
         return Err(anyhow!(
             "Please read and include the terms of service {}",
@@ -107,12 +117,30 @@ pub async fn create_request_and_get_challenge_answer(
         }
         client::find_header(&response, "Location")?
     };
-    client.auth_method = AuthMethod::KeyId(account_url);
+    Ok(Account {
+        server_directory: client.directory,
+        cert_request_der: params.cert_request_der,
+        public_key_thumbprint,
+        domain: params.domain,
+        account_url,
+    })
+}
+
+pub async fn place_new_order(
+    account: &Account,
+    fetcher: &dyn Fetcher,
+    acme_signer: &dyn Signer,
+) -> Result<OngoingCertificateRequest> {
+    let mut client = Client::new(
+        account.server_directory.clone(),
+        AuthMethod::KeyId(account.account_url.clone()),
+    )
+    .await?;
     let (order, order_url) = {
         let request_payload = NewOrderRequestPayload {
             identifiers: vec![Identifier {
                 r#type: IdentifierType::Dns,
-                value: params.domain.to_string(),
+                value: account.domain.clone(),
             }],
             not_before: None,
             not_after: None,
@@ -139,13 +167,11 @@ pub async fn create_request_and_get_challenge_answer(
         get_http_challenge(&mut client, &authorization_url, fetcher, acme_signer).await?;
 
     // https://datatracker.ietf.org/doc/html/rfc8555#section-8.1
-    let challenge_answer = format!("{}.{}", challenge.token, public_key_thumbprint);
+    let challenge_answer = format!("{}.{}", challenge.token, account.public_key_thumbprint);
     Ok(OngoingCertificateRequest {
         authorization_url,
-        cert_request_der: params.cert_request_der,
         challenge,
         challenge_answer,
-        client,
         order_url,
         finalize_url: order.finalize,
     })
@@ -154,19 +180,23 @@ pub async fn create_request_and_get_challenge_answer(
 /// Notifies the server to validate HTTP challenge, polls the request status
 /// until it is ready, and returns the certificate in PEM format.
 pub async fn continue_challenge_validation_and_get_certificate(
+    account: &Account,
     ongoing_certificate_request: OngoingCertificateRequest,
     fetcher: &dyn Fetcher,
     acme_signer: &dyn Signer,
 ) -> Result<String> {
     let OngoingCertificateRequest {
         authorization_url,
-        cert_request_der,
         challenge,
         challenge_answer: _,
-        mut client,
         order_url,
         finalize_url,
     } = ongoing_certificate_request;
+    let mut client = Client::new(
+        account.server_directory.clone(),
+        AuthMethod::KeyId(account.account_url.clone()),
+    )
+    .await?;
     // https://datatracker.ietf.org/doc/html/rfc8555#section-7.5.1
     // The client indicates to the server that it is ready for the challenge
     // validation by sending an empty JSON body ("{}") carried in a POST
@@ -204,7 +234,7 @@ pub async fn continue_challenge_validation_and_get_certificate(
         .post_with_payload(
             finalize_url,
             FinalizeRequest {
-                csr: &base64::encode_config(cert_request_der, base64::URL_SAFE_NO_PAD),
+                csr: &base64::encode_config(&account.cert_request_der, base64::URL_SAFE_NO_PAD),
             },
             fetcher,
             acme_signer,
@@ -287,13 +317,13 @@ mod tests {
         };
         // The client is handled by the code in `sxg_rs::acme`.
         let client_thread = async {
-            let ongoing_certificate_request = create_request_and_get_challenge_answer(
-                AcmeStartupParams {
-                    directory_url: "https://acme.server/",
+            let acme_account = create_account(
+                AccountSetupParams {
+                    directory_url: "https://acme.server/".to_string(),
                     agreed_terms_of_service: "https://acme.server/terms_of_service.pdf",
                     external_account_binding: None,
                     email: "admin@example.com",
-                    domain: "example.com",
+                    domain: "example.com".to_string(),
                     public_key,
                     cert_request_der: "csr content".to_string().into_bytes(),
                 },
@@ -302,8 +332,16 @@ mod tests {
             )
             .await
             .unwrap();
+            let ongoing_certificate_request = place_new_order(
+                &acme_account,
+                runtime.fetcher.as_ref(),
+                runtime.acme_signer.as_ref(),
+            )
+            .await
+            .unwrap();
             assert_eq!(&ongoing_certificate_request.challenge_answer, "0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.CmzeuaSxxfG8gIKRU_AgBzPa16nTt0H64JD7q1sZUUY");
             let certificate_pem = continue_challenge_validation_and_get_certificate(
+                &acme_account,
                 ongoing_certificate_request,
                 runtime.fetcher.as_ref(),
                 runtime.acme_signer.as_ref(),
@@ -397,8 +435,21 @@ mod tests {
             server.handle_next_request(req, res).await.unwrap();
 
             let req = HttpRequest {
+                body: vec![],
+                method: Method::Get,
+                headers: vec![],
+                url: "https://acme.server/new-nonce".to_string(),
+            };
+            let res = HttpResponse {
+                status: 200,
+                headers: vec![("Replay-Nonce".to_string(), "3".to_string())],
+                body: vec![],
+            };
+            server.handle_next_request(req, res).await.unwrap();
+
+            let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
-                    r#"{"alg":"ES256","nonce":"2","url":"https://acme.server/new-order","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
+                    r#"{"alg":"ES256","nonce":"3","url":"https://acme.server/new-order","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
                     r#"{"identifiers":[{"type":"dns","value":"example.com"}],"notBefore":null,"notAfter":null}"#,
                     &signer,
                 ).await.unwrap()).unwrap(),
@@ -412,7 +463,7 @@ mod tests {
             let res = HttpResponse {
                 status: 200,
                 headers: vec![
-                    ("Replay-Nonce".to_string(), "3".to_string()),
+                    ("Replay-Nonce".to_string(), "4".to_string()),
                     (
                         "Location".to_string(),
                         "https://acme.server/order/46540038".to_string(),
@@ -439,7 +490,7 @@ mod tests {
 
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
-                    r#"{"alg":"ES256","nonce":"3","url":"https://acme.server/authz-v3/1866692048","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
+                    r#"{"alg":"ES256","nonce":"4","url":"https://acme.server/authz-v3/1866692048","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
                     "",
                     &signer,
                 ).await.unwrap()).unwrap(),
@@ -452,7 +503,7 @@ mod tests {
             };
             let res = HttpResponse {
                 status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "4".to_string())],
+                headers: vec![("Replay-Nonce".to_string(), "5".to_string())],
                 body: r#"{
                     "identifier": {
                         "type": "dns",
@@ -487,8 +538,21 @@ mod tests {
             server.handle_next_request(req, res).await.unwrap();
 
             let req = HttpRequest {
+                body: vec![],
+                method: Method::Get,
+                headers: vec![],
+                url: "https://acme.server/new-nonce".to_string(),
+            };
+            let res = HttpResponse {
+                status: 200,
+                headers: vec![("Replay-Nonce".to_string(), "6".to_string())],
+                body: vec![],
+            };
+            server.handle_next_request(req, res).await.unwrap();
+
+            let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
-                    r#"{"alg":"ES256","nonce":"4","url":"https://acme.server/chall-v3/1866692048/oFAcwQ","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
+                    r#"{"alg":"ES256","nonce":"6","url":"https://acme.server/chall-v3/1866692048/oFAcwQ","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
                     "{}",
                     &signer,
                 ).await.unwrap()).unwrap(),
@@ -501,7 +565,7 @@ mod tests {
             };
             let res = HttpResponse {
                 status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "5".to_string())],
+                headers: vec![("Replay-Nonce".to_string(), "7".to_string())],
                 body: r#"{
                     "type": "http-01",
                     "status": "pending",
@@ -515,7 +579,7 @@ mod tests {
 
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
-                    r#"{"alg":"ES256","nonce":"5","url":"https://acme.server/authz-v3/1866692048","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
+                    r#"{"alg":"ES256","nonce":"7","url":"https://acme.server/authz-v3/1866692048","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
                     "",
                     &signer,
                 ).await.unwrap()).unwrap(),
@@ -528,7 +592,7 @@ mod tests {
             };
             let res = HttpResponse {
                 status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "6".to_string())],
+                headers: vec![("Replay-Nonce".to_string(), "8".to_string())],
                 body: r#"{
                     "identifier": {
                         "type": "dns",
@@ -553,7 +617,7 @@ mod tests {
 
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
-                    r#"{"alg":"ES256","nonce":"6","url":"https://acme.server/finalize/46540038/1977802858","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
+                    r#"{"alg":"ES256","nonce":"8","url":"https://acme.server/finalize/46540038/1977802858","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
                     r#"{"csr":"Y3NyIGNvbnRlbnQ"}"#,
                     &signer,
                 ).await.unwrap()).unwrap(),
@@ -566,7 +630,7 @@ mod tests {
             };
             let res = HttpResponse {
                 status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "7".to_string())],
+                headers: vec![("Replay-Nonce".to_string(), "9".to_string())],
                 body: r#"{
                     "status": "processing",
                     "expires": "2022-03-15T19:38:31Z",
@@ -588,7 +652,7 @@ mod tests {
 
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
-                    r#"{"alg":"ES256","nonce":"7","url":"https://acme.server/order/46540038","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
+                    r#"{"alg":"ES256","nonce":"9","url":"https://acme.server/order/46540038","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
                     "",
                     &signer,
                 ).await.unwrap()).unwrap(),
@@ -601,7 +665,7 @@ mod tests {
             };
             let res = HttpResponse {
                 status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "8".to_string())],
+                headers: vec![("Replay-Nonce".to_string(), "10".to_string())],
                 body: r#"{
                     "status": "valid",
                     "expires": "2022-03-15T19:38:31Z",
@@ -624,7 +688,7 @@ mod tests {
 
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
-                    r#"{"alg":"ES256","nonce":"8","url":"https://acme.server/cert/fa7af446e23117a13137f4cf64f24c3cdb5b","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
+                    r#"{"alg":"ES256","nonce":"10","url":"https://acme.server/cert/fa7af446e23117a13137f4cf64f24c3cdb5b","jwk":null,"kid":"https://acme.server/acct/123456"}"#,
                     "",
                     &signer,
                 ).await.unwrap()).unwrap(),
@@ -637,7 +701,7 @@ mod tests {
             };
             let res = HttpResponse {
                 status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "9".to_string())],
+                headers: vec![("Replay-Nonce".to_string(), "11".to_string())],
                 body: "content of certificate".to_string().into_bytes(),
             };
             server.handle_next_request(req, res).await.unwrap();
