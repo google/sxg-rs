@@ -103,16 +103,22 @@ pub async fn main(opts: Opts) -> Result<()> {
             ))
         }
     };
-    let ongoing_certificate_request = sxg_rs::acme::create_request_and_get_challenge_answer(
-        sxg_rs::acme::AcmeStartupParams {
-            directory_url: &opts.acme_server,
+    let acme_account = sxg_rs::acme::create_account(
+        sxg_rs::acme::AccountSetupParams {
+            directory_url: opts.acme_server.clone(),
             agreed_terms_of_service: &opts.agreed_terms_of_service,
             external_account_binding,
             email: &opts.email,
-            domain: &opts.domain,
+            domain: opts.domain.clone(),
             public_key: acme_private_key.public_key,
             cert_request_der: sxg_cert_request_der,
         },
+        runtime.fetcher.as_ref(),
+        runtime.acme_signer.as_ref(),
+    )
+    .await?;
+    let ongoing_certificate_request = sxg_rs::acme::place_new_order(
+        &acme_account,
         runtime.fetcher.as_ref(),
         runtime.acme_signer.as_ref(),
     )
@@ -123,6 +129,7 @@ pub async fn main(opts: Opts) -> Result<()> {
     );
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     let certificate_pem = sxg_rs::acme::continue_challenge_validation_and_get_certificate(
+        &acme_account,
         ongoing_certificate_request,
         runtime.fetcher.as_ref(),
         runtime.acme_signer.as_ref(),
