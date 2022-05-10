@@ -10,7 +10,7 @@
     "@types/jasmine": "4.0.3",
     "esbuild": "0.14.38",
     "gts": "3.1.0",
-    "jasmine-core": "4.1.0",
+    "jasmine-core": "4.1.1",
     "karma": "6.3.19",
     "karma-chrome-launcher": "3.1.1",
     "karma-jasmine": "4.0.2"
