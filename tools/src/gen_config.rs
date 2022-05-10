@@ -12,12 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::{Error, Result};
-use console::Term;
-use dialoguer::{Input, Select};
+use anyhow::{anyhow, Error, Result};
+use clap::Parser;
 use serde::{Deserialize, Serialize};
 use wrangler::settings::global_user::GlobalUser;
 use wrangler::settings::toml::ConfigKvNamespace;
+
+#[derive(Debug, Parser)]
+#[clap(allow_hyphen_values = true)]
+pub struct Opts {
+    #[clap(long)]
+    cloudflare_account_id: Option<String>,
+    #[clap(long)]
+    cloudflare_zone_id: Option<String>,
+    #[clap(long)]
+    /// Your domain registered in Cloudflare
+    html_host: String,
+    #[clap(long, default_value_t=String::from("credentials/cert.pem"))]
+    cert_file: String,
+    #[clap(long, default_value_t=String::from("credentials/issuer.pem"))]
+    issuer_file: String,
+    #[clap(long)]
+    /// Deploy the worker only on 'workers.dev'.
+    /// Google SXG cache requires this parameter to be false (to be not set).
+    deploy_on_workers_dev_only: bool,
+}
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -111,9 +130,9 @@ fn read_certificate_pem_file(path: &str) -> Result<String> {
 
 // Read and parse both `cert.pem` and `issuer.pem`.
 // Panics on error.
-fn read_certificates() -> (String, String) {
-    let cert = read_certificate_pem_file("credentials/cert.pem");
-    let issuer = read_certificate_pem_file("credentials/issuer.pem");
+fn read_certificates(cert_path: &str, issuer_path: &str) -> (String, String) {
+    let cert = read_certificate_pem_file(cert_path);
+    let issuer = read_certificate_pem_file(issuer_path);
     if let (Ok(cert), Ok(issuer)) = (&cert, &issuer) {
         println!("Successfully read certificates");
         return (cert.to_string(), issuer.to_string());
@@ -152,46 +171,26 @@ fn read_existing_config() -> (WranglerConfig, bool) {
     (wrangler_config, exists)
 }
 
-pub fn main() -> Result<()> {
+pub fn main(opts: Opts) -> Result<()> {
     goto_repository_root()?;
-    let (cert_pem, issuer_pem) = read_certificates();
+    let (cert_pem, issuer_pem) = read_certificates(&opts.cert_file, &opts.issuer_file);
     let (mut wrangler_config, exists) = read_existing_config();
     wrangler_config.vars.cert_pem = cert_pem;
     wrangler_config.vars.issuer_pem = issuer_pem;
-    // TODO: Remove interactive part, and allow user to create a file for these values.
+    // TODO: Tell the user that they can create an sh script to store all CLI args.
     if !exists {
-        // Show cursor again, if user hits Ctrl-C during the Select dialog.
-        ctrlc::set_handler(|| Term::stdout().show_cursor().unwrap()).ok();
         let user = get_global_user();
-        wrangler_config.account_id = Input::new()
-            .with_prompt("What's your Cloudflare account ID?")
-            .interact_text()
-            .unwrap();
-        wrangler_config.zone_id = Input::new()
-            .with_prompt("What's your Cloudflare zone ID?")
-            .interact_text()
-            .unwrap();
-        let html_host = Input::new()
-            .with_prompt("What's your domain registered in Cloudflare?")
-            .validate_with(|s: &String| -> Result<(), url::ParseError> {
-                url::Host::parse(s)?;
-                Ok(())
-            })
-            .interact_text()
-            .unwrap();
-        let target = Select::new()
-            .with_prompt("Where do you want to deploy the worker?")
-            .items(&[
-                "On your domain (recommended; required by Google SXG Cache)",
-                "On workers.dev (development only)",
-            ])
-            .default(0)
-            .interact()
-            .unwrap();
-        if target == 1 {
+        wrangler_config.account_id = opts
+            .cloudflare_account_id
+            .ok_or_else(|| anyhow!("Please specify you Cloudflare account ID"))?;
+        wrangler_config.zone_id = opts
+            .cloudflare_zone_id
+            .ok_or_else(|| anyhow!("Please specify you Cloudflare zone ID"))?;
+        let html_host = &opts.html_host;
+        if opts.deploy_on_workers_dev_only {
             wrangler_config.routes = vec![];
             wrangler_config.workers_dev = Some(true);
-            wrangler_config.vars.html_host = html_host;
+            wrangler_config.vars.html_host = html_host.clone();
         } else {
             wrangler_config.routes = vec![
                 format!("{}/*", html_host),

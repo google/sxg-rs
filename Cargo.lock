@@ -1053,17 +1053,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dialoguer"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8c8ae48e400addc32a8710c8d62d55cb84249a7d58ac4cd959daecfbaddc545"
-dependencies = [
- "console 0.15.0",
- "tempfile",
- "zeroize",
-]
-
-[[package]]
 name = "difflib"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3988,10 +3977,8 @@ dependencies = [
  "base64",
  "clap 3.1.17",
  "cloudflare",
- "console 0.15.0",
  "ctrlc",
  "der-parser",
- "dialoguer",
  "futures",
  "http",
  "hyper",
