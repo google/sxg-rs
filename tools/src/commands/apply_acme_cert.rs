@@ -16,8 +16,8 @@ use anyhow::{Error, Result};
 use clap::Parser;
 use warp::Filter;
 
-use crate::hyper_fetcher::HyperFetcher;
 use crate::linux_commands::{create_certificate_request_pem, read_or_create_private_key_pem};
+use crate::runtime::hyper_fetcher::HyperFetcher;
 use sxg_rs::acme::directory::Directory;
 use sxg_rs::acme::eab::create_external_account_binding;
 
@@ -81,7 +81,7 @@ pub async fn main(opts: Opts) -> Result<()> {
     let external_account_binding = match (&opts.eab_key_id, &opts.eab_mac_key) {
         (Some(eab_key_id), Some(eab_mac_key)) => {
             let eab_mac_key = base64::decode_config(eab_mac_key, base64::URL_SAFE_NO_PAD)?;
-            let eab_signer = super::openssl_signer::OpensslSigner::Hmac(&eab_mac_key);
+            let eab_signer = crate::runtime::openssl_signer::OpensslSigner::Hmac(&eab_mac_key);
             let new_account_url = Directory::new(&opts.acme_server, runtime.fetcher.as_ref())
                 .await?
                 .new_account;

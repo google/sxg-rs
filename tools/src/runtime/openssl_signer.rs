@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::linux_commands::{execute, execute_and_parse_stdout};
+use crate::linux_commands::{execute, execute_and_parse_stdout};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::process::Command;
