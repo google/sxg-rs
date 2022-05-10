@@ -37,8 +37,8 @@ pub async fn create_external_account_binding(
     kid: &str,
     url: &str,
     public_key: &EcPublicKey,
-    signer: &dyn Signer,
+    hmac_signer: &dyn Signer,
 ) -> Result<JsonWebSignature> {
     let protected_header = EabProtectedHeader { alg, kid, url };
-    JsonWebSignature::new(protected_header, /*payload=*/ Some(public_key), signer).await
+    JsonWebSignature::new(protected_header, /*payload=*/ Some(public_key), hmac_signer).await
 }
