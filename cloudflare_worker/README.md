@@ -53,7 +53,13 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    ```
    All following steps in this `README.md` should be done in this folder.
 
-1. Run `cargo run -p tools -- gen-config` and follow the command line prompt.
+1. Run following command.
+   ```bash
+      cargo run -p tools -- gen-config \
+        --html-host $YOUR_DOMAIN \
+        --cloudflare-account-id $ACCOUNT_ID \
+        --cloudflare-zone-id $ZONE_ID
+   ```
    This command will creates a `wrangler.toml` that can be modified futher if desired.
 
    - To find Cloudflare **account ID** and **zone ID**,

@@ -26,7 +26,7 @@ use clap::Parser;
 #[derive(Parser)]
 enum SubCommand {
     ApplyAcmeCert(apply_acme_cert::Opts),
-    GenConfig,
+    GenConfig(gen_config::Opts),
     GenDevCert(gen_dev_cert::Opts),
     GenSxg(gen_sxg::Opts),
 }
@@ -41,7 +41,7 @@ struct Opts {
 async fn main() -> Result<()> {
     match Opts::parse().sub_command {
         SubCommand::ApplyAcmeCert(opts) => apply_acme_cert::main(opts).await,
-        SubCommand::GenConfig => gen_config::main(),
+        SubCommand::GenConfig(opts) => gen_config::main(opts),
         SubCommand::GenSxg(opts) => gen_sxg::main(opts).await,
         SubCommand::GenDevCert(opts) => gen_dev_cert::main(opts),
     }
