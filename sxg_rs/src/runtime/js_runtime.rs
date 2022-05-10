@@ -36,6 +36,9 @@ extern "C" {
     fn sxg_asn1_signer(this: &JsRuntimeInitParams) -> Option<JsFunction>;
     #[wasm_bindgen(method, getter, js_name = "sxgRawSigner")]
     fn sxg_raw_signer(this: &JsRuntimeInitParams) -> Option<JsFunction>;
+    #[wasm_bindgen(method, getter, js_name = "AcmeRawSigner")]
+    fn acme_raw_signer(this: &JsRuntimeInitParams) -> Option<JsFunction>;
+
 }
 
 impl std::convert::TryFrom<JsRuntimeInitParams> for Runtime {
@@ -54,11 +57,15 @@ impl std::convert::TryFrom<JsRuntimeInitParams> for Runtime {
             .sxg_raw_signer()
             .map(|f| Box::new(JsSigner::from_raw_signer(f)) as Box<dyn Signer>);
         let sxg_signer = sxg_asn1_signer.or(sxg_raw_signer);
+        let acme_signer = input
+            .acme_raw_signer()
+            .map(|f| Box::new(JsSigner::from_raw_signer(f)) as Box<dyn Signer>);
         Ok(Runtime {
             now,
             fetcher: fetcher.unwrap_or_else(|| Box::new(NullFetcher)),
             storage,
             sxg_signer: sxg_signer.unwrap_or_else(|| Box::new(MockSigner)),
+            acme_signer: acme_signer.unwrap_or_else(|| Box::new(MockSigner)),
         })
     }
 }

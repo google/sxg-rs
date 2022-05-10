@@ -39,7 +39,7 @@ pub struct Directory {
 
 impl Directory {
     /// Constructs an ACME directory by fetching the given ACME directory URL.
-    pub async fn new<F: Fetcher>(url: &str, fetcher: &F) -> Result<Self> {
+    pub async fn new(url: &str, fetcher: &dyn Fetcher) -> Result<Self> {
         let bytes = fetcher
             .get(url)
             .await

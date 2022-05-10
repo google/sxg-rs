@@ -22,12 +22,10 @@ use crate::signature::Signer;
 use anyhow::{anyhow, Error, Result};
 use serde::{Deserialize, Serialize};
 
-pub struct Client<F: Fetcher, S: Signer> {
+pub struct Client {
     pub directory: Directory,
     pub auth_method: AuthMethod,
     nonce: Option<String>,
-    fetcher: F,
-    signer: S,
 }
 
 pub enum AuthMethod {
@@ -35,19 +33,12 @@ pub enum AuthMethod {
     KeyId(String),
 }
 
-impl<F: Fetcher, S: Signer> Client<F, S> {
-    pub async fn new(
-        directory: Directory,
-        auth_method: AuthMethod,
-        fetcher: F,
-        signer: S,
-    ) -> Result<Self> {
+impl Client {
+    pub async fn new(directory: Directory, auth_method: AuthMethod) -> Result<Self> {
         Ok(Client {
             directory,
             auth_method,
             nonce: None,
-            fetcher,
-            signer,
         })
     }
     /// Fetches a server resource at given URL using
@@ -56,9 +47,14 @@ impl<F: Fetcher, S: Signer> Client<F, S> {
     /// function is useful because an ACME server always returns error code
     /// `405` for `GET` requests, which don't contain request body for
     /// authentication.
-    pub async fn post_as_get(&mut self, url: String) -> Result<HttpResponse> {
+    pub async fn post_as_get(
+        &mut self,
+        url: String,
+        fetcher: &dyn Fetcher,
+        acme_signer: &dyn Signer,
+    ) -> Result<HttpResponse> {
         let payload: Option<()> = None;
-        self.post_impl(url, payload).await
+        self.post_impl(url, payload, fetcher, acme_signer).await
     }
     /// Fetches a server resource at given URL using `POST` method with a
     /// request payload.
@@ -66,8 +62,11 @@ impl<F: Fetcher, S: Signer> Client<F, S> {
         &mut self,
         url: String,
         payload: P,
+        fetcher: &dyn Fetcher,
+        acme_signer: &dyn Signer,
     ) -> Result<HttpResponse> {
-        self.post_impl(url, Some(payload)).await
+        self.post_impl(url, Some(payload), fetcher, acme_signer)
+            .await
     }
     /// Encapsulates the payload in JWS for authentication, connects to the ACME
     /// server, saves `nonce` for next request, and returns the server response.
@@ -75,14 +74,16 @@ impl<F: Fetcher, S: Signer> Client<F, S> {
         &mut self,
         url: String,
         payload: Option<P>,
+        fetcher: &dyn Fetcher,
+        acme_signer: &dyn Signer,
     ) -> Result<HttpResponse> {
-        let nonce = self.take_nonce().await?;
+        let nonce = self.take_nonce(fetcher).await?;
         let (jwk, key_id) = match &self.auth_method {
             AuthMethod::JsonWebKey(public_key) => (Some(public_key), None),
             AuthMethod::KeyId(key_id) => (None, Some(key_id.as_str())),
         };
         let request_body =
-            super::jws::create_acme_request_body(jwk, key_id, nonce, &url, payload, &self.signer)
+            super::jws::create_acme_request_body(jwk, key_id, nonce, &url, payload, acme_signer)
                 .await?;
         let request = HttpRequest {
             url: url.clone(),
@@ -93,7 +94,7 @@ impl<F: Fetcher, S: Signer> Client<F, S> {
             )],
             body: request_body,
         };
-        let response = self.fetcher.fetch(request).await?;
+        let response = fetcher.fetch(request).await?;
         if let Ok(nonce) = find_header(&response, "Replay-Nonce") {
             let _ = self.nonce.insert(nonce);
         }
@@ -101,21 +102,21 @@ impl<F: Fetcher, S: Signer> Client<F, S> {
     }
     /// If `self.nonce` exists, deletes and returns it;
     /// if there is no `nonce`, fetches a new one and returns it.
-    async fn take_nonce(&mut self) -> Result<String> {
+    async fn take_nonce(&mut self, fetcher: &dyn Fetcher) -> Result<String> {
         match self.nonce.take() {
             Some(nonce) => Ok(nonce),
-            None => self.fetch_new_nonce().await,
+            None => self.fetch_new_nonce(fetcher).await,
         }
     }
     /// Fetches a new `nonce` from the server.
-    async fn fetch_new_nonce(&self) -> Result<String> {
+    async fn fetch_new_nonce(&self, fetcher: &dyn Fetcher) -> Result<String> {
         let request = HttpRequest {
             method: Method::Get,
             headers: vec![],
             url: self.directory.new_nonce.clone(),
             body: vec![],
         };
-        let response = self.fetcher.fetch(request).await?;
+        let response = fetcher.fetch(request).await?;
         find_header(&response, "Replay-Nonce")
     }
 }

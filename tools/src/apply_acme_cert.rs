@@ -73,13 +73,16 @@ pub async fn main(opts: Opts) -> Result<()> {
         )?;
         sxg_rs::crypto::get_der_from_pem(&cert_request_pem, "CERTIFICATE REQUEST")?
     };
-    let signer = acme_private_key.create_signer()?;
-    let fetcher = HyperFetcher::new();
+    let runtime = sxg_rs::runtime::Runtime {
+        acme_signer: Box::new(acme_private_key.create_signer()?),
+        fetcher: Box::new(HyperFetcher::new()),
+        ..Default::default()
+    };
     let external_account_binding = match (&opts.eab_key_id, &opts.eab_mac_key) {
         (Some(eab_key_id), Some(eab_mac_key)) => {
             let eab_mac_key = base64::decode_config(eab_mac_key, base64::URL_SAFE_NO_PAD)?;
             let eab_signer = super::openssl_signer::OpensslSigner::Hmac(&eab_mac_key);
-            let new_account_url = Directory::new(&opts.acme_server, &fetcher)
+            let new_account_url = Directory::new(&opts.acme_server, runtime.fetcher.as_ref())
                 .await?
                 .new_account;
             let eab = create_external_account_binding(
@@ -100,8 +103,8 @@ pub async fn main(opts: Opts) -> Result<()> {
             ))
         }
     };
-    let ongoing_certificate_request =
-        sxg_rs::acme::create_request_and_get_challenge_answer(sxg_rs::acme::AcmeStartupParams {
+    let ongoing_certificate_request = sxg_rs::acme::create_request_and_get_challenge_answer(
+        sxg_rs::acme::AcmeStartupParams {
             directory_url: &opts.acme_server,
             agreed_terms_of_service: &opts.agreed_terms_of_service,
             external_account_binding,
@@ -109,10 +112,11 @@ pub async fn main(opts: Opts) -> Result<()> {
             domain: &opts.domain,
             public_key: acme_private_key.public_key,
             cert_request_der: sxg_cert_request_der,
-            fetcher,
-            signer,
-        })
-        .await?;
+        },
+        runtime.fetcher.as_ref(),
+        runtime.acme_signer.as_ref(),
+    )
+    .await?;
     let tx = start_warp_server(
         opts.port,
         ongoing_certificate_request.challenge_answer.clone(),
@@ -120,6 +124,8 @@ pub async fn main(opts: Opts) -> Result<()> {
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     let certificate_pem = sxg_rs::acme::continue_challenge_validation_and_get_certificate(
         ongoing_certificate_request,
+        runtime.fetcher.as_ref(),
+        runtime.acme_signer.as_ref(),
     )
     .await?;
     let _ = tx.send(());

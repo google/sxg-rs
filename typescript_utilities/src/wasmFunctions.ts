@@ -59,6 +59,7 @@ export type JsRuntimeInitParams = {
   storageWrite: ((k: string, v: string) => Promise<void>) | undefined;
   sxgAsn1Signer: ((input: Uint8Array) => Promise<Uint8Array>) | undefined;
   sxgRawSigner: ((input: Uint8Array) => Promise<Uint8Array>) | undefined;
+  acmeRawSigner: ((input: Uint8Array) => Promise<Uint8Array>) | undefined;
 };
 
 export type CreateSignedExchangedOptions = {

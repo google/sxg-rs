@@ -25,6 +25,7 @@ pub struct Runtime {
     pub fetcher: Box<dyn Fetcher>,
     pub storage: Box<dyn Storage>,
     pub sxg_signer: Box<dyn Signer>,
+    pub acme_signer: Box<dyn Signer>,
 }
 
 impl Default for Runtime {
@@ -34,6 +35,7 @@ impl Default for Runtime {
             fetcher: Box::new(NullFetcher),
             storage: Box::new(InMemoryStorage::default()),
             sxg_signer: Box::new(MockSigner),
+            acme_signer: Box::new(MockSigner),
         }
     }
 }

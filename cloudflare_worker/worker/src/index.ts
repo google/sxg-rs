@@ -101,6 +101,7 @@ function createRuntime() {
     storageWrite,
     sxgRawSigner: signer,
     sxgAsn1Signer: undefined,
+    acmeRawSigner: undefined, // ACME does not run in Worker yet
   };
 }
 

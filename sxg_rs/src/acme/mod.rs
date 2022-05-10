@@ -39,17 +39,17 @@ use polling_timer::PoolingTimer;
 
 /// The runtime context of an ongoing ACME certificate request, which is
 /// waiting for HTTP challenge.
-pub struct OngoingCertificateRequest<F: Fetcher, S: Signer> {
+pub struct OngoingCertificateRequest {
     authorization_url: String,
     cert_request_der: Vec<u8>,
     challenge: Challenge,
     pub challenge_answer: String,
-    client: Client<F, S>,
+    client: Client,
     order_url: String,
     finalize_url: String,
 }
 
-pub struct AcmeStartupParams<'a, F: Fetcher, S: Signer> {
+pub struct AcmeStartupParams<'a> {
     pub directory_url: &'a str,
     /// This must be the same as what required by ACME server.
     pub agreed_terms_of_service: &'a str,
@@ -58,27 +58,22 @@ pub struct AcmeStartupParams<'a, F: Fetcher, S: Signer> {
     pub domain: &'a str,
     pub public_key: EcPublicKey,
     pub cert_request_der: Vec<u8>,
-    pub fetcher: F,
-    pub signer: S,
 }
 
 /// Connects to ACME server to request a certificate, stops after generating
 /// HTTP challenge answer, and returns the running context of this application.
-pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
-    params: AcmeStartupParams<'_, F, S>,
-) -> Result<OngoingCertificateRequest<F, S>> {
+pub async fn create_request_and_get_challenge_answer(
+    params: AcmeStartupParams<'_>,
+    fetcher: &dyn Fetcher,
+    acme_signer: &dyn Signer,
+) -> Result<OngoingCertificateRequest> {
     let public_key_thumbprint = base64::encode_config(
         params.public_key.get_jwk_thumbprint()?,
         base64::URL_SAFE_NO_PAD,
     );
-    let directory = Directory::new(params.directory_url, &params.fetcher).await?;
-    let mut client = Client::new(
-        directory,
-        client::AuthMethod::JsonWebKey(params.public_key),
-        params.fetcher,
-        params.signer,
-    )
-    .await?;
+    let directory = Directory::new(params.directory_url, fetcher).await?;
+    let mut client =
+        Client::new(directory, client::AuthMethod::JsonWebKey(params.public_key)).await?;
     if params.agreed_terms_of_service != client.directory.meta.terms_of_service {
         return Err(anyhow!(
             "Please read and include the terms of service {}",
@@ -99,7 +94,12 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
             terms_of_service_agreed: true,
         };
         let response = client
-            .post_with_payload(client.directory.new_account.clone(), request_payload)
+            .post_with_payload(
+                client.directory.new_account.clone(),
+                request_payload,
+                fetcher,
+                acme_signer,
+            )
             .await?;
         let rsp_paylod: NewAccountResponsePayload = parse_response_body(&response)?;
         if rsp_paylod.status != Status::Valid {
@@ -118,7 +118,12 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
             not_after: None,
         };
         let response = client
-            .post_with_payload(client.directory.new_order.clone(), request_payload)
+            .post_with_payload(
+                client.directory.new_order.clone(),
+                request_payload,
+                fetcher,
+                acme_signer,
+            )
             .await?;
         let order: Order = parse_response_body(&response)?;
         let order_url = client::find_header(&response, "location")
@@ -130,7 +135,8 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
         .get(0)
         .ok_or_else(|| Error::msg("The order response does not contain authorizations"))?
         .to_owned();
-    let challenge = get_http_challenge(&mut client, &authorization_url).await?;
+    let challenge =
+        get_http_challenge(&mut client, &authorization_url, fetcher, acme_signer).await?;
 
     // https://datatracker.ietf.org/doc/html/rfc8555#section-8.1
     let challenge_answer = format!("{}.{}", challenge.token, public_key_thumbprint);
@@ -147,8 +153,10 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
 
 /// Notifies the server to validate HTTP challenge, polls the request status
 /// until it is ready, and returns the certificate in PEM format.
-pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Signer>(
-    ongoing_certificate_request: OngoingCertificateRequest<F, S>,
+pub async fn continue_challenge_validation_and_get_certificate(
+    ongoing_certificate_request: OngoingCertificateRequest,
+    fetcher: &dyn Fetcher,
+    acme_signer: &dyn Signer,
 ) -> Result<String> {
     let OngoingCertificateRequest {
         authorization_url,
@@ -164,12 +172,13 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
     // validation by sending an empty JSON body ("{}") carried in a POST
     // request to the challenge URL (not the authorization URL).
     client
-        .post_with_payload(challenge.url, serde_json::Map::new())
+        .post_with_payload(challenge.url, serde_json::Map::new(), fetcher, acme_signer)
         .await?;
     // Repeatedly checks the challenge object while it is being processed by the server.
     let mut timer = PoolingTimer::new();
     loop {
-        let challenge = get_http_challenge(&mut client, &authorization_url).await?;
+        let challenge =
+            get_http_challenge(&mut client, &authorization_url, fetcher, acme_signer).await?;
         // The status of a challenge object is defined in
         // https://datatracker.ietf.org/doc/html/rfc8555#section-7.1.6
         match challenge.status {
@@ -197,10 +206,14 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
             FinalizeRequest {
                 csr: &base64::encode_config(cert_request_der, base64::URL_SAFE_NO_PAD),
             },
+            fetcher,
+            acme_signer,
         )
         .await?;
     let certificate_url = loop {
-        let response = client.post_as_get(order_url.clone()).await?;
+        let response = client
+            .post_as_get(order_url.clone(), fetcher, acme_signer)
+            .await?;
         let order: Order = parse_response_body(&response)?;
         match order.status {
             Status::Processing => (),
@@ -220,17 +233,23 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
         }
         timer.sleep().await?;
     };
-    let certificate = client.post_as_get(certificate_url).await?;
+    let certificate = client
+        .post_as_get(certificate_url, fetcher, acme_signer)
+        .await?;
     let certificate = String::from_utf8(certificate.body).unwrap();
     Ok(certificate)
 }
 
 /// Fetches `authorization_url` and returns the first `HTTP-01` challenge.
-async fn get_http_challenge<F: Fetcher, S: Signer>(
-    client: &mut Client<F, S>,
+async fn get_http_challenge(
+    client: &mut Client,
     authorization_url: &str,
+    fetcher: &dyn Fetcher,
+    acme_signer: &dyn Signer,
 ) -> Result<Challenge> {
-    let response = client.post_as_get(authorization_url.to_string()).await?;
+    let response = client
+        .post_as_get(authorization_url.to_string(), fetcher, acme_signer)
+        .await?;
     let authorization: Authorization = parse_response_body(&response)?;
     let challenge: &Challenge = authorization
         .challenges
@@ -250,11 +269,16 @@ async fn get_http_challenge<F: Fetcher, S: Signer>(
 mod tests {
     use super::*;
     use crate::http::{HttpRequest, HttpResponse, Method};
+    use crate::runtime::Runtime;
     use jws::JsonWebSignature;
     // Tests basic workflow of requesting certificate using ACME protocol.
     #[tokio::test]
     async fn workflow() {
         let (fetcher, mut server) = crate::fetcher::mock_fetcher::create();
+        let runtime = Runtime {
+            fetcher: Box::new(fetcher),
+            ..Default::default()
+        };
         let public_key = EcPublicKey {
             kty: "EC".to_string(),
             crv: "P-256".to_string(),
@@ -263,9 +287,8 @@ mod tests {
         };
         // The client is handled by the code in `sxg_rs::acme`.
         let client_thread = async {
-            let signer = crate::signature::mock_signer::MockSigner;
-            let ongoing_certificate_request =
-                create_request_and_get_challenge_answer(AcmeStartupParams {
+            let ongoing_certificate_request = create_request_and_get_challenge_answer(
+                AcmeStartupParams {
                     directory_url: "https://acme.server/",
                     agreed_terms_of_service: "https://acme.server/terms_of_service.pdf",
                     external_account_binding: None,
@@ -273,16 +296,20 @@ mod tests {
                     domain: "example.com",
                     public_key,
                     cert_request_der: "csr content".to_string().into_bytes(),
-                    fetcher,
-                    signer,
-                })
-                .await
-                .unwrap();
+                },
+                runtime.fetcher.as_ref(),
+                runtime.acme_signer.as_ref(),
+            )
+            .await
+            .unwrap();
             assert_eq!(&ongoing_certificate_request.challenge_answer, "0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.CmzeuaSxxfG8gIKRU_AgBzPa16nTt0H64JD7q1sZUUY");
-            let certificate_pem =
-                continue_challenge_validation_and_get_certificate(ongoing_certificate_request)
-                    .await
-                    .unwrap();
+            let certificate_pem = continue_challenge_validation_and_get_certificate(
+                ongoing_certificate_request,
+                runtime.fetcher.as_ref(),
+                runtime.acme_signer.as_ref(),
+            )
+            .await
+            .unwrap();
             assert_eq!(certificate_pem, "content of certificate");
         };
         // The server side is mocked by directly putting all HTTP requests and responses.
