@@ -23,30 +23,28 @@ use anyhow::{anyhow, Error, Result};
 use serde::{Deserialize, Serialize};
 
 pub struct Client<F: Fetcher, S: Signer> {
-    pub public_key: EcPublicKey,
     pub directory: Directory,
+    pub auth_method: AuthMethod,
     nonce: Option<String>,
     fetcher: F,
     signer: S,
 }
 
-#[derive(PartialEq, Eq)]
-pub enum AuthMethod<'a> {
-    JsonWebKey,
-    KeyId(&'a str),
+pub enum AuthMethod {
+    JsonWebKey(EcPublicKey),
+    KeyId(String),
 }
 
 impl<F: Fetcher, S: Signer> Client<F, S> {
     pub async fn new(
-        directory_url: &str,
-        public_key: EcPublicKey,
+        directory: Directory,
+        auth_method: AuthMethod,
         fetcher: F,
         signer: S,
     ) -> Result<Self> {
-        let directory = Directory::new(directory_url, &fetcher).await?;
         Ok(Client {
-            public_key,
             directory,
+            auth_method,
             nonce: None,
             fetcher,
             signer,
@@ -58,36 +56,30 @@ impl<F: Fetcher, S: Signer> Client<F, S> {
     /// function is useful because an ACME server always returns error code
     /// `405` for `GET` requests, which don't contain request body for
     /// authentication.
-    pub async fn post_as_get(
-        &mut self,
-        auth_method: AuthMethod<'_>,
-        url: String,
-    ) -> Result<HttpResponse> {
+    pub async fn post_as_get(&mut self, url: String) -> Result<HttpResponse> {
         let payload: Option<()> = None;
-        self.post_impl(auth_method, url, payload).await
+        self.post_impl(url, payload).await
     }
     /// Fetches a server resource at given URL using `POST` method with a
     /// request payload.
     pub async fn post_with_payload<P: Serialize>(
         &mut self,
-        auth_method: AuthMethod<'_>,
         url: String,
         payload: P,
     ) -> Result<HttpResponse> {
-        self.post_impl(auth_method, url, Some(payload)).await
+        self.post_impl(url, Some(payload)).await
     }
     /// Encapsulates the payload in JWS for authentication, connects to the ACME
     /// server, saves `nonce` for next request, and returns the server response.
     async fn post_impl<P: Serialize>(
         &mut self,
-        auth_method: AuthMethod<'_>,
         url: String,
         payload: Option<P>,
     ) -> Result<HttpResponse> {
         let nonce = self.take_nonce().await?;
-        let (jwk, key_id) = match auth_method {
-            AuthMethod::JsonWebKey => (Some(&self.public_key), None),
-            AuthMethod::KeyId(key_id) => (None, Some(key_id)),
+        let (jwk, key_id) = match &self.auth_method {
+            AuthMethod::JsonWebKey(public_key) => (Some(public_key), None),
+            AuthMethod::KeyId(key_id) => (None, Some(key_id.as_str())),
         };
         let request_body =
             super::jws::create_acme_request_body(jwk, key_id, nonce, &url, payload, &self.signer)

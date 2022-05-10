@@ -32,7 +32,7 @@ use crate::signature::Signer;
 use anyhow::{anyhow, Error, Result};
 use client::{parse_response_body, AuthMethod, Client};
 use directory::{
-    Authorization, Challenge, FinalizeRequest, Identifier, IdentifierType,
+    Authorization, Challenge, Directory, FinalizeRequest, Identifier, IdentifierType,
     NewAccountRequestPayload, NewAccountResponsePayload, NewOrderRequestPayload, Order, Status,
 };
 use polling_timer::PoolingTimer;
@@ -40,7 +40,6 @@ use polling_timer::PoolingTimer;
 /// The runtime context of an ongoing ACME certificate request, which is
 /// waiting for HTTP challenge.
 pub struct OngoingCertificateRequest<F: Fetcher, S: Signer> {
-    account_url: String,
     authorization_url: String,
     cert_request_der: Vec<u8>,
     challenge: Challenge,
@@ -68,9 +67,14 @@ pub struct AcmeStartupParams<'a, F: Fetcher, S: Signer> {
 pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
     params: AcmeStartupParams<'_, F, S>,
 ) -> Result<OngoingCertificateRequest<F, S>> {
+    let public_key_thumbprint = base64::encode_config(
+        params.public_key.get_jwk_thumbprint()?,
+        base64::URL_SAFE_NO_PAD,
+    );
+    let directory = Directory::new(params.directory_url, &params.fetcher).await?;
     let mut client = Client::new(
-        params.directory_url,
-        params.public_key,
+        directory,
+        client::AuthMethod::JsonWebKey(params.public_key),
         params.fetcher,
         params.signer,
     )
@@ -95,11 +99,7 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
             terms_of_service_agreed: true,
         };
         let response = client
-            .post_with_payload(
-                AuthMethod::JsonWebKey,
-                client.directory.new_account.clone(),
-                request_payload,
-            )
+            .post_with_payload(client.directory.new_account.clone(), request_payload)
             .await?;
         let rsp_paylod: NewAccountResponsePayload = parse_response_body(&response)?;
         if rsp_paylod.status != Status::Valid {
@@ -107,6 +107,7 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
         }
         client::find_header(&response, "Location")?
     };
+    client.auth_method = AuthMethod::KeyId(account_url);
     let (order, order_url) = {
         let request_payload = NewOrderRequestPayload {
             identifiers: vec![Identifier {
@@ -117,11 +118,7 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
             not_after: None,
         };
         let response = client
-            .post_with_payload(
-                AuthMethod::KeyId(&account_url),
-                client.directory.new_order.clone(),
-                request_payload,
-            )
+            .post_with_payload(client.directory.new_order.clone(), request_payload)
             .await?;
         let order: Order = parse_response_body(&response)?;
         let order_url = client::find_header(&response, "location")
@@ -133,19 +130,11 @@ pub async fn create_request_and_get_challenge_answer<F: Fetcher, S: Signer>(
         .get(0)
         .ok_or_else(|| Error::msg("The order response does not contain authorizations"))?
         .to_owned();
-    let challenge = get_http_challenge(&mut client, &account_url, &authorization_url).await?;
+    let challenge = get_http_challenge(&mut client, &authorization_url).await?;
 
     // https://datatracker.ietf.org/doc/html/rfc8555#section-8.1
-    let challenge_answer = format!(
-        "{}.{}",
-        challenge.token,
-        base64::encode_config(
-            client.public_key.get_jwk_thumbprint()?,
-            base64::URL_SAFE_NO_PAD
-        )
-    );
+    let challenge_answer = format!("{}.{}", challenge.token, public_key_thumbprint);
     Ok(OngoingCertificateRequest {
-        account_url,
         authorization_url,
         cert_request_der: params.cert_request_der,
         challenge,
@@ -162,7 +151,6 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
     ongoing_certificate_request: OngoingCertificateRequest<F, S>,
 ) -> Result<String> {
     let OngoingCertificateRequest {
-        account_url,
         authorization_url,
         cert_request_der,
         challenge,
@@ -176,16 +164,12 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
     // validation by sending an empty JSON body ("{}") carried in a POST
     // request to the challenge URL (not the authorization URL).
     client
-        .post_with_payload(
-            AuthMethod::KeyId(&account_url),
-            challenge.url,
-            serde_json::Map::new(),
-        )
+        .post_with_payload(challenge.url, serde_json::Map::new())
         .await?;
     // Repeatedly checks the challenge object while it is being processed by the server.
     let mut timer = PoolingTimer::new();
     loop {
-        let challenge = get_http_challenge(&mut client, &account_url, &authorization_url).await?;
+        let challenge = get_http_challenge(&mut client, &authorization_url).await?;
         // The status of a challenge object is defined in
         // https://datatracker.ietf.org/doc/html/rfc8555#section-7.1.6
         match challenge.status {
@@ -209,7 +193,6 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
     }
     client
         .post_with_payload(
-            AuthMethod::KeyId(&account_url),
             finalize_url,
             FinalizeRequest {
                 csr: &base64::encode_config(cert_request_der, base64::URL_SAFE_NO_PAD),
@@ -217,9 +200,7 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
         )
         .await?;
     let certificate_url = loop {
-        let response = client
-            .post_as_get(AuthMethod::KeyId(&account_url), order_url.clone())
-            .await?;
+        let response = client.post_as_get(order_url.clone()).await?;
         let order: Order = parse_response_body(&response)?;
         match order.status {
             Status::Processing => (),
@@ -239,9 +220,7 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
         }
         timer.sleep().await?;
     };
-    let certificate = client
-        .post_as_get(AuthMethod::KeyId(&account_url), certificate_url)
-        .await?;
+    let certificate = client.post_as_get(certificate_url).await?;
     let certificate = String::from_utf8(certificate.body).unwrap();
     Ok(certificate)
 }
@@ -249,15 +228,9 @@ pub async fn continue_challenge_validation_and_get_certificate<F: Fetcher, S: Si
 /// Fetches `authorization_url` and returns the first `HTTP-01` challenge.
 async fn get_http_challenge<F: Fetcher, S: Signer>(
     client: &mut Client<F, S>,
-    account_url: &str,
     authorization_url: &str,
 ) -> Result<Challenge> {
-    let response = client
-        .post_as_get(
-            AuthMethod::KeyId(account_url),
-            authorization_url.to_string(),
-        )
-        .await?;
+    let response = client.post_as_get(authorization_url.to_string()).await?;
     let authorization: Authorization = parse_response_body(&response)?;
     let challenge: &Challenge = authorization
         .challenges
