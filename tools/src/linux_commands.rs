@@ -46,6 +46,21 @@ pub fn write_new_file(path: impl AsRef<Path>, content: impl AsRef<[u8]>) -> Resu
     }
 }
 
+/// Generates a private key, and returns it without writing to any files.
+/// Care should be taken to prevent the private key being lost.
+pub fn generate_private_key_pem() -> Result<String> {
+    execute_and_parse_stdout(
+        Command::new("openssl")
+            .arg("ecparam")
+            .arg("-outform")
+            .arg("pem")
+            .arg("-name")
+            .arg("prime256v1")
+            .arg("-genkey"),
+    )
+    .map_err(|e| e.context("Failed to use openssl to generate private key"))
+}
+
 /// Tries to read the contents of given file; if the file does not exist,
 /// generates a private key, and writes PEM to the file, and returns it.
 pub fn read_or_create_private_key_pem(file: impl AsRef<Path>) -> Result<String> {
@@ -53,16 +68,7 @@ pub fn read_or_create_private_key_pem(file: impl AsRef<Path>) -> Result<String> 
         println!("Reading private key from file {:?}", file.as_ref());
         std::fs::read_to_string(file).map_err(Error::new)
     } else {
-        let privkey_pem = execute_and_parse_stdout(
-            Command::new("openssl")
-                .arg("ecparam")
-                .arg("-outform")
-                .arg("pem")
-                .arg("-name")
-                .arg("prime256v1")
-                .arg("-genkey"),
-        )
-        .map_err(|e| e.context("Failed to use openssl to generate private key"))?;
+        let privkey_pem = generate_private_key_pem()?;
         println!(
             "Writing private key to file {:?}, please keep it in a safe place.",
             file.as_ref()
