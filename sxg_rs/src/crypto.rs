@@ -139,8 +139,13 @@ impl EcPrivateKey {
     }
 }
 
-// We have to implement serialization by ourself, because the macro `#[derive(Serialize)]`
-// can not produce the field ordering we need.
+// https://datatracker.ietf.org/doc/html/rfc7638#section-3
+// RFC-7683 requires the field names to be ordered lexicographically;
+// the order must be `[crv, d, x, y]`.
+// If we use the macro `#[derive(Serialize)] and #[serde(flatten)]`,
+// we can't insert `d` between the other three fields of `public_key`;
+// we can only get `[crv, x, y, d]` or `[d, crv, x, y]`.
+// Hence we have to implement serialization by ourself.t stgu
 impl Serialize for EcPrivateKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
