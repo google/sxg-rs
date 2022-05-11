@@ -82,8 +82,9 @@ pub async fn main(opts: Opts) -> Result<()> {
         (Some(eab_key_id), Some(eab_mac_key)) => {
             let eab_mac_key = base64::decode_config(eab_mac_key, base64::URL_SAFE_NO_PAD)?;
             let eab_signer = crate::runtime::openssl_signer::OpensslSigner::Hmac(&eab_mac_key);
-            let new_account_url = Directory::new(&opts.acme_server, runtime.fetcher.as_ref())
+            let new_account_url = Directory::from_url(&opts.acme_server, runtime.fetcher.as_ref())
                 .await?
+                .0
                 .new_account;
             let eab = create_external_account_binding(
                 sxg_rs::acme::jws::Algorithm::HS256,

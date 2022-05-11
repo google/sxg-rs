@@ -15,6 +15,7 @@
 //! This module includes the URL, request and response of the ACME operations.
 
 use crate::fetcher::Fetcher;
+use crate::http::HttpRequest;
 use anyhow::{Error, Result};
 use chrono::offset::FixedOffset;
 use chrono::DateTime;
@@ -39,13 +40,19 @@ pub struct Directory {
 
 impl Directory {
     /// Constructs an ACME directory by fetching the given ACME directory URL.
-    pub async fn new(url: &str, fetcher: &dyn Fetcher) -> Result<Self> {
-        let bytes = fetcher
-            .get(url)
-            .await
-            .map_err(|e| e.context("Failed to fetch from directory URL"))?;
-        serde_json::from_slice(&bytes)
-            .map_err(|e| Error::new(e).context("Failed to parse ACME directory"))
+    /// The second item in return value is the `replay-nonce` header from server.
+    pub async fn from_url(url: &str, fetcher: &dyn Fetcher) -> Result<(Self, Option<String>)> {
+        let request = HttpRequest {
+            body: vec![],
+            headers: vec![],
+            method: crate::http::Method::Get,
+            url: url.to_string(),
+        };
+        let response = fetcher.fetch(request).await?;
+        let nonce = super::client::find_header(&response, "replay-nonce").ok();
+        let directory = serde_json::from_slice(&response.body)
+            .map_err(|e| Error::new(e).context("Failed to parse ACME directory"))?;
+        Ok((directory, nonce))
     }
 }
 

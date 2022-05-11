@@ -34,11 +34,11 @@ pub enum AuthMethod {
 }
 
 impl<'a> Client<'a> {
-    pub fn new(directory: &'a Directory, auth_method: AuthMethod) -> Self {
+    pub fn new(directory: &'a Directory, auth_method: AuthMethod, nonce: Option<String>) -> Self {
         Client {
             directory,
             auth_method,
-            nonce: None,
+            nonce,
         }
     }
     /// Fetches a server resource at given URL using
