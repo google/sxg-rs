@@ -140,7 +140,7 @@ impl EcPrivateKey {
 }
 
 // https://datatracker.ietf.org/doc/html/rfc7638#section-3
-// RFC-7683 requires the field names to be ordered lexicographically;
+// RFC-7638 requires the field names to be ordered lexicographically;
 // the order must be `[crv, d, x, y]`.
 // If we use the macro `#[derive(Serialize)] and #[serde(flatten)]`,
 // we can't insert `d` between the other three fields of `public_key`;
