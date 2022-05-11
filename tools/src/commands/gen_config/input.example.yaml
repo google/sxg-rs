@@ -1,0 +1,36 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Please replace ALL-CAP values with yours.
+---
+domain_name: YOUR_DOMAIN # example.com
+sxg_worker:
+  cert_url_dirname: ".well-known/sxg-certs"
+  forward_request_headers:
+    - user-agent
+    - cf-ipcountry
+  reserved_path: ".sxg"
+  strip_request_headers: []
+  strip_response_headers:
+    - set-cookie
+  validity_url_dirname: ".well-known/sxg-validity"
+cloudflare:
+  account_id: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  zone_id: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  worker_name: sxg
+  deploy_on_workers_dev_only: false
+certificates:
+  pre_issued:
+    cert_file: credentials/cert.pem
+    issuer_file: credentials/issuer.pem
