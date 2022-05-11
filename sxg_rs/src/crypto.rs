@@ -281,7 +281,7 @@ AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
         );
         let private_key = EcPrivateKey {
             d: vec![3],
-            public_key: public_key,
+            public_key,
         };
         assert_eq!(
             serde_json::to_string(&private_key).unwrap(),
