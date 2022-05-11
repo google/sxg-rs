@@ -21,10 +21,9 @@ use crate::http::{HttpRequest, HttpResponse, Method};
 use crate::signature::Signer;
 use anyhow::{anyhow, Error, Result};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
-pub struct Client {
-    pub directory: Arc<Directory>,
+pub struct Client<'a> {
+    pub directory: &'a Directory,
     pub auth_method: AuthMethod,
     nonce: Option<String>,
 }
@@ -34,13 +33,13 @@ pub enum AuthMethod {
     KeyId(String),
 }
 
-impl Client {
-    pub async fn new(directory: Arc<Directory>, auth_method: AuthMethod) -> Result<Self> {
-        Ok(Client {
+impl<'a> Client<'a> {
+    pub fn new(directory: &'a Directory, auth_method: AuthMethod) -> Self {
+        Client {
             directory,
             auth_method,
             nonce: None,
-        })
+        }
     }
     /// Fetches a server resource at given URL using
     /// [POST-as-GET](https://datatracker.ietf.org/doc/html/rfc8555#section-6.3)
