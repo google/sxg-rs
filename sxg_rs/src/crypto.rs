@@ -139,6 +139,33 @@ impl EcPrivateKey {
     }
 }
 
+// We have to implement serialization by ourself, because the macro `#[derive(Serialize)]`
+// can not produce the field ordering we need.
+impl Serialize for EcPrivateKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut s = serializer.serialize_struct("EcPrivateKey", /*number of fields=*/ 5)?;
+        s.serialize_field("crv", &self.public_key.crv)?;
+        s.serialize_field(
+            "d",
+            &base64::encode_config(&self.d, base64::URL_SAFE_NO_PAD),
+        )?;
+        s.serialize_field("kty", &self.public_key.kty)?;
+        s.serialize_field(
+            "x",
+            &base64::encode_config(&self.public_key.x, base64::URL_SAFE_NO_PAD),
+        )?;
+        s.serialize_field(
+            "y",
+            &base64::encode_config(&self.public_key.y, base64::URL_SAFE_NO_PAD),
+        )?;
+        s.end()
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum HashAlgorithm {
     Sha1,
@@ -242,15 +269,23 @@ AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
     //   2. with the required members ordered lexicographically
     #[test]
     fn jwk_serialization() {
-        let k = EcPublicKey {
+        let public_key = EcPublicKey {
             kty: "EC".to_string(),
             crv: "".to_string(),
-            x: vec![],
-            y: vec![],
+            x: vec![1],
+            y: vec![2],
         };
         assert_eq!(
-            serde_json::to_string(&k).unwrap(),
-            r#"{"crv":"","kty":"EC","x":"","y":""}"#
+            serde_json::to_string(&public_key).unwrap(),
+            r#"{"crv":"","kty":"EC","x":"AQ","y":"Ag"}"#
+        );
+        let private_key = EcPrivateKey {
+            d: vec![3],
+            public_key: public_key,
+        };
+        assert_eq!(
+            serde_json::to_string(&private_key).unwrap(),
+            r#"{"crv":"","d":"Aw","kty":"EC","x":"AQ","y":"Ag"}"#
         );
     }
 }
