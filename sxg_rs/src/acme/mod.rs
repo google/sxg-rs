@@ -40,11 +40,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Account {
-    server_directory: Directory,
-    account_url: String,
-    domain: String,
-    cert_request_der: Vec<u8>,
-    public_key_thumbprint: String,
+    pub server_directory_url: String,
+    pub account_url: String,
+    pub domain: String,
+    #[serde(with = "crate::serde_helpers::base64")]
+    pub cert_request_der: Vec<u8>,
+    pub public_key_thumbprint: String,
 }
 
 /// The runtime context of an ongoing ACME certificate request, which is
@@ -79,10 +80,11 @@ pub async fn create_account(
         params.public_key.get_jwk_thumbprint()?,
         base64::URL_SAFE_NO_PAD,
     );
-    let directory = Directory::new(&params.directory_url, fetcher).await?;
+    let (directory, nonce) = Directory::from_url(&params.directory_url, fetcher).await?;
     let mut client = Client::new(
         &directory,
         client::AuthMethod::JsonWebKey(params.public_key),
+        nonce,
     );
     if params.agreed_terms_of_service != client.directory.meta.terms_of_service {
         return Err(anyhow!(
@@ -118,7 +120,7 @@ pub async fn create_account(
         client::find_header(&response, "Location")?
     };
     Ok(Account {
-        server_directory: directory,
+        server_directory_url: params.directory_url,
         cert_request_der: params.cert_request_der,
         public_key_thumbprint,
         domain: params.domain,
@@ -131,9 +133,11 @@ pub async fn place_new_order(
     fetcher: &dyn Fetcher,
     acme_signer: &dyn Signer,
 ) -> Result<OngoingCertificateRequest> {
+    let (directory, nonce) = Directory::from_url(&account.server_directory_url, fetcher).await?;
     let mut client = Client::new(
-        &account.server_directory,
+        &directory,
         AuthMethod::KeyId(account.account_url.clone()),
+        nonce,
     );
     let (order, order_url) = {
         let request_payload = NewOrderRequestPayload {
@@ -191,9 +195,11 @@ pub async fn continue_challenge_validation_and_get_certificate(
         order_url,
         finalize_url,
     } = ongoing_certificate_request;
+    let (directory, nonce) = Directory::from_url(&account.server_directory_url, fetcher).await?;
     let mut client = Client::new(
-        &account.server_directory,
+        &directory,
         AuthMethod::KeyId(account.account_url.clone()),
+        nonce,
     );
     // https://datatracker.ietf.org/doc/html/rfc8555#section-7.5.1
     // The client indicates to the server that it is ready for the challenge
@@ -436,12 +442,23 @@ mod tests {
                 body: vec![],
                 method: Method::Get,
                 headers: vec![],
-                url: "https://acme.server/new-nonce".to_string(),
+                url: "https://acme.server/".to_string(),
             };
             let res = HttpResponse {
                 status: 200,
                 headers: vec![("Replay-Nonce".to_string(), "3".to_string())],
-                body: vec![],
+                body: r#"{
+                    "keyChange": "https://acme.server/key-change",
+                    "newAccount": "https://acme.server/new-acct",
+                    "newNonce": "https://acme.server/new-nonce",
+                    "newOrder": "https://acme.server/new-order",
+                    "revokeCert": "https://acme.server/revoke-cert",
+                    "meta": {
+                        "termsOfService": "https://acme.server/terms_of_service.pdf"
+                    }
+                }"#
+                .to_string()
+                .into_bytes(),
             };
             server.handle_next_request(req, res).await.unwrap();
 
@@ -539,12 +556,23 @@ mod tests {
                 body: vec![],
                 method: Method::Get,
                 headers: vec![],
-                url: "https://acme.server/new-nonce".to_string(),
+                url: "https://acme.server/".to_string(),
             };
             let res = HttpResponse {
                 status: 200,
                 headers: vec![("Replay-Nonce".to_string(), "6".to_string())],
-                body: vec![],
+                body: r#"{
+                    "keyChange": "https://acme.server/key-change",
+                    "newAccount": "https://acme.server/new-acct",
+                    "newNonce": "https://acme.server/new-nonce",
+                    "newOrder": "https://acme.server/new-order",
+                    "revokeCert": "https://acme.server/revoke-cert",
+                    "meta": {
+                        "termsOfService": "https://acme.server/terms_of_service.pdf"
+                    }
+                }"#
+                .to_string()
+                .into_bytes(),
             };
             server.handle_next_request(req, res).await.unwrap();
 
