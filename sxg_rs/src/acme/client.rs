@@ -34,12 +34,12 @@ pub enum AuthMethod {
 }
 
 impl<'a> Client<'a> {
-    pub async fn new(directory: &'a Directory, auth_method: AuthMethod) -> Result<Client<'a>> {
-        Ok(Client {
+    pub fn new(directory: &'a Directory, auth_method: AuthMethod) -> Self {
+        Client {
             directory,
             auth_method,
             nonce: None,
-        })
+        }
     }
     /// Fetches a server resource at given URL using
     /// [POST-as-GET](https://datatracker.ietf.org/doc/html/rfc8555#section-6.3)

@@ -83,8 +83,7 @@ pub async fn create_account(
     let mut client = Client::new(
         &directory,
         client::AuthMethod::JsonWebKey(params.public_key),
-    )
-    .await?;
+    );
     if params.agreed_terms_of_service != client.directory.meta.terms_of_service {
         return Err(anyhow!(
             "Please read and include the terms of service {}",
@@ -135,8 +134,7 @@ pub async fn place_new_order(
     let mut client = Client::new(
         &account.server_directory,
         AuthMethod::KeyId(account.account_url.clone()),
-    )
-    .await?;
+    );
     let (order, order_url) = {
         let request_payload = NewOrderRequestPayload {
             identifiers: vec![Identifier {
@@ -196,8 +194,7 @@ pub async fn continue_challenge_validation_and_get_certificate(
     let mut client = Client::new(
         &account.server_directory,
         AuthMethod::KeyId(account.account_url.clone()),
-    )
-    .await?;
+    );
     // https://datatracker.ietf.org/doc/html/rfc8555#section-7.5.1
     // The client indicates to the server that it is ready for the challenge
     // validation by sending an empty JSON body ("{}") carried in a POST
