@@ -47,7 +47,7 @@ pub fn write_new_file(path: impl AsRef<Path>, content: impl AsRef<[u8]>) -> Resu
 }
 
 /// Generates a private key, and returns it without writing to any files.
-/// Care should be taken to give users the ability to use the private key.
+/// Care should be taken to prevent the private key being lost.
 pub fn generate_private_key_pem() -> Result<String> {
     execute_and_parse_stdout(
         Command::new("openssl")
