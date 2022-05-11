@@ -21,10 +21,9 @@ use crate::http::{HttpRequest, HttpResponse, Method};
 use crate::signature::Signer;
 use anyhow::{anyhow, Error, Result};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
-pub struct Client {
-    pub directory: Arc<Directory>,
+pub struct Client<'a> {
+    pub directory: &'a Directory,
     pub auth_method: AuthMethod,
     nonce: Option<String>,
 }
@@ -34,8 +33,8 @@ pub enum AuthMethod {
     KeyId(String),
 }
 
-impl Client {
-    pub async fn new(directory: Arc<Directory>, auth_method: AuthMethod) -> Result<Self> {
+impl<'a> Client<'a> {
+    pub async fn new(directory: &'a Directory, auth_method: AuthMethod) -> Result<Client<'a>> {
         Ok(Client {
             directory,
             auth_method,

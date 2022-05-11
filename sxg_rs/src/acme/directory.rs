@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 
 /// The URLs for each operation on a ACME server.
 // https://datatracker.ietf.org/doc/html/rfc8555#section-7.1.1
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Directory {
     pub new_nonce: String,
@@ -51,7 +51,7 @@ impl Directory {
 
 /// The meta data in ACME directory object
 // https://datatracker.ietf.org/doc/html/rfc8555#section-9.7.6
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MetaData {
     pub terms_of_service: String,

@@ -36,10 +36,11 @@ use directory::{
     NewAccountRequestPayload, NewAccountResponsePayload, NewOrderRequestPayload, Order, Status,
 };
 use polling_timer::PoolingTimer;
-use std::sync::Arc;
+use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Account {
-    server_directory: Arc<Directory>,
+    server_directory: Directory,
     account_url: String,
     domain: String,
     cert_request_der: Vec<u8>,
@@ -78,9 +79,9 @@ pub async fn create_account(
         params.public_key.get_jwk_thumbprint()?,
         base64::URL_SAFE_NO_PAD,
     );
-    let directory = Arc::new(Directory::new(&params.directory_url, fetcher).await?);
+    let directory = Directory::new(&params.directory_url, fetcher).await?;
     let mut client = Client::new(
-        directory.clone(),
+        &directory,
         client::AuthMethod::JsonWebKey(params.public_key),
     )
     .await?;
@@ -118,7 +119,7 @@ pub async fn create_account(
         client::find_header(&response, "Location")?
     };
     Ok(Account {
-        server_directory: client.directory,
+        server_directory: directory,
         cert_request_der: params.cert_request_der,
         public_key_thumbprint,
         domain: params.domain,
@@ -132,7 +133,7 @@ pub async fn place_new_order(
     acme_signer: &dyn Signer,
 ) -> Result<OngoingCertificateRequest> {
     let mut client = Client::new(
-        account.server_directory.clone(),
+        &account.server_directory,
         AuthMethod::KeyId(account.account_url.clone()),
     )
     .await?;
@@ -193,7 +194,7 @@ pub async fn continue_challenge_validation_and_get_certificate(
         finalize_url,
     } = ongoing_certificate_request;
     let mut client = Client::new(
-        account.server_directory.clone(),
+        &account.server_directory,
         AuthMethod::KeyId(account.account_url.clone()),
     )
     .await?;
@@ -272,7 +273,7 @@ pub async fn continue_challenge_validation_and_get_certificate(
 
 /// Fetches `authorization_url` and returns the first `HTTP-01` challenge.
 async fn get_http_challenge(
-    client: &mut Client,
+    client: &mut Client<'_>,
     authorization_url: &str,
     fetcher: &dyn Fetcher,
     acme_signer: &dyn Signer,
