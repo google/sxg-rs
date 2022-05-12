@@ -14,7 +14,6 @@
 
 use anyhow::Result;
 use clap::Parser;
-use futures::executor;
 use std::fs;
 use sxg_rs::{fetcher::NULL_FETCHER, http_cache::NullCache, CreateSignedExchangeParams, SxgWorker};
 
@@ -58,7 +57,7 @@ pub async fn main(opts: Opts) -> Result<()> {
             header_integrity_cache: NullCache {},
         },
     );
-    let sxg = executor::block_on(sxg);
+    let sxg = sxg.await;
     fs::write(opts.out_sxg, &sxg.unwrap().body)?;
     Ok(())
 }
