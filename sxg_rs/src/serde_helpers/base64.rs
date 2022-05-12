@@ -29,7 +29,7 @@ pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let s = <&str>::deserialize(deserializer)?;
+    let s = String::deserialize(deserializer)?;
     base64::decode_config(s, base64::URL_SAFE_NO_PAD)
         .map_err(|_| D::Error::custom("Invalid base64 string"))
 }

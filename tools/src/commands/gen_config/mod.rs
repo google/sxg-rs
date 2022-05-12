@@ -12,9 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::linux_commands::generate_private_key_pem;
+use crate::runtime::openssl_signer::OpensslSigner;
+use crate::tokio_block_on;
 use anyhow::{Error, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
+use sxg_rs::acme::{directory::Directory as AcmeDirectory, Account as AcmeAccount};
+use sxg_rs::crypto::EcPrivateKey;
 use wrangler::settings::global_user::GlobalUser;
 use wrangler::settings::toml::ConfigKvNamespace;
 
@@ -48,6 +53,22 @@ enum SxgCertConfig {
         cert_file: String,
         issuer_file: String,
     },
+    CreateAcmeAccount(AcmeConfig),
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct AcmeConfig {
+    server_url: String,
+    contact_email: String,
+    agreed_terms_of_service: String,
+    sxg_cert_request_file: String,
+    eab: Option<EabConfig>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct EabConfig {
+    base64_mac_key: String,
+    key_id: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -60,16 +81,19 @@ pub struct CloudlareSpecificInput {
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Artifact {
+    acme_account: Option<AcmeAccount>,
+    acme_private_key_instruction: Option<String>,
     cloudflare_kv_namespace_id: Option<String>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Default, Deserialize, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 struct WranglerVars {
     html_host: String,
     sxg_config: String,
     cert_pem: Option<String>,
     issuer_pem: Option<String>,
+    acme_account: Option<String>,
 }
 
 // TODO: Use `wrangler::settings::toml::Manifest`
@@ -151,6 +175,69 @@ fn read_certificate_pem_file(path: &str) -> Result<String> {
     }
 }
 
+async fn create_acme_key_and_account(
+    acme_config: &AcmeConfig,
+    domain_name: &str,
+) -> Result<(EcPrivateKey, AcmeAccount)> {
+    let acme_private_key = {
+        let pem = generate_private_key_pem()?;
+        EcPrivateKey::from_sec1_pem(&pem)?
+    };
+    let runtime = sxg_rs::runtime::Runtime {
+        acme_signer: Box::new(acme_private_key.create_signer()?),
+        fetcher: Box::new(crate::runtime::hyper_fetcher::HyperFetcher::new()),
+        ..Default::default()
+    };
+    let sxg_cert_request_der = sxg_rs::crypto::get_der_from_pem(
+        &std::fs::read_to_string(&acme_config.sxg_cert_request_file)?,
+        "CERTIFICATE REQUEST",
+    )?;
+    let eab = if let Some(input_eab) = &acme_config.eab {
+        let eab_mac_key =
+            base64::decode_config(&input_eab.base64_mac_key, base64::URL_SAFE_NO_PAD)?;
+        let eab_signer = OpensslSigner::Hmac(&eab_mac_key);
+        let new_account_url =
+            AcmeDirectory::from_url(&acme_config.server_url, runtime.fetcher.as_ref())
+                .await?
+                .0
+                .new_account;
+        let output_eab = sxg_rs::acme::eab::create_external_account_binding(
+            sxg_rs::acme::jws::Algorithm::HS256,
+            &input_eab.key_id,
+            &new_account_url,
+            &acme_private_key.public_key,
+            &eab_signer,
+        )
+        .await?;
+        Some(output_eab)
+    } else {
+        None
+    };
+    let account = sxg_rs::acme::create_account(
+        sxg_rs::acme::AccountSetupParams {
+            directory_url: acme_config.server_url.clone(),
+            agreed_terms_of_service: &acme_config.agreed_terms_of_service,
+            external_account_binding: eab,
+            email: &acme_config.contact_email,
+            domain: domain_name.to_string(),
+            public_key: acme_private_key.public_key.clone(),
+            cert_request_der: sxg_cert_request_der,
+        },
+        runtime.fetcher.as_ref(),
+        runtime.acme_signer.as_ref(),
+    )
+    .await?;
+    Ok((acme_private_key, account))
+}
+
+fn create_wrangler_secret_instruction(name: &str, value: &str) -> String {
+    let base64_value = base64::encode(value);
+    format!(
+        "echo {} | openssl enc -base64 -d | wrangler secret put {}",
+        base64_value, name
+    )
+}
+
 const WRANGLER_TOML: &str = "cloudflare_worker/wrangler.toml";
 
 fn read_artifact(file_name: &str) -> Result<Artifact> {
@@ -165,7 +252,10 @@ pub fn main(opts: Opts) -> Result<()> {
     }
     goto_repository_root()?;
     let mut input: Config = serde_yaml::from_str(&std::fs::read_to_string(&opts.input)?)?;
-    let mut artifact: Artifact = read_artifact(&opts.artifact).unwrap_or_default();
+    let mut artifact: Artifact = read_artifact(&opts.artifact).unwrap_or_else(|_| {
+        println!("Creating a new artifact");
+        Default::default()
+    });
     input.sxg_worker.html_host = input
         .sxg_worker
         .html_host
@@ -183,8 +273,7 @@ pub fn main(opts: Opts) -> Result<()> {
     let mut wrangler_vars = WranglerVars {
         html_host: input.domain_name.clone(),
         sxg_config: serde_yaml::to_string(&input.sxg_worker)?,
-        cert_pem: None,
-        issuer_pem: None,
+        ..Default::default()
     };
     match &input.certificates {
         SxgCertConfig::PreIssued {
@@ -193,6 +282,18 @@ pub fn main(opts: Opts) -> Result<()> {
         } => {
             wrangler_vars.cert_pem = Some(read_certificate_pem_file(cert_file)?);
             wrangler_vars.issuer_pem = Some(read_certificate_pem_file(issuer_file)?);
+        }
+        SxgCertConfig::CreateAcmeAccount(acme_config) => {
+            if artifact.acme_account.is_none() {
+                let (acme_private_key, acme_account) =
+                    tokio_block_on(create_acme_key_and_account(acme_config, &input.domain_name))?;
+                artifact.acme_account = Some(acme_account);
+                artifact.acme_private_key_instruction = Some(create_wrangler_secret_instruction(
+                    "ACME_PRIVATE_KEY_JWK",
+                    &serde_json::to_string(&acme_private_key)?,
+                ))
+            }
+            wrangler_vars.acme_account = Some(serde_json::to_string(&artifact.acme_account)?);
         }
     };
     let wrangler_toml_output = WranglerManifest {
