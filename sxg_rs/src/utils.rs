@@ -14,7 +14,7 @@
 
 use crate::header_integrity::HeaderIntegrityFetcher;
 use crate::headers::Headers;
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, Result};
 use url::Url;
 
 #[cfg(all(target_family = "wasm", feature = "wasm"))]
@@ -63,7 +63,7 @@ pub async fn await_js_promise(
     let value =
         result.map_err(|e| anyhow!("{:?}", e).context("JavaScript function throws an error"))?;
     let promise = js_sys::Promise::try_from(value)
-        .map_err(|e| Error::new(e).context("Expecting a JavaScript Promise"))?;
+        .map_err(|e| anyhow::Error::new(e).context("Expecting a JavaScript Promise"))?;
     wasm_bindgen_futures::JsFuture::from(promise)
         .await
         .map_err(|e| anyhow!("{:?}", e).context("JavaScript throws an error asynchronously"))
