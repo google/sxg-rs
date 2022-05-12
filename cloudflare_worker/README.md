@@ -66,7 +66,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 
 1. Run following command.
    ```bash
-      cargo run -p tools -- gen-config --input input.yaml --artifact artifact.yaml
+   cargo run -p tools -- gen-config --input input.yaml --artifact artifact.yaml
    ```
    This command will creates a `cloudflare_worker/wrangler.toml` that can be modified futher if desired.
 
@@ -105,7 +105,7 @@ The certificates need to be renewed every 90 days.
 
 1. Follow [these steps](../credentials/README.md#renew-certificate) to renew
    the certificate.
-1. Run `cargo run -p tools -- gen-config`.
+1. Run `cargo run -p tools -- gen-config --input input.yaml --artifact artifact.yaml`.
 1. Run `./publish.sh` to restart the worker.
 
 ## Uninstall
