@@ -163,7 +163,8 @@ pub fn main(opts: Opts) -> Result<()> {
     input.sxg_worker.html_host = input
         .sxg_worker
         .html_host
-        .or(Some(input.domain_name.clone()));
+        .clone() // TODO: Remove this clone while keep Rust compiler happy.
+        .or_else(|| Some(input.domain_name.clone()));
     if artifact.cloudflare_kv_namespace_id.is_none() {
         let user = get_global_user();
         artifact.cloudflare_kv_namespace_id =
