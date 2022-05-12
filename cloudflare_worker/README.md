@@ -71,7 +71,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    This command will creates a `cloudflare_worker/wrangler.toml` that can be modified futher if desired.
 
    - For example, you can customize the `routes` list in `wrangler.toml` based on the
-     [Cloduflare Docs](https://developers.cloudflare.com/workers/platform/routes/#matching-behavior).
+     [Cloudflare Docs](https://developers.cloudflare.com/workers/platform/routes/#matching-behavior).
      But you need to leave the patterns starting with `/.well-known/` enabled, in order to keep
      SXG working.
 
