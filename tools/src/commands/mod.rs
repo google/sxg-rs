@@ -19,6 +19,7 @@ mod gen_sxg;
 
 use anyhow::Result;
 use clap::Parser;
+use futures::executor::block_on;
 
 #[derive(Parser)]
 enum SubCommand {
@@ -34,11 +35,11 @@ struct Opts {
     sub_command: SubCommand,
 }
 
-pub async fn main() -> Result<()> {
+pub fn main() -> Result<()> {
     match Opts::parse().sub_command {
-        SubCommand::ApplyAcmeCert(opts) => apply_acme_cert::main(opts).await,
+        SubCommand::ApplyAcmeCert(opts) => block_on(apply_acme_cert::main(opts)),
         SubCommand::GenConfig(opts) => gen_config::main(opts),
-        SubCommand::GenSxg(opts) => gen_sxg::main(opts).await,
+        SubCommand::GenSxg(opts) => block_on(gen_sxg::main(opts)),
         SubCommand::GenDevCert(opts) => gen_dev_cert::main(opts),
     }
 }

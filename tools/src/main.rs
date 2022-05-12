@@ -18,7 +18,6 @@ mod runtime;
 
 use anyhow::Result;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    commands::main().await
+fn main() -> Result<()> {
+    commands::main()
 }
