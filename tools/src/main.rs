@@ -17,6 +17,18 @@ mod linux_commands;
 mod runtime;
 
 use anyhow::Result;
+use std::future::Future;
+
+fn tokio_block_on<F>(f: F) -> <F as Future>::Output
+where
+    F: Future,
+{
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(f)
+}
 
 fn main() -> Result<()> {
     commands::main()
