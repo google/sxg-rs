@@ -293,6 +293,7 @@ pub fn main(opts: Opts) -> Result<()> {
                     &serde_json::to_string(&acme_private_key)?,
                 ))
             }
+            wrangler_vars.acme_account = Some(serde_json::to_string(&artifact.acme_account)?);
         }
     };
     let wrangler_toml_output = WranglerManifest {
