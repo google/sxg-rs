@@ -165,7 +165,7 @@ pub fn main(opts: Opts) -> Result<()> {
     }
     goto_repository_root()?;
     let mut input: Config = serde_yaml::from_str(&std::fs::read_to_string(&opts.input)?)?;
-    let mut artifact: Artifact = read_artifact(&opts.input).unwrap_or_default();
+    let mut artifact: Artifact = read_artifact(&opts.artifact).unwrap_or_default();
     input.sxg_worker.html_host = input
         .sxg_worker
         .html_host
