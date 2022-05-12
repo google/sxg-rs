@@ -20,14 +20,17 @@ use wrangler::settings::toml::ConfigKvNamespace;
 
 #[derive(Debug, Parser)]
 pub struct Opts {
-    #[clap(long, value_name = "FILE_NAME")]
     /// A YAML file containing all config values.
     /// You can use the template
     /// 'tools/src/commands/gen_config/input.example.yaml'.
-    input: String,
     #[clap(long, value_name = "FILE_NAME")]
+    input: String,
     /// A YAML file containing the generated values.
+    #[clap(long, value_name = "FILE_NAME")]
     artifact: String,
+    /// No longer log in to worker service providers.
+    #[clap(long)]
+    use_ci_mode: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -157,6 +160,9 @@ fn read_artifact(file_name: &str) -> Result<Artifact> {
 }
 
 pub fn main(opts: Opts) -> Result<()> {
+    if std::env::var("CI").is_ok() && !opts.use_ci_mode {
+        println!("The environment variable $CI is set, but --use-ci-mode is not set.");
+    }
     goto_repository_root()?;
     let mut input: Config = serde_yaml::from_str(&std::fs::read_to_string(&opts.input)?)?;
     let mut artifact: Artifact = read_artifact(&opts.input).unwrap_or_default();
@@ -166,9 +172,13 @@ pub fn main(opts: Opts) -> Result<()> {
         .clone() // TODO: Remove this clone while keep Rust compiler happy.
         .or_else(|| Some(input.domain_name.clone()));
     if artifact.cloudflare_kv_namespace_id.is_none() {
-        let user = get_global_user();
-        artifact.cloudflare_kv_namespace_id =
-            Some(get_ocsp_kv_id(&user, &input.cloudflare.account_id))
+        if opts.use_ci_mode {
+            println!("Skipping KV namespace creation, because --use-ci-mode is set.")
+        } else {
+            let user = get_global_user();
+            artifact.cloudflare_kv_namespace_id =
+                Some(get_ocsp_kv_id(&user, &input.cloudflare.account_id))
+        }
     }
     let mut wrangler_vars = WranglerVars {
         html_host: input.domain_name.clone(),

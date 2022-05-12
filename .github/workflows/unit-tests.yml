@@ -38,7 +38,7 @@ jobs:
         run: |
           cargo run -p tools -- gen-dev-cert --domain example.org
       - run: |
-          cargo run -p tools -- gen-config --input input.example.yaml --artifact artifact.yaml
+          cargo run -p tools -- gen-config --use-ci-mode --input input.example.yaml --artifact artifact.yaml
           cp fastly_compute/fastly.example.toml fastly_compute/fastly.toml
           cp fastly_compute/config.example.yaml fastly_compute/config.yaml
       - uses: actions-rs/toolchain@v1
