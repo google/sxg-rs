@@ -46,33 +46,43 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 1. Install [Rust](https://www.rust-lang.org/tools/install).
 1. Install [@cloudflare/wrangler](https://github.com/cloudflare/wrangler).
 
-1. Clone this repo and cd into the current folder.
+1. Clone this repo and cd into the repository root folder.
    ```bash
    git clone https://github.com/google/sxg-rs.git
-   cd sxg-rs/cloudflare_worker/
+   cd sxg-rs/
    ```
-   All following steps in this `README.md` should be done in this folder.
+   All following steps in this `README.md` should be done in the repository root folder.
 
-1. Run following command.
+1. Create your config input file from the template
+   [input.example.yaml](../input.example.yaml).
    ```bash
-      cargo run -p tools -- gen-config \
-        --html-host $YOUR_DOMAIN \
-        --cloudflare-account-id $ACCOUNT_ID \
-        --cloudflare-zone-id $ZONE_ID
+   cp input.example.yaml input.yaml
    ```
-   This command will creates a `wrangler.toml` that can be modified futher if desired.
+
+1. Edit the `input.yaml` to put the information of your website.
 
    - To find Cloudflare **account ID** and **zone ID**,
      see [this screenshot](https://forum.aapanel.com/d/3914-how-to-get-zone-id-of-cloudflare).
+
+1. Run following command.
+   ```bash
+   cargo run -p tools -- gen-config --input input.yaml --artifact artifact.yaml
+   ```
+   This command will creates a `cloudflare_worker/wrangler.toml` that can be modified futher if desired.
+
+   - For example, you can customize the `routes` list in `wrangler.toml` based on the
+     [Cloudflare Docs](https://developers.cloudflare.com/workers/platform/routes/#matching-behavior).
+     But you need to leave the patterns starting with `/.well-known/` enabled, in order to keep
+     SXG working.
 
 1. Put your private key as a
    [secret](https://developers.cloudflare.com/workers/cli-wrangler/commands#secret)
    to cloudflare worker.
    1. Parse your private key to JWK format.
       ```bash
-      go run ../credentials/parse_private_key.go <../credentials/privkey.pem
+      go run credentials/parse_private_key.go <credentials/privkey.pem
       ```
-   1. Run `wrangler secret put PRIVATE_KEY_JWK`. (Use the string
+   1. Run `cd cloudflare_worker && wrangler secret put PRIVATE_KEY_JWK`. (Use the string
       `PRIVATE_KEY_JWK` as is, and don't replace it with the
       actual private key.)
    1. The terminal will interactively ask for the value of the secret.
@@ -95,7 +105,7 @@ The certificates need to be renewed every 90 days.
 
 1. Follow [these steps](../credentials/README.md#renew-certificate) to renew
    the certificate.
-1. Run `cargo run -p tools -- gen-config`.
+1. Run `cargo run -p tools -- gen-config --input input.yaml --artifact artifact.yaml`.
 1. Run `./publish.sh` to restart the worker.
 
 ## Uninstall

@@ -12,30 +12,55 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::{anyhow, Error, Result};
+use anyhow::{Error, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use wrangler::settings::global_user::GlobalUser;
 use wrangler::settings::toml::ConfigKvNamespace;
 
 #[derive(Debug, Parser)]
-#[clap(allow_hyphen_values = true)]
 pub struct Opts {
+    /// A YAML file containing all config values.
+    /// You can use the template
+    /// 'tools/src/commands/gen_config/input.example.yaml'.
+    #[clap(long, value_name = "FILE_NAME")]
+    input: String,
+    /// A YAML file containing the generated values.
+    #[clap(long, value_name = "FILE_NAME")]
+    artifact: String,
+    /// No longer log in to worker service providers.
     #[clap(long)]
-    cloudflare_account_id: Option<String>,
-    #[clap(long)]
-    cloudflare_zone_id: Option<String>,
-    #[clap(long)]
-    /// Your domain registered in Cloudflare
-    html_host: String,
-    #[clap(long, default_value_t=String::from("credentials/cert.pem"))]
-    cert_file: String,
-    #[clap(long, default_value_t=String::from("credentials/issuer.pem"))]
-    issuer_file: String,
-    #[clap(long)]
-    /// Deploy the worker only on 'workers.dev'.
-    /// Google SXG cache requires this parameter to be false (to be not set).
+    use_ci_mode: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Config {
+    domain_name: String,
+    sxg_worker: sxg_rs::config::Config,
+    certificates: SxgCertConfig,
+    cloudflare: CloudlareSpecificInput,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum SxgCertConfig {
+    PreIssued {
+        cert_file: String,
+        issuer_file: String,
+    },
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CloudlareSpecificInput {
+    account_id: String,
+    zone_id: String,
+    worker_name: String,
     deploy_on_workers_dev_only: bool,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct Artifact {
+    cloudflare_kv_namespace_id: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -43,17 +68,15 @@ pub struct Opts {
 struct WranglerVars {
     html_host: String,
     sxg_config: String,
-    #[serde(default)]
-    cert_pem: String,
-    #[serde(default)]
-    issuer_pem: String,
+    cert_pem: Option<String>,
+    issuer_pem: Option<String>,
 }
 
 // TODO: Use `wrangler::settings::toml::Manifest`
 // after [this issue](https://github.com/cloudflare/wrangler/issues/2037)
 // is resolved.
 #[derive(Deserialize, Serialize)]
-struct WranglerConfig {
+struct WranglerManifest {
     name: String,
     #[serde(rename = "type")]
     target_type: String,
@@ -128,93 +151,92 @@ fn read_certificate_pem_file(path: &str) -> Result<String> {
     }
 }
 
-// Read and parse both `cert.pem` and `issuer.pem`.
-// Panics on error.
-fn read_certificates(cert_path: &str, issuer_path: &str) -> (String, String) {
-    let cert = read_certificate_pem_file(cert_path);
-    let issuer = read_certificate_pem_file(issuer_path);
-    if let (Ok(cert), Ok(issuer)) = (&cert, &issuer) {
-        println!("Successfully read certificates");
-        return (cert.to_string(), issuer.to_string());
-    }
-    if let Err(msg) = cert {
-        println!("{}", msg);
-    }
-    if let Err(msg) = issuer {
-        println!("{}", msg);
-    }
-    println!(
-        r#"Failed to load SXG certificates.
-What you need to do:
-  1. Generate SXG certificates according to the link
-     https://github.com/google/sxg-rs/blob/main/credentials/README.md
-  2. Copy the "cert.pem" and "issuer.pem" to the "credentials" folder.
-  3. Re-run "cargo run -p tools -- gen-config"."#
-    );
-    std::process::exit(1);
-}
+const WRANGLER_TOML: &str = "cloudflare_worker/wrangler.toml";
 
-const CONFIG_FILE: &str = "cloudflare_worker/wrangler.toml";
-// TODO: Remove the example toml, and use Rust code to set the default value of WranglerConfig.
-const CONFIG_EXAMPLE_FILE: &str = "cloudflare_worker/wrangler.example.toml";
-
-// Read and parse `wrangler.toml`.
-// `wrangler.example.toml` will be read if `wrangler.toml` does not exist.
-// This function panics if `wrangler.toml` contains syntax error,
-// even when a valid `wrangler.example.toml` exists.
-fn read_existing_config() -> (WranglerConfig, bool) {
-    let (wrangler_config, exists) = std::fs::read_to_string(CONFIG_FILE)
-        .map(|s| (s, true))
-        .or_else(|_| std::fs::read_to_string(CONFIG_EXAMPLE_FILE).map(|s| (s, false)))
-        .unwrap();
-    let wrangler_config: WranglerConfig = toml::from_str(&wrangler_config).unwrap();
-    (wrangler_config, exists)
+fn read_artifact(file_name: &str) -> Result<Artifact> {
+    let file_content = std::fs::read_to_string(file_name)?;
+    let artifact = serde_yaml::from_str(&file_content)?;
+    Ok(artifact)
 }
 
 pub fn main(opts: Opts) -> Result<()> {
-    goto_repository_root()?;
-    let (cert_pem, issuer_pem) = read_certificates(&opts.cert_file, &opts.issuer_file);
-    let (mut wrangler_config, exists) = read_existing_config();
-    wrangler_config.vars.cert_pem = cert_pem;
-    wrangler_config.vars.issuer_pem = issuer_pem;
-    // TODO: Tell the user that they can create an sh script to store all CLI args.
-    if !exists {
-        let user = get_global_user();
-        wrangler_config.account_id = opts
-            .cloudflare_account_id
-            .ok_or_else(|| anyhow!("Please specify you Cloudflare account ID"))?;
-        wrangler_config.zone_id = opts
-            .cloudflare_zone_id
-            .ok_or_else(|| anyhow!("Please specify you Cloudflare zone ID"))?;
-        let html_host = &opts.html_host;
-        if opts.deploy_on_workers_dev_only {
-            wrangler_config.routes = vec![];
-            wrangler_config.workers_dev = Some(true);
-            wrangler_config.vars.html_host = html_host.clone();
-        } else {
-            wrangler_config.routes = vec![
-                format!("{}/*", html_host),
-                format!("{}/.well-known/sxg-certs/*", html_host),
-                format!("{}/.well-known/sxg-validity/*", html_host),
-            ];
-        }
-        let ocsp_kv_id = get_ocsp_kv_id(&user, &wrangler_config.account_id);
-        wrangler_config.kv_namespaces = vec![ConfigKvNamespace {
-            binding: String::from("OCSP"),
-            id: Some(ocsp_kv_id),
-            preview_id: None,
-        }];
+    if std::env::var("CI").is_ok() && !opts.use_ci_mode {
+        println!("The environment variable $CI is set, but --use-ci-mode is not set.");
     }
+    goto_repository_root()?;
+    let mut input: Config = serde_yaml::from_str(&std::fs::read_to_string(&opts.input)?)?;
+    let mut artifact: Artifact = read_artifact(&opts.artifact).unwrap_or_default();
+    input.sxg_worker.html_host = input
+        .sxg_worker
+        .html_host
+        .clone() // TODO: Remove this clone while keep Rust compiler happy.
+        .or_else(|| Some(input.domain_name.clone()));
+    if artifact.cloudflare_kv_namespace_id.is_none() {
+        if opts.use_ci_mode {
+            println!("Skipping KV namespace creation, because --use-ci-mode is set.")
+        } else {
+            let user = get_global_user();
+            artifact.cloudflare_kv_namespace_id =
+                Some(get_ocsp_kv_id(&user, &input.cloudflare.account_id))
+        }
+    }
+    let mut wrangler_vars = WranglerVars {
+        html_host: input.domain_name.clone(),
+        sxg_config: serde_yaml::to_string(&input.sxg_worker)?,
+        cert_pem: None,
+        issuer_pem: None,
+    };
+    match &input.certificates {
+        SxgCertConfig::PreIssued {
+            cert_file,
+            issuer_file,
+        } => {
+            wrangler_vars.cert_pem = Some(read_certificate_pem_file(cert_file)?);
+            wrangler_vars.issuer_pem = Some(read_certificate_pem_file(issuer_file)?);
+        }
+    };
+    let wrangler_toml_output = WranglerManifest {
+        name: input.cloudflare.worker_name.clone(),
+        target_type: "rust".to_string(),
+        account_id: input.cloudflare.account_id.clone(),
+        zone_id: input.cloudflare.zone_id.clone(),
+        routes: vec![
+            format!("{}/*", input.domain_name),
+            format!("{}/.well-known/sxg-certs/*", input.domain_name),
+            format!("{}/.well-known/sxg-validity/*", input.domain_name),
+        ],
+        kv_namespaces: vec![ConfigKvNamespace {
+            binding: String::from("OCSP"),
+            id: artifact
+                .cloudflare_kv_namespace_id
+                .clone()
+                .or_else(|| Some("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".to_string())),
+            preview_id: None,
+        }],
+        workers_dev: Some(input.cloudflare.deploy_on_workers_dev_only),
+        vars: wrangler_vars,
+    };
+
     std::fs::write(
-        CONFIG_FILE,
+        &opts.artifact,
         format!(
             "# This file is generated by command \"cargo run -p tools -- gen-config\".\n\
-            # Feel free to customize your config by directly modifying this file.\n\
-            # Please note that comments you add won't be preserved at the next time you run \"cargo run -p tools -- -gen-config\".\n\
+            # Please do not modify.\n\
             {}",
-            toml::to_string_pretty(&wrangler_config).unwrap()
+            serde_yaml::to_string(&artifact)?
         ),
     )?;
-    println!("Successfully wrote config to {}", CONFIG_FILE);
+
+    std::fs::write(
+        WRANGLER_TOML,
+        format!(
+            "# This file is generated by command \"cargo run -p tools -- gen-config\".\n\
+            # Please note that anything you modify won't be preserved\n\
+            # at the next time you run \"cargo run -p tools -- -gen-config\".\n\
+            {}",
+            toml::to_string_pretty(&wrangler_toml_output)?
+        ),
+    )?;
+    println!("Successfully wrote config to {}", WRANGLER_TOML);
     Ok(())
 }

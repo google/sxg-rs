@@ -30,10 +30,12 @@ jobs:
         run: |
           cargo run -p tools -- gen-dev-cert --domain example.org
       - run: npm install -g @cloudflare/wrangler
+      - name: Gen config
+        run: |
+          cargo run -p tools -- gen-config --use-ci-mode --input input.example.yaml --artifact artifact.yaml
       - name: Build
         working-directory: cloudflare_worker
         run: |
-          cp wrangler.example.toml wrangler.toml
           ./publish.sh build
       # TODO: ./publish.sh dev & curl | dump-signedexchange -verify
   fastly_compute:
@@ -105,10 +107,16 @@ jobs:
             target/
             playground/node_modules
           key: ${{ runner.os }}-playground-${{ hashFiles('**/Cargo.lock', 'playground/package.json') }}
+      - name: Gen Dev certificate
+        working-directory: credentials
+        run: |
+          cargo run -p tools -- gen-dev-cert --domain example.org
+      - name: Gen config
+        run: |
+          cargo run -p tools -- gen-config --use-ci-mode --input input.example.yaml --artifact artifact.yaml
       - name: Build wasm
         working-directory: cloudflare_worker
         run: |
-          cp wrangler.example.toml wrangler.toml
           npm install -g @cloudflare/wrangler
           wrangler build
       - name: Build playground
