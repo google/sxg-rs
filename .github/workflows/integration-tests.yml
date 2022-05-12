@@ -109,6 +109,7 @@ jobs:
           key: ${{ runner.os }}-playground-${{ hashFiles('**/Cargo.lock', 'playground/package.json') }}
       - name: Gen config
         run: |
+          cargo run -p tools -- gen-dev-cert --domain example.org
           cargo run -p tools -- gen-config --use-ci-mode --input input.example.yaml --artifact artifact.yaml
       - name: Build wasm
         working-directory: cloudflare_worker
