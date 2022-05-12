@@ -207,7 +207,10 @@ pub fn main(opts: Opts) -> Result<()> {
         ],
         kv_namespaces: vec![ConfigKvNamespace {
             binding: String::from("OCSP"),
-            id: artifact.cloudflare_kv_namespace_id.clone(),
+            id: artifact
+                .cloudflare_kv_namespace_id
+                .clone()
+                .or_else(|| Some("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".to_string())),
             preview_id: None,
         }],
         workers_dev: Some(input.cloudflare.deploy_on_workers_dev_only),
