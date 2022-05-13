@@ -224,7 +224,7 @@ impl SxgWorker {
         let validity = cbor::DataItem::Map(vec![]);
         validity.serialize()
     }
-    async fn get_unexpired_ocsp(&self, runtime: &Runtime) -> Result<Vec<u8>> {
+    pub async fn get_unexpired_ocsp(&self, runtime: &Runtime) -> Result<Vec<u8>> {
         ocsp::read_and_update_ocsp_in_storage(
             &self.cert_der,
             &self.issuer_der,
