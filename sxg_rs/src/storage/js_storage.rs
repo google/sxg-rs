@@ -56,8 +56,7 @@ impl Storage for JsStorage {
     async fn write(&self, k: &str, v: &str) -> Result<()> {
         if let Some(write) = &self.write {
             let k = JsValue::from_str(k);
-            let v = serde_json::to_string(v)?;
-            let v = JsValue::from_str(&v);
+            let v = JsValue::from_str(v);
             await_js_promise(write.call2(&JsValue::NULL, &k, &v)).await?;
         }
         Ok(())

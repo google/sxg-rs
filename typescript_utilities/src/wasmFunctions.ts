@@ -96,6 +96,7 @@ export interface WasmWorker {
     url: string
   ): Promise<PresetContent | undefined>;
   validatePayloadHeaders(fields: HeaderFields): void;
+  updateAcmeStateMachine: (runtime: JsRuntimeInitParams, acmeAccount: string) => Promise<void>,
 }
 
 interface WasmFunctions {

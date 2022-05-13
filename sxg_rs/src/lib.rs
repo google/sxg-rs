@@ -267,6 +267,15 @@ impl SxgWorker {
                     status: 200,
                     body: include_bytes!("./static/fallback.html").to_vec(),
                 })),
+                "acme_state.txt" => {
+                    // DO NOT SUBMIT
+                    let state = crate::acme::state_machine::read_current_state(runtime).await;
+                    Some(PresetContent::Direct(HttpResponse {
+                        headers: vec![(String::from("content-type"), String::from("text/plain"))],
+                        status: 200,
+                        body: format!("{:#?}", state).into_bytes(),
+                    }))
+                }
                 "test.sxg" => {
                     let mut fallback_url = req_url;
                     fallback_url
@@ -327,6 +336,18 @@ impl SxgWorker {
                     status: 404,
                     body: format!("Unknown path {}", req_url).into_bytes(),
                 }))
+            }
+        } else if let Some(challenge_token) = path.strip_prefix("/.well-known/acme-challenge/") {
+            match crate::acme::state_machine::get_challenge_answer(runtime).await {
+                Ok(Some(answer)) => Some(PresetContent::Direct(HttpResponse {
+                    status: 200,
+                    headers: vec![(
+                        String::from("content-type"),
+                        String::from("application/octet-stream"),
+                    )],
+                    body: answer.into_bytes(),
+                })),
+                _ => None,
             }
         } else {
             None
