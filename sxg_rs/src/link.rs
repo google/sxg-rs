@@ -191,7 +191,7 @@ mod tests {
         }
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn sanitizes_preloads() {
         let url = Url::parse("https://foo.com").unwrap();
         assert_eq!(
@@ -275,7 +275,7 @@ mod tests {
     }
 
     #[cfg(feature = "srcset")]
-    #[async_std::test]
+    #[tokio::test]
     async fn imagesrcset() {
         let url = Url::parse("https://foo.com").unwrap();
         assert_eq!(
@@ -317,7 +317,7 @@ mod tests {
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn fetch_header_integrity_ok() {
         let mut fetcher = FakeIntegrityFetcher(Ok(
             "sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=".into(),
@@ -335,7 +335,7 @@ mod tests {
                    r#"<https://foo.com/>;rel=preload,<https://foo.com/>;rel=allowed-alt-sxg;header-integrity="sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=""#);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn fetch_header_integrity_multiple() {
         let mut fetcher = FakeIntegrityFetcher(Ok(
             "sha256-OcpYAC5zFQtAXUURzXkMDDxMbxuEeWVjdRCDcLcBhBY=".into(),
@@ -350,7 +350,7 @@ mod tests {
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn fetch_header_integrity_out_of_order() {
         use crate::utils::tests::{out_of_order, OutOfOrderState};
         use futures::future::BoxFuture;
@@ -381,7 +381,7 @@ mod tests {
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn fetch_header_integrity_ok_none() {
         let mut fetcher = FakeIntegrityFetcher(Err("some error".into()));
         let url = Url::parse("https://foo.com").unwrap();

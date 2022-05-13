@@ -21,7 +21,6 @@ use fastly::{
     Request, Response,
 };
 use fetcher::FastlyFetcher;
-use futures::executor::block_on;
 use once_cell::sync::Lazy;
 use std::convert::TryInto;
 use sxg_rs::{
@@ -94,7 +93,7 @@ fn fetch_from_html_server(url: &Url, req_headers: Vec<(String, String)>) -> Resu
         .map_err(|err| Error::msg(format!(r#"Fetching "{}" leads to error "{}""#, url, err)))
 }
 
-fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Response> {
+async fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Response> {
     let payload_headers = get_rsp_header_fields(&payload)?;
     let payload_body = payload.into_body_bytes();
     let cert_origin = fallback_url.origin().ascii_serialization();
@@ -119,7 +118,7 @@ fn generate_sxg_response(fallback_url: &Url, payload: Response) -> Result<Respon
             header_integrity_cache: sxg_rs::http_cache::NullCache {},
         },
     );
-    let sxg = block_on(sxg)?;
+    let sxg = sxg.await?;
     sxg_rs_response_to_fastly_response(sxg)
 }
 
@@ -150,7 +149,7 @@ async fn handle_request(req: Request) -> Result<Response> {
             sxg_payload = fetch_from_html_server(&fallback_url, req_headers)?;
         }
     };
-    generate_sxg_response(&fallback_url, sxg_payload)
+    generate_sxg_response(&fallback_url, sxg_payload).await
 }
 
 #[fastly::main]
