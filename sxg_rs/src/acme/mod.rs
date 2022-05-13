@@ -305,6 +305,34 @@ mod tests {
     use crate::http::{HttpRequest, HttpResponse, Method};
     use crate::runtime::Runtime;
     use jws::JsonWebSignature;
+    use crate::fetcher::mock_fetcher::MockServer;
+
+    async fn handle_directory_request(server: &mut MockServer, nonce: &str) {
+        let req = HttpRequest {
+            body: vec![],
+            method: Method::Get,
+            headers: vec![],
+            url: "https://acme.server/".to_string(),
+        };
+        let res = HttpResponse {
+            status: 200,
+            headers: vec![("Replay-Nonce".to_string(), nonce.to_string())],
+            body: r#"{
+                "keyChange": "https://acme.server/key-change",
+                "newAccount": "https://acme.server/new-acct",
+                "newNonce": "https://acme.server/new-nonce",
+                "newOrder": "https://acme.server/new-order",
+                "revokeCert": "https://acme.server/revoke-cert",
+                "meta": {
+                    "termsOfService": "https://acme.server/terms_of_service.pdf"
+                }
+            }"#
+            .to_string()
+            .into_bytes(),
+        };
+        server.handle_next_request(req, res).await.unwrap();
+    }
+
     // Tests basic workflow of requesting certificate using ACME protocol.
     #[tokio::test]
     async fn workflow() {
@@ -360,42 +388,7 @@ mod tests {
         let server_thread = async {
             let signer = crate::signature::mock_signer::MockSigner;
 
-            let req = HttpRequest {
-                body: vec![],
-                method: Method::Get,
-                headers: vec![],
-                url: "https://acme.server/".to_string(),
-            };
-            let res = HttpResponse {
-                status: 200,
-                headers: vec![],
-                body: r#"{
-                    "keyChange": "https://acme.server/key-change",
-                    "newAccount": "https://acme.server/new-acct",
-                    "newNonce": "https://acme.server/new-nonce",
-                    "newOrder": "https://acme.server/new-order",
-                    "revokeCert": "https://acme.server/revoke-cert",
-                    "meta": {
-                        "termsOfService": "https://acme.server/terms_of_service.pdf"
-                    }
-                }"#
-                .to_string()
-                .into_bytes(),
-            };
-            server.handle_next_request(req, res).await.unwrap();
-
-            let req = HttpRequest {
-                body: vec![],
-                method: Method::Get,
-                headers: vec![],
-                url: "https://acme.server/new-nonce".to_string(),
-            };
-            let res = HttpResponse {
-                status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "1".to_string())],
-                body: vec![],
-            };
-            server.handle_next_request(req, res).await.unwrap();
+            handle_directory_request(&mut server, "1").await;
 
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
@@ -438,29 +431,7 @@ mod tests {
             };
             server.handle_next_request(req, res).await.unwrap();
 
-            let req = HttpRequest {
-                body: vec![],
-                method: Method::Get,
-                headers: vec![],
-                url: "https://acme.server/".to_string(),
-            };
-            let res = HttpResponse {
-                status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "3".to_string())],
-                body: r#"{
-                    "keyChange": "https://acme.server/key-change",
-                    "newAccount": "https://acme.server/new-acct",
-                    "newNonce": "https://acme.server/new-nonce",
-                    "newOrder": "https://acme.server/new-order",
-                    "revokeCert": "https://acme.server/revoke-cert",
-                    "meta": {
-                        "termsOfService": "https://acme.server/terms_of_service.pdf"
-                    }
-                }"#
-                .to_string()
-                .into_bytes(),
-            };
-            server.handle_next_request(req, res).await.unwrap();
+            handle_directory_request(&mut server, "3").await;
 
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
@@ -552,29 +523,7 @@ mod tests {
             };
             server.handle_next_request(req, res).await.unwrap();
 
-            let req = HttpRequest {
-                body: vec![],
-                method: Method::Get,
-                headers: vec![],
-                url: "https://acme.server/".to_string(),
-            };
-            let res = HttpResponse {
-                status: 200,
-                headers: vec![("Replay-Nonce".to_string(), "6".to_string())],
-                body: r#"{
-                    "keyChange": "https://acme.server/key-change",
-                    "newAccount": "https://acme.server/new-acct",
-                    "newNonce": "https://acme.server/new-nonce",
-                    "newOrder": "https://acme.server/new-order",
-                    "revokeCert": "https://acme.server/revoke-cert",
-                    "meta": {
-                        "termsOfService": "https://acme.server/terms_of_service.pdf"
-                    }
-                }"#
-                .to_string()
-                .into_bytes(),
-            };
-            server.handle_next_request(req, res).await.unwrap();
+            handle_directory_request(&mut server, "6").await;
 
             let req = HttpRequest {
                 body: serde_json::to_vec(&JsonWebSignature::new_from_serialized(
