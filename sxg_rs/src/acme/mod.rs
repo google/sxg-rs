@@ -302,10 +302,10 @@ async fn get_http_challenge(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fetcher::mock_fetcher::MockServer;
     use crate::http::{HttpRequest, HttpResponse, Method};
     use crate::runtime::Runtime;
     use jws::JsonWebSignature;
-    use crate::fetcher::mock_fetcher::MockServer;
 
     async fn handle_directory_request(server: &mut MockServer, nonce: &str) {
         let req = HttpRequest {
