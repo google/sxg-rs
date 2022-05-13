@@ -126,7 +126,7 @@ impl JsonWebSignature {
 
 #[cfg(test)]
 mod tests {
-    #[async_std::test]
+    #[tokio::test]
     #[cfg(feature = "rust_signer")]
     async fn json_web_signature() {
         use super::*;

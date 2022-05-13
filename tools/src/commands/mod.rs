@@ -17,9 +17,9 @@ mod gen_config;
 mod gen_dev_cert;
 mod gen_sxg;
 
+use super::tokio_block_on as block_on;
 use anyhow::Result;
 use clap::Parser;
-use futures::executor::block_on;
 
 #[derive(Parser)]
 enum SubCommand {

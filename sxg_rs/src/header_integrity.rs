@@ -209,7 +209,7 @@ pub mod tests {
         FakeFetcher(Box::leak(test_response))
     });
 
-    #[async_std::test]
+    #[tokio::test]
     async fn computes_integrity() {
         let strip_response_headers = BTreeSet::new();
         let fetcher = new_fetcher(
@@ -223,7 +223,7 @@ pub mod tests {
         );
     }
 
-    // RefCell is good enough for our single-threaded, single-task unit tests, but async_std::Mutex
+    // RefCell is good enough for our single-threaded, single-task unit tests, but tokio::Mutex
     // would be necessary for more complex usage.
     struct InMemoryCache<'a>(&'a RefCell<HashMap<String, HttpResponse>>);
 
@@ -244,7 +244,7 @@ pub mod tests {
         }
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn gets_header_integrity_from_cache() {
         let store = RefCell::new(HashMap::new());
         let cache = InMemoryCache(&store);
@@ -264,7 +264,7 @@ pub mod tests {
 
         assert_eq!(fetcher.fetch(TEST_URL).await.unwrap(), "sha256-blah",);
     }
-    #[async_std::test]
+    #[tokio::test]
     async fn gets_error_from_cache() {
         let store = RefCell::new(HashMap::new());
         let cache = InMemoryCache(&store);
@@ -287,7 +287,7 @@ pub mod tests {
             "something went wrong",
         )
     }
-    #[async_std::test]
+    #[tokio::test]
     async fn puts_into_cache() {
         let store = RefCell::new(HashMap::new());
 
@@ -304,7 +304,7 @@ pub mod tests {
             EXPECTED_HEADER_INTEGRITY.as_bytes(),
         );
     }
-    #[async_std::test]
+    #[tokio::test]
     async fn out_of_order() {
         use crate::utils::tests::{out_of_order, OutOfOrderState};
         use futures::{

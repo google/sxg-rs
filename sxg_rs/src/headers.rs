@@ -791,7 +791,7 @@ mod tests {
     }
 
     // === get_signed_headers ===
-    #[async_std::test]
+    #[tokio::test]
     async fn strip_id_headers() {
         let url = Url::parse("https://foo.com").unwrap();
         assert_eq!(
@@ -839,7 +839,7 @@ mod tests {
             ])
         );
     }
-    #[async_std::test]
+    #[tokio::test]
     async fn includes_link_if_valid() {
         let url = Url::parse("https://foo.com").unwrap();
         assert_eq!(
@@ -888,7 +888,7 @@ mod tests {
     }
 
     // === get_signed_headers_bytes ===
-    #[async_std::test]
+    #[tokio::test]
     async fn get_signed_headers_bytes() {
         let url = Url::parse("https://foo.com").unwrap();
         assert_eq!(headers(vec![("content-type", "image/jpeg")]).get_signed_headers_bytes(&url, 200, &[], &mut null_integrity_fetcher(), false).await,
