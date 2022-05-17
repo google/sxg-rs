@@ -168,7 +168,7 @@ impl WasmWorker {
             crate::acme::state_machine::update_state(&runtime, &acme_account)
                 .await
                 .map_err(to_js_error)?;
-            Ok(JsValue::from_str("asdf"))
+            Ok(JsValue::UNDEFINED)
         })
     }
 }

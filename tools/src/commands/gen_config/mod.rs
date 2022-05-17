@@ -77,7 +77,6 @@ pub struct CloudlareSpecificInput {
     zone_id: String,
     worker_name: String,
     deploy_on_workers_dev_only: bool,
-    kv_namespace_id: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
