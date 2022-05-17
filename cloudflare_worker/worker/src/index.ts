@@ -112,14 +112,6 @@ function createRuntime() {
 
 async function handleRequest(request: Request) {
   const worker = await workerPromise;
-  if (request.url.includes("test-acme")) {
-    try {
-    await worker.updateAcmeStateMachine(createRuntime(), ACME_ACCOUNT);
-    } catch (e) {
-      console.error(e);
-      throw e;
-    }
-  }
   let sxgPayload: Response | undefined;
   let fallback: Response | undefined;
   let response: Response | undefined;
