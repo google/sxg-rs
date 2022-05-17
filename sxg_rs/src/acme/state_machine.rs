@@ -215,10 +215,13 @@ pub async fn update_state(runtime: &Runtime, account: &Account) -> Result<()> {
     }
 }
 
-pub async fn get_challenge_answer(runtime: &Runtime) -> Result<Option<String>> {
+pub async fn get_challenge_token_and_answer(runtime: &Runtime) -> Result<Option<(String, String)>> {
     let state = read_current_state(runtime).await?;
     if let Some(task) = state.task {
-        Ok(Some(task.order.challenge_answer))
+        Ok(Some((
+            task.order.challenge_token,
+            task.order.challenge_answer,
+        )))
     } else {
         Ok(None)
     }
@@ -300,8 +303,11 @@ mod tests {
             let account: Account = serde_json::from_str(ACCOUNT).unwrap();
             update_state(&runtime, &account).await.unwrap();
             assert_eq!(
-                get_challenge_answer(&runtime).await.unwrap().unwrap(),
-                "0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.key_thumbprint"
+                get_challenge_token_and_answer(&runtime).await.unwrap().unwrap(),
+                (
+                    "0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o".to_string(),
+                "0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.key_thumbprint".to_string()
+                ),
             );
             assert_eq!(
                 read_current_state(&runtime)

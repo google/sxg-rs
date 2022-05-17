@@ -19,7 +19,7 @@ use clap::Parser;
 use sxg_rs::acme::directory::Directory;
 use sxg_rs::acme::eab::create_external_account_binding;
 use sxg_rs::acme::state_machine::{
-    get_challenge_answer, update_state as update_acme_state_machine,
+    get_challenge_token_and_answer, update_state as update_acme_state_machine,
 };
 use warp::Filter;
 
@@ -123,7 +123,7 @@ pub async fn main(opts: Opts) -> Result<()> {
     let challenge_answer = loop {
         runtime.now = std::time::SystemTime::now();
         update_acme_state_machine(&runtime, &acme_account).await?;
-        if let Some(answer) = get_challenge_answer(&runtime).await? {
+        if let Some((_token, answer)) = get_challenge_token_and_answer(&runtime).await? {
             break answer;
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
