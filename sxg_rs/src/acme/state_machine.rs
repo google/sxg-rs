@@ -303,10 +303,13 @@ mod tests {
             let account: Account = serde_json::from_str(ACCOUNT).unwrap();
             update_state(&runtime, &account).await.unwrap();
             assert_eq!(
-                get_challenge_token_and_answer(&runtime).await.unwrap().unwrap(),
+                get_challenge_token_and_answer(&runtime)
+                    .await
+                    .unwrap()
+                    .unwrap(),
                 (
                     "0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o".to_string(),
-                "0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.key_thumbprint".to_string()
+                    "0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.key_thumbprint".to_string()
                 ),
             );
             assert_eq!(

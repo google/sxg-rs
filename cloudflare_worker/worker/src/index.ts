@@ -40,7 +40,10 @@ const workerPromise = createWorker(wasm, SXG_CONFIG, CERT_PEM, ISSUER_PEM);
 if (typeof PRIVATE_KEY_JWK === 'undefined') {
   throw 'The wrangler secret PRIVATE_KEY_JWK is not set.';
 }
-const sxgSigner = createSignerFromJwk(crypto.subtle, JSON.parse(PRIVATE_KEY_JWK));
+const sxgSigner = createSignerFromJwk(
+  crypto.subtle,
+  JSON.parse(PRIVATE_KEY_JWK)
+);
 
 addEventListener('fetch', (event: FetchEvent) => {
   event.passThroughOnException();
@@ -94,9 +97,12 @@ function fallbackUrlAndCertOrigin(
 }
 
 function createRuntime() {
-  let acmeRawSigner : Signer | undefined;
+  let acmeRawSigner: Signer | undefined;
   if (typeof ACME_PRIVATE_KEY_JWK === 'string') {
-    acmeRawSigner = createSignerFromJwk(crypto.subtle, JSON.parse(ACME_PRIVATE_KEY_JWK));
+    acmeRawSigner = createSignerFromJwk(
+      crypto.subtle,
+      JSON.parse(ACME_PRIVATE_KEY_JWK)
+    );
   }
 
   return {
