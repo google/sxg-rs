@@ -119,7 +119,7 @@ pub struct Order {
     pub certificate: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Authorization {
     pub status: Status,
@@ -128,7 +128,7 @@ pub struct Authorization {
 }
 
 // https://datatracker.ietf.org/doc/html/rfc8555#section-8.3
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Challenge {
     pub r#type: String,

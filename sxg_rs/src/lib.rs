@@ -328,6 +328,24 @@ impl SxgWorker {
                     body: format!("Unknown path {}", req_url).into_bytes(),
                 }))
             }
+        } else if let Some(actual_token) = path.strip_prefix("/.well-known/acme-challenge/") {
+            match crate::acme::state_machine::get_challenge_token_and_answer(runtime).await {
+                Ok(Some((expected_token, answer))) => {
+                    if actual_token == expected_token {
+                        Some(PresetContent::Direct(HttpResponse {
+                            status: 200,
+                            headers: vec![(
+                                String::from("content-type"),
+                                String::from("application/octet-stream"),
+                            )],
+                            body: answer.into_bytes(),
+                        }))
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            }
         } else {
             None
         }

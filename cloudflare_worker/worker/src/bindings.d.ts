@@ -23,5 +23,7 @@ declare global {
   const ISSUER_PEM: string;
   const OCSP: KVNamespace;
   const PRIVATE_KEY_JWK: string;
+  const ACME_PRIVATE_KEY_JWK: string;
+  const ACME_ACCOUNT: string;
   const SXG_CONFIG: string;
 }

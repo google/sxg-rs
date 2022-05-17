@@ -154,4 +154,21 @@ impl WasmWorker {
             Ok(JsValue::from_serde(&sxg).unwrap())
         })
     }
+    #[wasm_bindgen(js_name=updateAcmeStateMachine)]
+    pub fn update_acme_state_machine(
+        &self,
+        js_runtime: JsRuntimeInitParams,
+        acme_account: String,
+    ) -> JsPromise {
+        let _ = self;
+        future_to_promise(async move {
+            let acme_account: crate::acme::Account =
+                serde_json::from_str(&acme_account).map_err(to_js_error)?;
+            let runtime = Runtime::try_from(js_runtime).map_err(to_js_error)?;
+            crate::acme::state_machine::update_state(&runtime, &acme_account)
+                .await
+                .map_err(to_js_error)?;
+            Ok(JsValue::UNDEFINED)
+        })
+    }
 }

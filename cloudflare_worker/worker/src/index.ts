@@ -20,7 +20,7 @@ import {
   processHTML,
   // eslint-disable-next-line node/no-unpublished-import
 } from '../../../typescript_utilities/src/processor';
-import {fromJwk as createSignerFromJwk} from './signer';
+import {fromJwk as createSignerFromJwk, Signer} from './signer';
 import {storageRead, storageWrite} from './storage';
 import {
   PAYLOAD_SIZE_LIMIT,
@@ -40,7 +40,10 @@ const workerPromise = createWorker(wasm, SXG_CONFIG, CERT_PEM, ISSUER_PEM);
 if (typeof PRIVATE_KEY_JWK === 'undefined') {
   throw 'The wrangler secret PRIVATE_KEY_JWK is not set.';
 }
-const signer = createSignerFromJwk(crypto.subtle, JSON.parse(PRIVATE_KEY_JWK));
+const sxgSigner = createSignerFromJwk(
+  crypto.subtle,
+  JSON.parse(PRIVATE_KEY_JWK)
+);
 
 addEventListener('fetch', (event: FetchEvent) => {
   event.passThroughOnException();
@@ -94,14 +97,22 @@ function fallbackUrlAndCertOrigin(
 }
 
 function createRuntime() {
+  let acmeRawSigner: Signer | undefined;
+  if (typeof ACME_PRIVATE_KEY_JWK === 'string') {
+    acmeRawSigner = createSignerFromJwk(
+      crypto.subtle,
+      JSON.parse(ACME_PRIVATE_KEY_JWK)
+    );
+  }
+
   return {
     nowInSeconds: Math.floor(Date.now() / 1000),
     fetcher,
     storageRead,
     storageWrite,
-    sxgRawSigner: signer,
+    sxgRawSigner: sxgSigner,
     sxgAsn1Signer: undefined,
-    acmeRawSigner: undefined, // ACME does not run in Worker yet
+    acmeRawSigner,
   };
 }
 

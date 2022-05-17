@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::{Error, Result};
-use clap::Parser;
-use warp::Filter;
-
 use crate::linux_commands::{create_certificate_request_pem, read_or_create_private_key_pem};
 use crate::runtime::hyper_fetcher::HyperFetcher;
+use anyhow::{Error, Result};
+use clap::Parser;
 use sxg_rs::acme::directory::Directory;
 use sxg_rs::acme::eab::create_external_account_binding;
+use sxg_rs::acme::state_machine::{
+    get_challenge_token_and_answer, update_state as update_acme_state_machine,
+};
+use warp::Filter;
 
 #[derive(Debug, Parser)]
 #[clap(allow_hyphen_values = true)]
@@ -73,7 +75,7 @@ pub async fn main(opts: Opts) -> Result<()> {
         )?;
         sxg_rs::crypto::get_der_from_pem(&cert_request_pem, "CERTIFICATE REQUEST")?
     };
-    let runtime = sxg_rs::runtime::Runtime {
+    let mut runtime = sxg_rs::runtime::Runtime {
         acme_signer: Box::new(acme_private_key.create_signer()?),
         fetcher: Box::new(HyperFetcher::new()),
         ..Default::default()
@@ -118,24 +120,24 @@ pub async fn main(opts: Opts) -> Result<()> {
         runtime.acme_signer.as_ref(),
     )
     .await?;
-    let ongoing_certificate_request = sxg_rs::acme::place_new_order(
-        &acme_account,
-        runtime.fetcher.as_ref(),
-        runtime.acme_signer.as_ref(),
-    )
-    .await?;
-    let tx = start_warp_server(
-        opts.port,
-        ongoing_certificate_request.challenge_answer.clone(),
-    );
-    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    let certificate_pem = sxg_rs::acme::continue_challenge_validation_and_get_certificate(
-        &acme_account,
-        ongoing_certificate_request,
-        runtime.fetcher.as_ref(),
-        runtime.acme_signer.as_ref(),
-    )
-    .await?;
+    let challenge_answer = loop {
+        runtime.now = std::time::SystemTime::now();
+        update_acme_state_machine(&runtime, &acme_account).await?;
+        if let Some((_token, answer)) = get_challenge_token_and_answer(&runtime).await? {
+            break answer;
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    };
+    let tx = start_warp_server(opts.port, challenge_answer);
+    let certificate_pem = loop {
+        runtime.now = std::time::SystemTime::now();
+        update_acme_state_machine(&runtime, &acme_account).await?;
+        let state = sxg_rs::acme::state_machine::read_current_state(&runtime).await?;
+        if let Some(cert) = state.certificate {
+            break cert;
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    };
     let _ = tx.send(());
     println!("{}", certificate_pem);
     Ok(())
