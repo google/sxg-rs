@@ -22,8 +22,6 @@ pub mod srcset;
 use anyhow::{Error, Result};
 use base::ows;
 use nom::{
-    branch::alt,
-    bytes::complete::tag,
     character::complete::char as char1,
     combinator::eof,
     multi::separated_list0,
@@ -70,34 +68,14 @@ pub fn parse_link_header(input: &str) -> Result<Vec<link::Link>> {
     parse_vec(input, link::link)
 }
 
-// https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.4
-pub fn parse_vary_header(input: &str) -> Result<Vec<&str>> {
-    parse_vec(input, |input| {
-        alt((
-            tag("*"),
-            // https://datatracker.ietf.org/doc/html/rfc7230#section-3.2
-            base::token,
-        ))(input)
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn vary() {
-        assert_eq!(
-            parse_vary_header("*  , cookie").unwrap(),
-            vec!["*", "cookie"]
-        );
-        assert!(parse_vary_header("tokens only; no spaces or semicolons allowed").is_err());
-    }
     #[test]
     fn incomplete_is_err() {
         assert!(parse_accept_header("application/signed-exchange;v=").is_err());
         assert!(parse_cache_control_header("max-age=\"3600").is_err());
         assert!(parse_content_type_header("application/signed-exchange;v=\"b3").is_err());
         assert!(parse_link_header(r#"</foo>;bar="baz \""#).is_err());
-        assert!(parse_vary_header("incomplete,").is_err());
     }
 }

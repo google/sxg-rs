@@ -16,7 +16,7 @@ use crate::header_integrity::HeaderIntegrityFetcher;
 use crate::http::HeaderFields;
 use crate::http_parser::{
     media_type::MediaType, parse_accept_header, parse_cache_control_header,
-    parse_content_type_header, parse_vary_header,
+    parse_content_type_header,
 };
 use crate::link::process_link_header;
 use crate::MAX_PAYLOAD_SIZE;
@@ -130,18 +130,11 @@ impl Headers {
                     return Err(anyhow!(r#"The {} header is "{}"."#, k, v));
                 }
             }
-            // TODO: Remove this section once https://crbug.com/1250532 is fixed in most clients.
+            // https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.4
+            // https://datatracker.ietf.org/doc/html/rfc7234#section-4.1
             if let Some(vary) = self.0.get("vary") {
-                if let Ok(directives) = parse_vary_header(vary) {
-                    if directives.contains(&"*")
-                        || directives.iter().any(|d| d.eq_ignore_ascii_case("cookie"))
-                    {
-                        return Err(anyhow!(
-                            "The response may vary by cookie, \
-                            because its \"vary\" header is \"{}\".",
-                            vary
-                        ));
-                    }
+                if vary == "*" {
+                    return Err(anyhow!(r#"The response may vary by anything."#));
                 }
             }
         }
