@@ -24,18 +24,21 @@ use fetcher::FastlyFetcher;
 use once_cell::sync::Lazy;
 use std::convert::TryInto;
 use sxg_rs::{
+    crypto::CertificateChain,
     headers::{AcceptFilter, Headers},
     http::HeaderFields,
     PresetContent,
 };
 
 pub static WORKER: Lazy<::sxg_rs::SxgWorker> = Lazy::new(|| {
-    ::sxg_rs::SxgWorker::new(
-        include_str!("../config.yaml"),
+    let mut worker = ::sxg_rs::SxgWorker::new(include_str!("../config.yaml")).unwrap();
+    let certificate = CertificateChain::from_pem_files(&[
         include_str!("../../credentials/cert.pem"),
         include_str!("../../credentials/issuer.pem"),
-    )
-    .unwrap()
+    ])
+    .unwrap();
+    worker.add_certificate(certificate);
+    worker
 });
 
 fn binary_response(status_code: StatusCode, content_type: Mime, body: &[u8]) -> Response {

@@ -40,19 +40,19 @@ mod wasm_worker;
 use crate::http::{HeaderFields, HttpResponse};
 use anyhow::{anyhow, Error, Result};
 use config::Config;
+use crypto::CertificateChain;
 use headers::{AcceptFilter, Headers};
 use http_cache::HttpCache;
 use runtime::Runtime;
 use serde::Serialize;
+use std::collections::VecDeque;
 use std::time::Duration;
 use url::Url;
 
 #[derive(Debug)]
 pub struct SxgWorker {
     config: Config,
-    cert_der: Vec<u8>,
-    cert_sha256: Vec<u8>,
-    issuer_der: Vec<u8>,
+    certificates: VecDeque<CertificateChain>,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
@@ -74,51 +74,36 @@ const BACKDATING: Duration = Duration::from_secs(60 * 60);
 pub(crate) const MAX_PAYLOAD_SIZE: usize = 8_000_000;
 
 impl SxgWorker {
-    pub fn new(config_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<Self> {
+    pub fn new(config_yaml: &str) -> Result<Self> {
         let config = Config::new(config_yaml)?;
-        let cert_der = crypto::get_der_from_pem(cert_pem, "CERTIFICATE")?;
-        let issuer_der = crypto::get_der_from_pem(issuer_pem, "CERTIFICATE")?;
-        Ok(Self::from_parsed(config, cert_der, issuer_der))
+        Ok(Self::from_parsed(config))
     }
-    pub fn from_parsed(config: Config, cert_der: Vec<u8>, issuer_der: Vec<u8>) -> Self {
+    pub fn from_parsed(config: Config) -> Self {
         SxgWorker {
             config,
-            cert_sha256: crypto::HashAlgorithm::Sha256.digest(&cert_der),
-            cert_der,
-            issuer_der,
+            certificates: VecDeque::new(),
         }
     }
-    pub fn set_cert_and_issuer(&mut self, cert_der: Vec<u8>, issuer_der: Vec<u8>) {
-        self.cert_sha256 = crypto::HashAlgorithm::Sha256.digest(&cert_der);
-        self.cert_der = cert_der;
-        self.issuer_der = issuer_der;
+    pub fn add_certificate(&mut self, certificate: CertificateChain) {
+        self.certificates.push_back(certificate);
     }
     pub fn config(&self) -> &Config {
         &self.config
     }
-    // TODO: Make OCSP status as an internal state of SxgWorker, so that
-    // SxgWorker is able to fetch OCSP. This will need a definition of a
-    // Fetcher trait. Both js and rust callers need to implement this trait.
-    pub async fn create_cert_cbor(&self, ocsp_der: &[u8]) -> Vec<u8> {
-        use cbor::DataItem;
-        let cert_cbor = DataItem::Array(vec![
-            DataItem::TextString("📜⛓"),
-            DataItem::Map(vec![
-                (
-                    DataItem::TextString("cert"),
-                    DataItem::ByteString(&self.cert_der),
-                ),
-                (DataItem::TextString("ocsp"), DataItem::ByteString(ocsp_der)),
-            ]),
-            DataItem::Map(vec![(
-                DataItem::TextString("cert"),
-                DataItem::ByteString(&self.issuer_der),
-            )]),
-        ]);
-        cert_cbor.serialize()
+    fn find_certificate_by_basename(&self, basename: &str) -> Option<&CertificateChain> {
+        self.certificates
+            .iter()
+            .find(|cert| cert.basename == basename)
     }
-    pub fn cert_basename(&self) -> String {
-        base64::encode_config(&self.cert_sha256, base64::URL_SAFE_NO_PAD)
+    pub fn latest_certificate_basename(&self) -> Option<&str> {
+        Some(&self.certificates.back()?.basename)
+    }
+    pub fn create_cert_cbor(&self, cert_basename: &str, ocsp_der: &[u8]) -> Vec<u8> {
+        if let Some(certificate) = self.find_certificate_by_basename(cert_basename) {
+            certificate.create_cert_cbor(ocsp_der)
+        } else {
+            cbor::DataItem::Array(vec![]).serialize()
+        }
     }
     pub fn process_html(
         &self,
@@ -149,6 +134,11 @@ impl SxgWorker {
             ));
         }
 
+        let latest_certificate = self
+            .certificates
+            .back()
+            .ok_or_else(|| Error::msg("Can't create signed exchange without certificate chain."))?;
+
         let fallback_base = Url::parse(fallback_url)
             .map_err(|e| Error::new(e).context("Failed to parse fallback URL"))?;
         let cert_base = Url::parse(cert_origin)
@@ -170,8 +160,7 @@ impl SxgWorker {
         let cert_url = cert_base
             .join(&format!(
                 "{}{}",
-                &self.config.cert_url_dirname,
-                &self.cert_basename()
+                &self.config.cert_url_dirname, &latest_certificate.basename
             ))
             .map_err(|e| Error::new(e).context("Failed to parse cert_url_dirname"))?;
         let validity_url = fallback_base
@@ -189,7 +178,7 @@ impl SxgWorker {
             .checked_add(payload_headers.signature_duration()?);
         let signature = signature::Signature::new(signature::SignatureParams {
             cert_url: cert_url.as_str(),
-            cert_sha256: &self.cert_sha256,
+            cert_sha256: &latest_certificate.end_entity_sha256,
             date,
             expires,
             headers: &signed_headers,
@@ -225,22 +214,26 @@ impl SxgWorker {
         validity.serialize()
     }
     pub async fn get_unexpired_ocsp(&self, runtime: &Runtime) -> Result<Vec<u8>> {
-        ocsp::read_and_update_ocsp_in_storage(
-            &self.cert_der,
-            &self.issuer_der,
-            runtime,
-            ocsp::OcspUpdateStrategy::LazyIfUnexpired,
-        )
-        .await
+        if let Some(certificate) = &self.certificates.back() {
+            ocsp::read_and_update_ocsp_in_storage(
+                certificate,
+                runtime,
+                ocsp::OcspUpdateStrategy::LazyIfUnexpired,
+            )
+            .await
+        } else {
+            Err(Error::msg("OCSP requires certificate chain"))
+        }
     }
     pub async fn update_oscp_in_storage(&self, runtime: &Runtime) -> Result<()> {
-        ocsp::read_and_update_ocsp_in_storage(
-            &self.cert_der,
-            &self.issuer_der,
-            runtime,
-            ocsp::OcspUpdateStrategy::EarlyAsRecommended,
-        )
-        .await?;
+        if let Some(certificate) = &self.certificates.back() {
+            ocsp::read_and_update_ocsp_in_storage(
+                certificate,
+                runtime,
+                ocsp::OcspUpdateStrategy::EarlyAsRecommended,
+            )
+            .await?;
+        }
         Ok(())
     }
     pub async fn serve_preset_content(
@@ -294,10 +287,10 @@ impl SxgWorker {
                 _ => None,
             }
         } else if let Some(cert_name) = path.strip_prefix(&self.config.cert_url_dirname) {
-            if cert_name == self.cert_basename() {
+            if let Some(certificate) = self.find_certificate_by_basename(cert_name) {
                 let ocsp_der = self.get_unexpired_ocsp(runtime).await.ok()?;
                 Some(PresetContent::Direct(HttpResponse {
-                    body: self.create_cert_cbor(&ocsp_der).await,
+                    body: certificate.create_cert_cbor(&ocsp_der),
                     headers: vec![(
                         String::from("content-type"),
                         String::from("application/cert-chain+cbor"),
@@ -418,11 +411,23 @@ strip_request_headers: ["Forwarded"]
 strip_response_headers: ["Set-Cookie", "STRICT-TRANSPORT-SECURITY"]
 validity_url_dirname: "//.well-known/sxg-validity"
         "#;
-        SxgWorker::new(yaml, util::SELF_SIGNED_CERT_PEM, util::SELF_SIGNED_CERT_PEM).unwrap()
+
+        let mut worker = SxgWorker::new(yaml).unwrap();
+        worker.add_certificate(
+            CertificateChain::from_pem_files(&[
+                util::SELF_SIGNED_CERT_PEM,
+                util::SELF_SIGNED_CERT_PEM,
+            ])
+            .unwrap(),
+        );
+        worker
     }
     #[test]
     fn cert_basename() {
-        assert_eq!(new_worker().cert_basename(), util::SELF_SIGNED_CERT_SHA256);
+        assert_eq!(
+            new_worker().latest_certificate_basename().unwrap(),
+            util::SELF_SIGNED_CERT_SHA256
+        );
     }
     #[tokio::test]
     async fn serve_preset_content() {
