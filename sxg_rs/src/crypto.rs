@@ -180,6 +180,8 @@ pub struct SingleCertificate {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CertificateChain {
     pub end_entity: SingleCertificate,
+    /// `issuers` are sorted as Secion 7.4.2 in RFC-4346.
+    /// For example, the root certificate is the last one.
     pub issuers: Vec<SingleCertificate>,
     #[serde(with = "crate::serde_helpers::base64")]
     pub end_entity_sha256: Vec<u8>,
@@ -188,6 +190,9 @@ pub struct CertificateChain {
 
 impl CertificateChain {
     const TAG: &'static str = "CERTIFICATE";
+    /// Parse `CertificateChain` from multiple PEM files.
+    /// Each input file may contain multiple PEM certificates.
+    /// Input files must be sorted like `[cert_pem, issuer_pem, root_pem]`.
     pub fn from_pem_files(pem_files: &[&str]) -> Result<Self> {
         let mut pem_items = vec![];
         for current_file in pem_files {

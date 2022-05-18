@@ -52,6 +52,8 @@ use url::Url;
 #[derive(Debug)]
 pub struct SxgWorker {
     config: Config,
+    /// Each new certificate is pushed to the back of the deque.
+    /// The back certificate the the latest one.
     certificates: VecDeque<CertificateChain>,
 }
 
