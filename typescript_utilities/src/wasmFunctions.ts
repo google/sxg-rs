@@ -79,23 +79,26 @@ export interface ProcessHtmlOption {
 
 export interface WasmWorker {
   // eslint-disable-next-line @typescript-eslint/no-misused-new
-  new (configYaml: string, certPem: string, issuerPem: string): WasmWorker;
+  new (configYaml: string, certificatePem: string | undefined): WasmWorker;
+  addAcmeCertificateFromStorage(runtime: JsRuntimeInitParams): Promise<void>;
   createRequestHeaders(
     accept_filter: AcceptFilter,
     fields: HeaderFields
-  ): HeaderFields;
-  processHtml(input: WasmResponse, option: ProcessHtmlOption): WasmResponse;
+  ): Promise<HeaderFields>;
+  processHtml(
+    input: WasmResponse,
+    option: ProcessHtmlOption
+  ): Promise<WasmResponse>;
   createSignedExchange(
     runtime: JsRuntimeInitParams,
     options: CreateSignedExchangedOptions
-  ): WasmResponse;
-  updateOcspInStorage(runtime: JsRuntimeInitParams): Uint8Array;
-  getLastErrorMessage(): string;
+  ): Promise<WasmResponse>;
+  updateOcspInStorage(runtime: JsRuntimeInitParams): Promise<void>;
   servePresetContent(
     runtime: JsRuntimeInitParams,
     url: string
   ): Promise<PresetContent | undefined>;
-  validatePayloadHeaders(fields: HeaderFields): void;
+  validatePayloadHeaders(fields: HeaderFields): Promise<void>;
   updateAcmeStateMachine: (
     runtime: JsRuntimeInitParams,
     acmeAccount: string
@@ -110,11 +113,14 @@ interface WasmFunctions {
 export async function createWorker(
   wasmBytes: BufferSource,
   configYaml: string,
-  certPem: string,
-  issuerPem: string
+  certificatePems: string[] | undefined
 ) {
   await wasm_bindgen(wasmBytes);
   const {init, WasmWorker} = wasm_bindgen as WasmFunctions;
   init();
-  return new WasmWorker(configYaml, certPem, issuerPem);
+  if (certificatePems) {
+    return new WasmWorker(configYaml, certificatePems.join('\n'));
+  } else {
+    return new WasmWorker(configYaml, undefined);
+  }
 }
