@@ -24,11 +24,12 @@ use js_sys::Function as JsFunction;
 use js_sys::Promise as JsPromise;
 use std::convert::TryFrom;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 use wasm_bindgen::prelude::{wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 
 #[wasm_bindgen]
-pub struct WasmWorker(Arc<SxgWorker>);
+pub struct WasmWorker(Arc<RwLock<SxgWorker>>);
 
 #[wasm_bindgen]
 extern "C" {
@@ -54,12 +55,28 @@ extern "C" {
 #[wasm_bindgen]
 impl WasmWorker {
     #[wasm_bindgen(constructor)]
-    pub fn new(config_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<WasmWorker, JsValue> {
+    pub fn new(config_yaml: &str, certificate_pem: Option<String>) -> Result<WasmWorker, JsValue> {
         let mut sxg_worker = SxgWorker::new(config_yaml).map_err(to_js_error)?;
-        let certificate =
-            CertificateChain::from_pem_files(&[cert_pem, issuer_pem]).map_err(to_js_error)?;
-        sxg_worker.add_certificate(certificate);
-        Ok(WasmWorker(Arc::new(sxg_worker)))
+        if let Some(certificate_pem) = certificate_pem {
+            let certificate =
+                CertificateChain::from_pem_files(&[&certificate_pem]).map_err(to_js_error)?;
+            sxg_worker.add_certificate(certificate);
+        }
+        Ok(WasmWorker(Arc::new(RwLock::new(sxg_worker))))
+    }
+    #[wasm_bindgen(js_name=addAcmeCertificateFromStorage)]
+    pub fn add_acme_certificate_from_storage(&self, js_runtime: JsRuntimeInitParams) -> JsPromise {
+        let worker = self.0.clone();
+        future_to_promise(async move {
+            let runtime = Runtime::try_from(js_runtime).map_err(to_js_error)?;
+            worker
+                .write()
+                .await
+                .add_acme_certificate_from_storage(&runtime)
+                .await
+                .map_err(to_js_error)?;
+            Ok(JsValue::UNDEFINED)
+        })
     }
     #[wasm_bindgen(js_name=updateOcspInStorage)]
     pub fn update_oscp_in_storage(&self, js_runtime: JsRuntimeInitParams) -> JsPromise {
@@ -67,6 +84,8 @@ impl WasmWorker {
         future_to_promise(async move {
             let runtime = Runtime::try_from(js_runtime).map_err(to_js_error)?;
             worker
+                .read()
+                .await
                 .update_oscp_in_storage(&runtime)
                 .await
                 .map_err(to_js_error)?;
@@ -83,6 +102,8 @@ impl WasmWorker {
         future_to_promise(async move {
             let runtime = Runtime::try_from(js_runtime).map_err(to_js_error)?;
             Ok(worker
+                .read()
+                .await
                 .serve_preset_content(&runtime, &req_url)
                 .await
                 .map_or(JsValue::UNDEFINED, |preset_content| {
@@ -96,29 +117,45 @@ impl WasmWorker {
         &self,
         accept_filter: JsValue,
         requestor_headers: JsValue,
-    ) -> Result<JsValue, JsValue> {
-        let fields = requestor_headers.into_serde().unwrap();
-        let accept_filter: AcceptFilter = accept_filter.into_serde().unwrap();
-        let result = self.0.transform_request_headers(fields, accept_filter);
-        match result {
-            Ok(fields) => Ok(JsValue::from_serde(&fields).unwrap()),
-            Err(err) => Err(to_js_error(err)),
-        }
+    ) -> JsPromise {
+        let worker = self.0.clone();
+        future_to_promise(async move {
+            let fields = requestor_headers.into_serde().map_err(to_js_error)?;
+            let accept_filter: AcceptFilter = accept_filter.into_serde().map_err(to_js_error)?;
+            let fields = worker
+                .read()
+                .await
+                .transform_request_headers(fields, accept_filter)
+                .map_err(to_js_error)?;
+            Ok(JsValue::from_serde(&fields).unwrap())
+        })
     }
     #[wasm_bindgen(js_name=validatePayloadHeaders)]
-    pub fn validate_payload_headers(&self, fields: JsValue) -> Result<(), JsValue> {
-        let fields: Vec<(String, String)> = fields.into_serde().map_err(to_js_error)?;
-        self.0
-            .transform_payload_headers(fields)
-            .map_err(to_js_error)?;
-        Ok(())
+    pub fn validate_payload_headers(&self, fields: JsValue) -> JsPromise {
+        let worker = self.0.clone();
+        future_to_promise(async move {
+            let fields: Vec<(String, String)> = fields.into_serde().map_err(to_js_error)?;
+            worker
+                .read()
+                .await
+                .transform_payload_headers(fields)
+                .map_err(to_js_error)?;
+            Ok(JsValue::UNDEFINED)
+        })
     }
     #[wasm_bindgen(js_name=processHtml)]
-    pub fn process_html(&self, input: JsValue, option: JsValue) -> Result<JsValue, JsValue> {
-        let input: HttpResponse = input.into_serde().map_err(to_js_error)?;
-        let option: ProcessHtmlOption = option.into_serde().map_err(to_js_error)?;
-        let output = self.0.process_html(input, option).map_err(to_js_error)?;
-        JsValue::from_serde(&output).map_err(to_js_error)
+    pub fn process_html(&self, input: JsValue, option: JsValue) -> JsPromise {
+        let worker = self.0.clone();
+        future_to_promise(async move {
+            let input: HttpResponse = input.into_serde().map_err(to_js_error)?;
+            let option: ProcessHtmlOption = option.into_serde().map_err(to_js_error)?;
+            let output = worker
+                .read()
+                .await
+                .process_html(input, option)
+                .map_err(to_js_error)?;
+            JsValue::from_serde(&output).map_err(to_js_error)
+        })
     }
     #[wasm_bindgen(js_name=createSignedExchange)]
     pub fn create_signed_exchange(
@@ -133,6 +170,7 @@ impl WasmWorker {
                 .payload_headers()
                 .into_serde()
                 .map_err(to_js_error)?;
+            let worker = worker.read().await;
             let payload_headers = worker
                 .transform_payload_headers(payload_headers)
                 .map_err(to_js_error)?;

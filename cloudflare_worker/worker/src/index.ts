@@ -28,14 +28,28 @@ import {
   teeResponse,
   // eslint-disable-next-line node/no-unpublished-import
 } from '../../../typescript_utilities/src/streams';
-import {WasmResponse, WasmRequest, createWorker} from './wasmFunctions';
+import {
+  WasmResponse,
+  WasmRequest,
+  WasmWorker,
+  createWorker,
+} from './wasmFunctions';
 
 // This variable is added by the runtime of Cloudflare worker. It contains the
 // binary data of the wasm file.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare let wasm: any;
 
-const workerPromise = createWorker(wasm, SXG_CONFIG, CERT_PEM, ISSUER_PEM);
+const workerPromise = (async () => {
+  let worker: WasmWorker;
+  if (typeof CERT_PEM === 'string' && typeof ISSUER_PEM === 'string') {
+    worker = await createWorker(wasm, SXG_CONFIG, [CERT_PEM, ISSUER_PEM]);
+  } else {
+    worker = await createWorker(wasm, SXG_CONFIG, undefined);
+  }
+  worker.addAcmeCertificateFromStorage(createRuntime());
+  return worker;
+})();
 
 if (typeof PRIVATE_KEY_JWK === 'undefined') {
   throw 'The wrangler secret PRIVATE_KEY_JWK is not set.';
@@ -146,7 +160,7 @@ async function handleRequest(request: Request) {
       }
     } else {
       [fallbackUrl, certOrigin] = fallbackUrlAndCertOrigin(request.url, true);
-      const requestHeaders = worker.createRequestHeaders(
+      const requestHeaders = await worker.createRequestHeaders(
         'PrefersSxg',
         Array.from(request.headers)
       );
