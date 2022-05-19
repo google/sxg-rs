@@ -18,7 +18,7 @@
 // OCSP over http is defined in
 // https://tools.ietf.org/html/rfc2560#appendix-A.1
 
-use crate::crypto::HashAlgorithm;
+use crate::crypto::{CertificateChain, HashAlgorithm};
 use crate::fetcher::Fetcher;
 use crate::http::{HttpRequest, Method};
 use crate::runtime::Runtime;
@@ -155,8 +155,7 @@ pub enum OcspUpdateStrategy {
 /// into storage. The outging traffic to the server is throttled to be a
 /// single task.
 pub async fn read_and_update_ocsp_in_storage(
-    cert_der: &[u8],
-    issuer_der: &[u8],
+    certificate_chain: &CertificateChain,
     runtime: &Runtime,
     strategy: OcspUpdateStrategy,
 ) -> Result<Vec<u8>> {
@@ -181,6 +180,11 @@ pub async fn read_and_update_ocsp_in_storage(
     } else {
         // There is no OCSP in storage.
     }
+    if certificate_chain.issuers.is_empty() {
+        return Err(Error::msg("Certiciate chain contains no issuer."));
+    }
+    let cert_der = &certificate_chain.end_entity.der;
+    let issuer_der = &certificate_chain.issuers[0].der;
     let new_ocsp_value = {
         static SINGLE_TASK: Mutex<()> = Mutex::const_new(());
         let guard = SINGLE_TASK.lock().await;

@@ -171,6 +171,90 @@ impl Serialize for EcPrivateKey {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SingleCertificate {
+    #[serde(with = "crate::serde_helpers::base64")]
+    pub der: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CertificateChain {
+    pub end_entity: SingleCertificate,
+    /// `issuers` are sorted as Secion 7.4.2 in RFC-4346.
+    /// For example, the root certificate is the last one.
+    pub issuers: Vec<SingleCertificate>,
+    #[serde(with = "crate::serde_helpers::base64")]
+    pub end_entity_sha256: Vec<u8>,
+    pub basename: String,
+}
+
+impl CertificateChain {
+    const TAG: &'static str = "CERTIFICATE";
+    /// Parse `CertificateChain` from multiple PEM files.
+    /// Each input file may contain multiple PEM certificates.
+    /// Input files must be sorted like `[cert_pem, issuer_pem, root_pem]`.
+    pub fn from_pem_files(pem_files: &[&str]) -> Result<Self> {
+        let mut pem_items = vec![];
+        for current_file in pem_files {
+            let items_in_current_file = ::pem::parse_many(current_file).map_err(Error::new)?;
+            pem_items.extend_from_slice(&items_in_current_file);
+        }
+        let der_items = Self::take_certificate_contents(pem_items)?;
+        let mut der_items = der_items.into_iter();
+        let end_entity = der_items
+            .next()
+            .ok_or_else(|| Error::msg("Expecting PEM files to contain at least one certificate"))?;
+        let issuers = der_items.collect();
+        let end_entity_sha256 = HashAlgorithm::Sha256.digest(&end_entity.der);
+        Ok(CertificateChain {
+            end_entity,
+            issuers,
+            basename: base64::encode_config(&end_entity_sha256, base64::URL_SAFE_NO_PAD),
+            end_entity_sha256,
+        })
+    }
+    pub fn create_cert_cbor(&self, end_entity_ocsp_der: &[u8]) -> Vec<u8> {
+        use crate::cbor::DataItem;
+        let mut cert_cbor = vec![
+            DataItem::TextString("📜⛓"),
+            DataItem::Map(vec![
+                (
+                    DataItem::TextString("cert"),
+                    DataItem::ByteString(&self.end_entity.der),
+                ),
+                (
+                    DataItem::TextString("ocsp"),
+                    DataItem::ByteString(end_entity_ocsp_der),
+                ),
+            ]),
+        ];
+        for issuer in self.issuers.iter() {
+            cert_cbor.push(DataItem::Map(vec![(
+                DataItem::TextString("cert"),
+                DataItem::ByteString(&issuer.der),
+            )]));
+        }
+
+        let cert_cbor = DataItem::Array(cert_cbor);
+        cert_cbor.serialize()
+    }
+    fn take_certificate_contents(pem_items: Vec<::pem::Pem>) -> Result<Vec<SingleCertificate>> {
+        pem_items
+            .into_iter()
+            .map(|pem_item| {
+                const TAG: &str = "CERTIFICATE";
+                if pem_item.tag == TAG {
+                    Ok(SingleCertificate {
+                        der: pem_item.contents,
+                    })
+                } else {
+                    Err(anyhow!("Expecting {}, found {}", Self::TAG, pem_item.tag))
+                }
+            })
+            .collect::<Result<_>>()
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum HashAlgorithm {
     Sha1,

@@ -15,7 +15,10 @@
 use anyhow::Result;
 use clap::Parser;
 use std::fs;
-use sxg_rs::{fetcher::NULL_FETCHER, http_cache::NullCache, CreateSignedExchangeParams, SxgWorker};
+use sxg_rs::{
+    crypto::CertificateChain, fetcher::NULL_FETCHER, http_cache::NullCache,
+    CreateSignedExchangeParams, SxgWorker,
+};
 
 // TODO: Make this binary generally useful, by documenting the flags and giving them names.
 
@@ -29,13 +32,20 @@ pub struct Opts {
 }
 
 pub async fn main(opts: Opts) -> Result<()> {
-    let worker = SxgWorker::new(
-        &fs::read_to_string(opts.config_yaml).unwrap(),
+    let mut worker = SxgWorker::new(&fs::read_to_string(opts.config_yaml).unwrap()).unwrap();
+    let certificate = CertificateChain::from_pem_files(&[
         &fs::read_to_string(opts.cert_pem).unwrap(),
         &fs::read_to_string(opts.issuer_pem).unwrap(),
-    )
-    .unwrap();
-    fs::write(opts.out_cert_cbor, &worker.create_cert_cbor(b"ocsp").await)?;
+    ])?;
+    worker.add_certificate(certificate);
+    fs::write(
+        opts.out_cert_cbor,
+        &worker.create_cert_cbor(
+            worker.latest_certificate_basename().unwrap(),
+            // TODO: Use a real OCSP
+            b"ocsp",
+        ),
+    )?;
     let payload_headers = worker
         .transform_payload_headers(vec![("content-type".into(), "text/html".into())])
         .unwrap();

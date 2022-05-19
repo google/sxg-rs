@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::crypto::CertificateChain;
 use crate::headers::AcceptFilter;
 use crate::http::HttpResponse;
 use crate::process_html::ProcessHtmlOption;
@@ -54,7 +55,10 @@ extern "C" {
 impl WasmWorker {
     #[wasm_bindgen(constructor)]
     pub fn new(config_yaml: &str, cert_pem: &str, issuer_pem: &str) -> Result<WasmWorker, JsValue> {
-        let sxg_worker = SxgWorker::new(config_yaml, cert_pem, issuer_pem).map_err(to_js_error)?;
+        let mut sxg_worker = SxgWorker::new(config_yaml).map_err(to_js_error)?;
+        let certificate =
+            CertificateChain::from_pem_files(&[cert_pem, issuer_pem]).map_err(to_js_error)?;
+        sxg_worker.add_certificate(certificate);
         Ok(WasmWorker(Arc::new(sxg_worker)))
     }
     #[wasm_bindgen(js_name=updateOcspInStorage)]
