@@ -133,10 +133,8 @@ impl Headers {
             // TODO: Remove this section once https://crbug.com/1250532 is fixed in most clients.
             if let Some(vary) = self.0.get("vary") {
                 if let Ok(directives) = parse_vary_header(vary) {
-                    if directives.contains(&"*")
-                        || directives.iter().any(|d| d.eq_ignore_ascii_case("cookie"))
-                    {
-                        return Err(anyhow!(r#"The response may vary by cookie."#));
+                    if directives.contains(&"*") {
+                        return Err(anyhow!(r#"The response may vary by anything."#));
                     }
                 }
             }
