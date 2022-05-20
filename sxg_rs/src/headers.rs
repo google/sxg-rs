@@ -134,7 +134,11 @@ impl Headers {
             if let Some(vary) = self.0.get("vary") {
                 if let Ok(directives) = parse_vary_header(vary) {
                     if directives.contains(&"*") {
-                        return Err(anyhow!(r#"The response may vary by anything."#));
+                        return Err(anyhow!(
+                            "The response may vary by anything,\
+                            because its \"vary\" header is \"{}\".",
+                            vary
+                        ));
                     }
                 }
             }
