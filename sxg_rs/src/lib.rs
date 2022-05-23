@@ -46,12 +46,13 @@ use http_cache::HttpCache;
 use runtime::Runtime;
 use serde::Serialize;
 use std::collections::VecDeque;
+use std::sync::Arc;
 use std::time::Duration;
 use url::Url;
 
 #[derive(Debug)]
 pub struct SxgWorker {
-    config: Config,
+    config: Arc<Config>,
     /// Each new certificate is pushed to the back of the deque.
     /// The back certificate the the latest one.
     certificates: VecDeque<CertificateChain>,
@@ -77,10 +78,10 @@ pub(crate) const MAX_PAYLOAD_SIZE: usize = 8_000_000;
 
 impl SxgWorker {
     pub fn new(config_yaml: &str) -> Result<Self> {
-        let config = Config::new(config_yaml)?;
+        let config = Arc::new(Config::new(config_yaml)?);
         Ok(Self::from_parsed(config))
     }
-    pub fn from_parsed(config: Config) -> Self {
+    pub fn from_parsed(config: Arc<Config>) -> Self {
         SxgWorker {
             config,
             certificates: VecDeque::new(),

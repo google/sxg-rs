@@ -18,24 +18,25 @@ pub mod js_runtime;
 use crate::fetcher::{Fetcher, NullFetcher};
 use crate::signature::{mock_signer::MockSigner, Signer};
 use crate::storage::{InMemoryStorage, Storage};
+use std::sync::Arc;
 use std::time::SystemTime;
 
 pub struct Runtime {
     pub now: SystemTime,
-    pub fetcher: Box<dyn Fetcher>,
-    pub storage: Box<dyn Storage>,
-    pub sxg_signer: Box<dyn Signer>,
-    pub acme_signer: Box<dyn Signer>,
+    pub fetcher: Arc<dyn Fetcher>,
+    pub storage: Arc<dyn Storage>,
+    pub sxg_signer: Arc<dyn Signer>,
+    pub acme_signer: Arc<dyn Signer>,
 }
 
 impl Default for Runtime {
     fn default() -> Self {
         Runtime {
             now: SystemTime::UNIX_EPOCH,
-            fetcher: Box::new(NullFetcher),
-            storage: Box::new(InMemoryStorage::default()),
-            sxg_signer: Box::new(MockSigner),
-            acme_signer: Box::new(MockSigner),
+            fetcher: Arc::new(NullFetcher),
+            storage: Arc::new(InMemoryStorage::default()),
+            sxg_signer: Arc::new(MockSigner),
+            acme_signer: Arc::new(MockSigner),
         }
     }
 }

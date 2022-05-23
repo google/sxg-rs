@@ -239,6 +239,7 @@ mod tests {
     };
     use super::*;
     use crate::storage::{InMemoryStorage, Storage};
+    use std::sync::Arc;
     use std::time::UNIX_EPOCH;
     const ACCOUNT: &str = r#"{
         "serverDirectoryUrl": "https://acme.server/",
@@ -251,7 +252,7 @@ mod tests {
     async fn new_storage_returns_default_state() {
         let storage = InMemoryStorage::new();
         let runtime = Runtime {
-            storage: Box::new(storage),
+            storage: Arc::new(storage),
             ..Default::default()
         };
         let state = read_current_state(&runtime).await.unwrap();
@@ -263,7 +264,7 @@ mod tests {
         let storage = InMemoryStorage::new();
         storage.write(ACME_STORAGE_KEY, "asdf").await.unwrap();
         let runtime = Runtime {
-            storage: Box::new(storage),
+            storage: Arc::new(storage),
             ..Default::default()
         };
         let state = read_current_state(&runtime).await.unwrap();
@@ -293,11 +294,11 @@ mod tests {
                 .unwrap();
         };
         let client_thread = async {
-            let storage = Box::new(InMemoryStorage::new());
+            let storage = Arc::new(InMemoryStorage::new());
             let runtime = Runtime {
                 storage,
                 now: UNIX_EPOCH,
-                fetcher: Box::new(fetcher),
+                fetcher: Arc::new(fetcher),
                 ..Default::default()
             };
             let account: Account = serde_json::from_str(ACCOUNT).unwrap();
@@ -335,7 +336,7 @@ mod tests {
         let (fetcher, _server) = crate::fetcher::mock_fetcher::create();
         let server_thread = async {};
         let client_thread = async {
-            let storage = Box::new(InMemoryStorage::new());
+            let storage = Arc::new(InMemoryStorage::new());
             const VALUE: &str = r#"{
                 "certificate": null,
                 "task": {
@@ -351,7 +352,7 @@ mod tests {
             let runtime = Runtime {
                 storage,
                 now: UNIX_EPOCH + Duration::from_secs(59),
-                fetcher: Box::new(fetcher),
+                fetcher: Arc::new(fetcher),
                 ..Default::default()
             };
             let account: Account = serde_json::from_str(ACCOUNT).unwrap();
@@ -389,7 +390,7 @@ mod tests {
                 .unwrap();
         };
         let client_thread = async {
-            let storage = Box::new(InMemoryStorage::new());
+            let storage = Arc::new(InMemoryStorage::new());
             const VALUE: &str = r#"{
                 "certificate": null,
                 "task": {
@@ -405,7 +406,7 @@ mod tests {
             let runtime = Runtime {
                 storage,
                 now: UNIX_EPOCH + Duration::from_secs(61),
-                fetcher: Box::new(fetcher),
+                fetcher: Arc::new(fetcher),
                 ..Default::default()
             };
             let account: Account = serde_json::from_str(ACCOUNT).unwrap();
@@ -444,7 +445,7 @@ mod tests {
                 .unwrap();
         };
         let client_thread = async {
-            let storage = Box::new(InMemoryStorage::new());
+            let storage = Arc::new(InMemoryStorage::new());
             const VALUE: &str = r#"{
                 "certificate": null,
                 "task": {
@@ -460,7 +461,7 @@ mod tests {
             let runtime = Runtime {
                 storage,
                 now: UNIX_EPOCH + Duration::from_secs(61),
-                fetcher: Box::new(fetcher),
+                fetcher: Arc::new(fetcher),
                 ..Default::default()
             };
             let account: Account = serde_json::from_str(ACCOUNT).unwrap();
@@ -498,7 +499,7 @@ mod tests {
                 .unwrap();
         };
         let client_thread = async {
-            let storage = Box::new(InMemoryStorage::new());
+            let storage = Arc::new(InMemoryStorage::new());
             const VALUE: &str = r#"{
                 "certificate": null,
                 "task": {
@@ -514,7 +515,7 @@ mod tests {
             let runtime = Runtime {
                 storage,
                 now: UNIX_EPOCH + Duration::from_secs(61),
-                fetcher: Box::new(fetcher),
+                fetcher: Arc::new(fetcher),
                 ..Default::default()
             };
             let account: Account = serde_json::from_str(ACCOUNT).unwrap();
@@ -552,7 +553,7 @@ mod tests {
                 .unwrap();
         };
         let client_thread = async {
-            let storage = Box::new(InMemoryStorage::new());
+            let storage = Arc::new(InMemoryStorage::new());
             const VALUE: &str = r#"{
                 "certificate": null,
                 "task": {
@@ -568,7 +569,7 @@ mod tests {
             let runtime = Runtime {
                 storage,
                 now: UNIX_EPOCH + Duration::from_secs(61),
-                fetcher: Box::new(fetcher),
+                fetcher: Arc::new(fetcher),
                 ..Default::default()
             };
             let account: Account = serde_json::from_str(ACCOUNT).unwrap();
@@ -607,7 +608,7 @@ mod tests {
                 .unwrap();
         };
         let client_thread = async {
-            let storage = Box::new(InMemoryStorage::new());
+            let storage = Arc::new(InMemoryStorage::new());
             const VALUE: &str = r#"{
                 "certificate": null,
                 "task": {
@@ -623,7 +624,7 @@ mod tests {
             let runtime = Runtime {
                 storage,
                 now: UNIX_EPOCH + Duration::from_secs(61),
-                fetcher: Box::new(fetcher),
+                fetcher: Arc::new(fetcher),
                 ..Default::default()
             };
             let account: Account = serde_json::from_str(ACCOUNT).unwrap();
@@ -670,7 +671,7 @@ mod tests {
                 .unwrap();
         };
         let client_thread = async {
-            let storage = Box::new(InMemoryStorage::new());
+            let storage = Arc::new(InMemoryStorage::new());
             const VALUE: &str = r#"{
                 "certificate": null,
                 "task": {
@@ -686,7 +687,7 @@ mod tests {
             let runtime = Runtime {
                 storage,
                 now: UNIX_EPOCH + Duration::from_secs(61),
-                fetcher: Box::new(fetcher),
+                fetcher: Arc::new(fetcher),
                 ..Default::default()
             };
             let account: Account = serde_json::from_str(ACCOUNT).unwrap();

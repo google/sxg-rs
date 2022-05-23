@@ -18,6 +18,7 @@ use crate::signature::{js_signer::JsSigner, mock_signer::MockSigner, Signer};
 use crate::storage::{js_storage::JsStorage, Storage};
 use anyhow::{Error, Result};
 use js_sys::Function as JsFunction;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use wasm_bindgen::prelude::*;
 
@@ -46,25 +47,25 @@ impl std::convert::TryFrom<JsRuntimeInitParams> for Runtime {
         let now = SystemTime::UNIX_EPOCH + Duration::from_secs(input.now_in_seconds() as u64);
         let fetcher = input
             .fetcher()
-            .map(|f| Box::new(JsFetcher::new(f)) as Box<dyn Fetcher>);
-        let storage = Box::new(JsStorage::new(input.storage_read(), input.storage_write()))
-            as Box<dyn Storage>;
+            .map(|f| Arc::new(JsFetcher::new(f)) as Arc<dyn Fetcher>);
+        let storage = Arc::new(JsStorage::new(input.storage_read(), input.storage_write()))
+            as Arc<dyn Storage>;
         let sxg_asn1_signer = input
             .sxg_asn1_signer()
-            .map(|f| Box::new(JsSigner::from_asn1_signer(f)) as Box<dyn Signer>);
+            .map(|f| Arc::new(JsSigner::from_asn1_signer(f)) as Arc<dyn Signer>);
         let sxg_raw_signer = input
             .sxg_raw_signer()
-            .map(|f| Box::new(JsSigner::from_raw_signer(f)) as Box<dyn Signer>);
+            .map(|f| Arc::new(JsSigner::from_raw_signer(f)) as Arc<dyn Signer>);
         let sxg_signer = sxg_asn1_signer.or(sxg_raw_signer);
         let acme_signer = input
             .acme_raw_signer()
-            .map(|f| Box::new(JsSigner::from_raw_signer(f)) as Box<dyn Signer>);
+            .map(|f| Arc::new(JsSigner::from_raw_signer(f)) as Arc<dyn Signer>);
         Ok(Runtime {
             now,
-            fetcher: fetcher.unwrap_or_else(|| Box::new(NullFetcher)),
+            fetcher: fetcher.unwrap_or_else(|| Arc::new(NullFetcher)),
             storage,
-            sxg_signer: sxg_signer.unwrap_or_else(|| Box::new(MockSigner)),
-            acme_signer: acme_signer.unwrap_or_else(|| Box::new(MockSigner)),
+            sxg_signer: sxg_signer.unwrap_or_else(|| Arc::new(MockSigner)),
+            acme_signer: acme_signer.unwrap_or_else(|| Arc::new(MockSigner)),
         })
     }
 }

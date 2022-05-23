@@ -654,7 +654,7 @@ mod tests {
     async fn workflow() {
         let (fetcher, mut server) = crate::fetcher::mock_fetcher::create();
         let runtime = Runtime {
-            fetcher: Box::new(fetcher),
+            fetcher: std::sync::Arc::new(fetcher),
             ..Default::default()
         };
         let public_key = EcPublicKey {
