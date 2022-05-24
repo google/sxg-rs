@@ -66,7 +66,7 @@ addEventListener('fetch', (event: FetchEvent) => {
 
 addEventListener('scheduled', (event: ScheduledEvent) => {
   event.waitUntil(updateStateMachine());
-})
+});
 
 function responseFromWasm(data: WasmResponse): Response {
   return new Response(new Uint8Array(data.body), {
