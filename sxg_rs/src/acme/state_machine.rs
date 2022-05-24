@@ -13,10 +13,10 @@
 // limitations under the License.
 
 use super::{Account, OngoingOrder};
+use crate::crypto::CertificateChain;
 use crate::fetcher::Fetcher;
 use crate::runtime::Runtime;
 use crate::signature::Signer;
-use crate::crypto::CertificateChain;
 use crate::utils::console_log;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
