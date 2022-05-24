@@ -93,7 +93,7 @@ async fn write_state(runtime: &Runtime, state: &AcmeStorageData) -> Result<()> {
     Ok(())
 }
 
-const MIN_SLEEP: Duration = Duration::from_secs(60);
+const MIN_SLEEP: Duration = Duration::from_secs(59);
 const MAX_SLEEP: Duration = Duration::from_secs(600);
 
 // Parses the certificate chain PEM, and returns the expiration time of the first certificate.
@@ -361,7 +361,7 @@ mod tests {
             storage.write(ACME_STORAGE_KEY, VALUE).await.unwrap();
             let runtime = Runtime {
                 storage,
-                now: UNIX_EPOCH + Duration::from_secs(59),
+                now: UNIX_EPOCH + Duration::from_secs(49),
                 fetcher: Box::new(fetcher),
                 ..Default::default()
             };
