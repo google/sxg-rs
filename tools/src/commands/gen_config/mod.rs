@@ -96,6 +96,14 @@ struct WranglerVars {
     acme_account: Option<String>,
 }
 
+// TODO: Use `wrangler::settings::toml::Triggers`
+// after [this PR](https://github.com/cloudflare/wrangler/pull/2259)
+// is deployed to the latest `wrangler` version.
+#[derive(Deserialize, Serialize)]
+pub struct Triggers {
+    pub crons: Vec<String>,
+}
+
 // TODO: Use `wrangler::settings::toml::Manifest`
 // after [this issue](https://github.com/cloudflare/wrangler/issues/2037)
 // is resolved.
@@ -110,6 +118,7 @@ struct WranglerManifest {
     workers_dev: Option<bool>,
     kv_namespaces: Vec<ConfigKvNamespace>,
     vars: WranglerVars,
+    triggers: Option<Triggers>,
 }
 
 // Set working directory to the root folder of the "sxg-rs" repository.
@@ -316,6 +325,13 @@ pub fn main(opts: Opts) -> Result<()> {
         }],
         workers_dev: Some(input.cloudflare.deploy_on_workers_dev_only),
         vars: wrangler_vars,
+        triggers: Some(Triggers {
+            crons: vec![
+                // The syntax is at https://developers.cloudflare.com/workers/platform/cron-triggers
+                // This triggers at every minute.
+                "* * * * *".to_string(),
+            ],
+        }),
     };
 
     std::fs::write(
