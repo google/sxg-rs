@@ -64,6 +64,10 @@ addEventListener('fetch', (event: FetchEvent) => {
   event.respondWith(handleRequest(event.request));
 });
 
+addEventListener('scheduled', (event: ScheduledEvent) => {
+  event.waitUntil(updateStateMachine());
+})
+
 function responseFromWasm(data: WasmResponse): Response {
   return new Response(new Uint8Array(data.body), {
     status: data.status,
@@ -128,6 +132,12 @@ function createRuntime() {
     sxgAsn1Signer: undefined,
     acmeRawSigner,
   };
+}
+
+async function updateStateMachine() {
+  const worker = await workerPromise;
+  await worker.updateOcspInStorage(createRuntime());
+  await worker.updateAcmeStateMachine(createRuntime(), ACME_ACCOUNT);
 }
 
 async function handleRequest(request: Request) {
@@ -227,8 +237,6 @@ async function generateSxgResponse(
     headerIntegrityGet,
     headerIntegrityPut,
   });
-  // Spawns a non-blocking task to update latest OCSP
-  worker.updateOcspInStorage(createRuntime());
   return responseFromWasm(sxg);
 }
 
