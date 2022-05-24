@@ -89,9 +89,10 @@ impl SxgWorker {
     pub fn add_certificate(&mut self, certificate: CertificateChain) {
         self.certificates.push_back(certificate);
     }
-    pub async fn add_acme_certificate_from_storage(&mut self, runtime: &Runtime) -> Result<()> {
+    /// Reads ACME storage, and adds all ACME certificates to worker.
+    pub async fn add_acme_certificates_from_storage(&mut self, runtime: &Runtime) -> Result<()> {
         let acme_state = acme::state_machine::read_current_state(runtime).await?;
-        if let Some(certificate_pem) = acme_state.certificate {
+        for certificate_pem in acme_state.certificates {
             let certificate = CertificateChain::from_pem_files(&[&certificate_pem])?;
             self.add_certificate(certificate);
         }

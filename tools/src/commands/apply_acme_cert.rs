@@ -133,8 +133,8 @@ pub async fn main(opts: Opts) -> Result<()> {
         runtime.now = std::time::SystemTime::now();
         update_acme_state_machine(&runtime, &acme_account).await?;
         let state = sxg_rs::acme::state_machine::read_current_state(&runtime).await?;
-        if let Some(cert) = state.certificate {
-            break cert;
+        if let Some(cert) = state.certificates.last() {
+            break cert.clone();
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     };

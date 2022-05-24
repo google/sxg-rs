@@ -47,7 +47,7 @@ const workerPromise = (async () => {
   } else {
     worker = await createWorker(wasm, SXG_CONFIG, undefined);
   }
-  worker.addAcmeCertificateFromStorage(createRuntime());
+  worker.addAcmeCertificatesFromStorage(createRuntime());
   return worker;
 })();
 
