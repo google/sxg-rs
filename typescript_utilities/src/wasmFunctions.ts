@@ -80,7 +80,7 @@ export interface ProcessHtmlOption {
 export interface WasmWorker {
   // eslint-disable-next-line @typescript-eslint/no-misused-new
   new (configYaml: string, certificatePem: string | undefined): WasmWorker;
-  addAcmeCertificateFromStorage(runtime: JsRuntimeInitParams): Promise<void>;
+  addAcmeCertificatesFromStorage(runtime: JsRuntimeInitParams): Promise<void>;
   createRequestHeaders(
     accept_filter: AcceptFilter,
     fields: HeaderFields

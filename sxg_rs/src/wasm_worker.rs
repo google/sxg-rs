@@ -64,15 +64,15 @@ impl WasmWorker {
         }
         Ok(WasmWorker(Arc::new(RwLock::new(sxg_worker))))
     }
-    #[wasm_bindgen(js_name=addAcmeCertificateFromStorage)]
-    pub fn add_acme_certificate_from_storage(&self, js_runtime: JsRuntimeInitParams) -> JsPromise {
+    #[wasm_bindgen(js_name=addAcmeCertificatesFromStorage)]
+    pub fn add_acme_certificates_from_storage(&self, js_runtime: JsRuntimeInitParams) -> JsPromise {
         let worker = self.0.clone();
         future_to_promise(async move {
             let runtime = Runtime::try_from(js_runtime).map_err(to_js_error)?;
             worker
                 .write()
                 .await
-                .add_acme_certificate_from_storage(&runtime)
+                .add_acme_certificates_from_storage(&runtime)
                 .await
                 .map_err(to_js_error)?;
             Ok(JsValue::UNDEFINED)

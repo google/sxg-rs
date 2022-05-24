@@ -25,7 +25,7 @@ const ACME_STORAGE_KEY: &str = "ACME";
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct AcmeStorageData {
-    pub certificate: Option<String>,
+    pub certificates: Vec<String>,
     task: Option<Task>,
 }
 
@@ -102,7 +102,7 @@ async fn update_state_impl(
     fetcher: &dyn Fetcher,
     acme_signer: &dyn Signer,
 ) -> Result<()> {
-    if state.certificate.is_some() {
+    if !state.certificates.is_empty() {
         // There is already a certificate, so we do nothing.
         // TODO: Check whether the certificate is going to expire.
         return Ok(());
@@ -164,10 +164,8 @@ async fn update_state_impl(
                         acme_signer,
                     )
                     .await?;
-                    *state = AcmeStorageData {
-                        certificate: Some(certificate_pem),
-                        task: None,
-                    };
+                    state.certificates.push(certificate_pem);
+                    state.task = None;
                 } else {
                     task.schedule.double_wait(now);
                 }
@@ -255,7 +253,7 @@ mod tests {
             ..Default::default()
         };
         let state = read_current_state(&runtime).await.unwrap();
-        assert!(state.certificate.is_none());
+        assert!(state.certificates.is_empty());
         assert!(state.task.is_none());
     }
     #[tokio::test]
@@ -267,7 +265,7 @@ mod tests {
             ..Default::default()
         };
         let state = read_current_state(&runtime).await.unwrap();
-        assert!(state.certificate.is_none());
+        assert!(state.certificates.is_empty());
         assert!(state.task.is_none());
     }
     // When staring with an empty storage, the state machine crates an new order,
@@ -337,7 +335,7 @@ mod tests {
         let client_thread = async {
             let storage = Box::new(InMemoryStorage::new());
             const VALUE: &str = r#"{
-                "certificate": null,
+                "certificates": [],
                 "task": {
                     "order": {"authorization_url":"https://acme.server/authz-v3/1866692048","challenge_url":"https://acme.server/chall-v3/1866692048/oFAcwQ","challenge_token":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o","challenge_answer":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.key_thumbprint","order_url":"https://acme.server/order/46540038","finalize_url":"https://acme.server/finalize/46540038/1977802858","certificate_url":null},
                     "schedule": {
@@ -391,7 +389,7 @@ mod tests {
         let client_thread = async {
             let storage = Box::new(InMemoryStorage::new());
             const VALUE: &str = r#"{
-                "certificate": null,
+                "certificates": [],
                 "task": {
                     "order": {"authorization_url":"https://acme.server/authz-v3/1866692048","challenge_url":"https://acme.server/chall-v3/1866692048/oFAcwQ","challenge_token":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o","challenge_answer":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.key_thumbprint","order_url":"https://acme.server/order/46540038","finalize_url":"https://acme.server/finalize/46540038/1977802858","certificate_url":null},
                     "schedule": {
@@ -446,7 +444,7 @@ mod tests {
         let client_thread = async {
             let storage = Box::new(InMemoryStorage::new());
             const VALUE: &str = r#"{
-                "certificate": null,
+                "certificates": [],
                 "task": {
                     "order": {"authorization_url":"https://acme.server/authz-v3/1866692048","challenge_url":"https://acme.server/chall-v3/1866692048/oFAcwQ","challenge_token":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o","challenge_answer":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.key_thumbprint","order_url":"https://acme.server/order/46540038","finalize_url":"https://acme.server/finalize/46540038/1977802858","certificate_url":null},
                     "schedule": {
@@ -500,7 +498,7 @@ mod tests {
         let client_thread = async {
             let storage = Box::new(InMemoryStorage::new());
             const VALUE: &str = r#"{
-                "certificate": null,
+                "certificates": [],
                 "task": {
                     "order": {"authorization_url":"https://acme.server/authz-v3/1866692048","challenge_url":"https://acme.server/chall-v3/1866692048/oFAcwQ","challenge_token":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o","challenge_answer":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.key_thumbprint","order_url":"https://acme.server/order/46540038","finalize_url":"https://acme.server/finalize/46540038/1977802858","certificate_url":null},
                     "schedule": {
@@ -554,7 +552,7 @@ mod tests {
         let client_thread = async {
             let storage = Box::new(InMemoryStorage::new());
             const VALUE: &str = r#"{
-                "certificate": null,
+                "certificates": [],
                 "task": {
                     "order": {"authorization_url":"https://acme.server/authz-v3/1866692048","challenge_url":"https://acme.server/chall-v3/1866692048/oFAcwQ","challenge_token":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o","challenge_answer":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.key_thumbprint","order_url":"https://acme.server/order/46540038","finalize_url":"https://acme.server/finalize/46540038/1977802858","certificate_url":null},
                     "schedule": {
@@ -609,7 +607,7 @@ mod tests {
         let client_thread = async {
             let storage = Box::new(InMemoryStorage::new());
             const VALUE: &str = r#"{
-                "certificate": null,
+                "certificates": [],
                 "task": {
                     "order": {"authorization_url":"https://acme.server/authz-v3/1866692048","challenge_url":"https://acme.server/chall-v3/1866692048/oFAcwQ","challenge_token":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o","challenge_answer":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.key_thumbprint","order_url":"https://acme.server/order/46540038","finalize_url":"https://acme.server/finalize/46540038/1977802858","certificate_url":null},
                     "schedule": {
@@ -672,7 +670,7 @@ mod tests {
         let client_thread = async {
             let storage = Box::new(InMemoryStorage::new());
             const VALUE: &str = r#"{
-                "certificate": null,
+                "certificates": [],
                 "task": {
                     "order": {"authorization_url":"https://acme.server/authz-v3/1866692048","challenge_url":"https://acme.server/chall-v3/1866692048/oFAcwQ","challenge_token":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o","challenge_answer":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.key_thumbprint","order_url":"https://acme.server/order/46540038","finalize_url":"https://acme.server/finalize/46540038/1977802858","certificate_url":null},
                     "schedule": {
@@ -693,7 +691,7 @@ mod tests {
             update_state(&runtime, &account).await.unwrap();
             let new_state = read_current_state(&runtime).await.unwrap();
             assert!(new_state.task.is_none());
-            assert!(new_state.certificate.is_some());
+            assert!(!new_state.certificates.is_empty());
         };
         tokio::join!(client_thread, server_thread);
     }
