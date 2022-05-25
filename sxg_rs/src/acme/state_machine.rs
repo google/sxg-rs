@@ -332,7 +332,7 @@ mod tests {
                     .schedule,
                 Schedule {
                     updated_at: UNIX_EPOCH,
-                    wait_time: Duration::from_secs(60),
+                    wait_time: Duration::from_secs(59),
                     next_step: TaskStep::RequestChallengeValidation,
                 }
             );
@@ -407,7 +407,7 @@ mod tests {
                     "order": {"authorization_url":"https://acme.server/authz-v3/1866692048","challenge_url":"https://acme.server/chall-v3/1866692048/oFAcwQ","challenge_token":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o","challenge_answer":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.key_thumbprint","order_url":"https://acme.server/order/46540038","finalize_url":"https://acme.server/finalize/46540038/1977802858","certificate_url":null},
                     "schedule": {
                         "updated_at": {"secs_since_epoch":0,"nanos_since_epoch":0},
-                        "wait_time": {"secs":60,"nanos":0},
+                        "wait_time": {"secs":59,"nanos":0},
                         "next_step": "RequestChallengeValidation"
                     }
                 }
@@ -430,7 +430,7 @@ mod tests {
                     .schedule,
                 Schedule {
                     updated_at: UNIX_EPOCH + Duration::from_secs(61),
-                    wait_time: Duration::from_secs(60),
+                    wait_time: Duration::from_secs(59),
                     next_step: TaskStep::CheckChallengeFinished,
                 }
             );
@@ -516,7 +516,7 @@ mod tests {
                     "order": {"authorization_url":"https://acme.server/authz-v3/1866692048","challenge_url":"https://acme.server/chall-v3/1866692048/oFAcwQ","challenge_token":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o","challenge_answer":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.key_thumbprint","order_url":"https://acme.server/order/46540038","finalize_url":"https://acme.server/finalize/46540038/1977802858","certificate_url":null},
                     "schedule": {
                         "updated_at": {"secs_since_epoch":0,"nanos_since_epoch":0},
-                        "wait_time": {"secs":60,"nanos":0},
+                        "wait_time": {"secs":59,"nanos":0},
                         "next_step": "CheckChallengeFinished"
                     }
                 }
@@ -539,7 +539,7 @@ mod tests {
                     .schedule,
                 Schedule {
                     updated_at: UNIX_EPOCH + Duration::from_secs(61),
-                    wait_time: Duration::from_secs(60),
+                    wait_time: Duration::from_secs(59),
                     next_step: TaskStep::FinalizeSigningRequest,
                 }
             );
@@ -570,7 +570,7 @@ mod tests {
                     "order": {"authorization_url":"https://acme.server/authz-v3/1866692048","challenge_url":"https://acme.server/chall-v3/1866692048/oFAcwQ","challenge_token":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o","challenge_answer":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.key_thumbprint","order_url":"https://acme.server/order/46540038","finalize_url":"https://acme.server/finalize/46540038/1977802858","certificate_url":null},
                     "schedule": {
                         "updated_at": {"secs_since_epoch":0,"nanos_since_epoch":0},
-                        "wait_time": {"secs":60,"nanos":0},
+                        "wait_time": {"secs":59,"nanos":0},
                         "next_step": "FinalizeSigningRequest"
                     }
                 }
@@ -593,7 +593,7 @@ mod tests {
                     .schedule,
                 Schedule {
                     updated_at: UNIX_EPOCH + Duration::from_secs(61),
-                    wait_time: Duration::from_secs(60),
+                    wait_time: Duration::from_secs(59),
                     next_step: TaskStep::DownloadCertificate,
                 }
             );
@@ -688,7 +688,7 @@ mod tests {
                     "order": {"authorization_url":"https://acme.server/authz-v3/1866692048","challenge_url":"https://acme.server/chall-v3/1866692048/oFAcwQ","challenge_token":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o","challenge_answer":"0HORFRxrqEtAB-vUh9iSnFBHE66qWX4bbU1SBWxOr5o.key_thumbprint","order_url":"https://acme.server/order/46540038","finalize_url":"https://acme.server/finalize/46540038/1977802858","certificate_url":null},
                     "schedule": {
                         "updated_at": {"secs_since_epoch":0,"nanos_since_epoch":0},
-                        "wait_time": {"secs":60,"nanos":0},
+                        "wait_time": {"secs":59,"nanos":0},
                         "next_step": "DownloadCertificate"
                     }
                 }
