@@ -60,20 +60,28 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    ```
 
 1. Edit the `input.yaml` to put the information of your website.
+   For most fields you can use the values from the example file,
+   but you have to change following values with yours.
 
-   - To find Cloudflare **account ID** and **zone ID**,
+   - Put your domain name at
+     [line 17](../input.example.yaml#L17),
+     [line 34-35](../input.example.yaml#L34-L35),
+   - Put your Cloudflare account ID and zone ID at
+     [line 29-30](../input.example.yaml#L29-L30).
+     To find them,
      see [this screenshot](https://forum.aapanel.com/d/3914-how-to-get-zone-id-of-cloudflare).
 
 1. Run following command.
    ```bash
    cargo run -p tools -- gen-config --input input.yaml --artifact artifact.yaml
    ```
-   This command will creates a `cloudflare_worker/wrangler.toml` that can be modified futher if desired.
+   This command will creates a `cloudflare_worker/wrangler.toml` that is used by the `wrangler` command.
 
-   - For example, you can customize the `routes` list in `wrangler.toml` based on the
-     [Cloudflare Docs](https://developers.cloudflare.com/workers/platform/routes/#matching-behavior).
-     But you need to leave the patterns starting with `/.well-known/` enabled, in order to keep
-     SXG working.
+   - It is not recommended to directly modify the generated `wrangler.toml`, because your changes will be
+     overwriten when you run `cargo run -p tools -- gen-config` again.
+     For example, if you would like to customize the `routes` list in `wrangler.toml` based on the
+     [Cloudflare Docs](https://developers.cloudflare.com/workers/platform/routes/#matching-behavior),
+     you can modify the `cloudflare.routes` values in your `input.yaml`, and run this step again.
 
 1. Put your private key as a
    [secret](https://developers.cloudflare.com/workers/cli-wrangler/commands#secret)

@@ -75,6 +75,7 @@ struct EabConfig {
 pub struct CloudlareSpecificInput {
     account_id: String,
     zone_id: String,
+    routes: Vec<String>,
     worker_name: String,
     deploy_on_workers_dev_only: bool,
 }
@@ -305,16 +306,18 @@ pub fn main(opts: Opts) -> Result<()> {
             wrangler_vars.acme_account = Some(serde_json::to_string(&artifact.acme_account)?);
         }
     };
+    let mut routes = input.cloudflare.routes.clone();
+    routes.extend(vec![
+        format!("{}/.well-known/sxg-certs/*", input.domain_name),
+        format!("{}/.well-known/sxg-validity/*", input.domain_name),
+        format!("{}/.well-known/acme-challenge/*", input.domain_name),
+    ]);
     let wrangler_toml_output = WranglerManifest {
         name: input.cloudflare.worker_name.clone(),
         target_type: "rust".to_string(),
         account_id: input.cloudflare.account_id.clone(),
         zone_id: input.cloudflare.zone_id.clone(),
-        routes: vec![
-            format!("{}/*", input.domain_name),
-            format!("{}/.well-known/sxg-certs/*", input.domain_name),
-            format!("{}/.well-known/sxg-validity/*", input.domain_name),
-        ],
+        routes,
         kv_namespaces: vec![ConfigKvNamespace {
             binding: String::from("OCSP"),
             id: artifact
