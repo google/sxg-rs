@@ -28,6 +28,11 @@ sxg_worker:
 cloudflare:
   account_id: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   zone_id: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  # You can define URL patterns for the SXG worker. See Cloudflare's doc at
+  # https://developers.cloudflare.com/workers/platform/routing/routes/
+  routes:
+    - https://YOUR_DOMAIN/*
+    - https://*.YOUR_DOMAIN/images/*
   worker_name: sxg
   deploy_on_workers_dev_only: false
 certificates:
