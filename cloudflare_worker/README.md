@@ -75,7 +75,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    ```bash
    cargo run -p tools -- gen-config --input input.yaml --artifact artifact.yaml
    ```
-   This command will creates a `cloudflare_worker/wrangler.toml` that is used by the `wrangler` command.
+   This command will create a `cloudflare_worker/wrangler.toml` that is used by the `wrangler` command.
 
    - It is not recommended to directly modify the generated `wrangler.toml`, because your changes will be
      overwriten when you run `cargo run -p tools -- gen-config` again.
