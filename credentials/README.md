@@ -58,7 +58,7 @@ which provide ACME service.
         because `sxg-rs` will do them.
 
    1. For the [certificates section](../input.example.yaml#L38-L51) in `input.yaml`,
-      remove `pre_issued` section and uncommend `create_acme_account` section.
+      remove `pre_issued` section and uncomment `create_acme_account` section.
       ```diff
        # input.yaml
        certificates:
