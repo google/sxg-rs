@@ -44,6 +44,7 @@ Authorities](https://github.com/google/webpackager/wiki/Certificate-Authorities)
 which provide ACME service.
 
 1. Using Google as the Certificate Authority
+   1. Read and agree [terms of service](https://pki.goog/GTS-SA.pdf).
    1. Sign up for the preview
       [here](https://cloud.google.com/blog/products/identity-security/automate-public-certificate-lifecycle-management-via--acme-client-api#:~:text=How%20can%20I%20get%20access).
    1. Once you have access, follow the
