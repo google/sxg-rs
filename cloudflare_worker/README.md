@@ -40,9 +40,6 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 
 ## Install
 
-1. Get an SXG-compatible certificate
-   using [these steps](../credentials/README.md#get-an-sxg_compatible-certificate).
-
 1. Install [Rust](https://www.rust-lang.org/tools/install).
 1. Install [@cloudflare/wrangler](https://github.com/cloudflare/wrangler).
 
@@ -71,6 +68,13 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
      To find them,
      see [this screenshot](https://forum.aapanel.com/d/3914-how-to-get-zone-id-of-cloudflare).
 
+1. Get an SXG-compatible certificate
+   using [these steps](../credentials/README.md#get-an-sxg_compatible-certificate).
+
+   * If you are using
+   [ACME](../credentials/README.md#option-1-automatic-certificate-management-environment-acme),
+   you should have removed `pre_issued` and added `create_acme_account` in `input.yaml`.
+
 1. Run following command.
    ```bash
    cargo run -p tools -- gen-config --input input.yaml --artifact artifact.yaml
@@ -96,6 +100,16 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    1. The terminal will interactively ask for the value of the secret.
       Put the private key in JWK format here.
 
+1. If you are using ACME, in additional to `PRIVATE_KEY_JWK`,
+   you also need to set `ACME_PRIVATE_KEY_JWK`.
+   The generated `artifact.yaml` will contain `acme_private_key_instruction`.
+   ```yaml
+   # artifact.yaml
+   acme_private_key_instruction: echo XXXXXX | openssl enc -base64 -d | wrangler secret put ACME_PRIVATE_KEY_JWK
+   ```
+   Copy the command from your `artifact.yaml`, and use it in `cloudflare_worker` folder to
+   set the wrangler secret.
+
 1. Run `./publish.sh` to build and deploy the worker online.
 
 1. Go to the [workers dashboard](https://dash.cloudflare.com/workers), and edit
@@ -105,11 +119,15 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 1. To check whether the worker generates a valid SXG,
    use Chrome browser to open `https://${WORKER_HOST}/.sxg/test.html`.
 
+   * If you are using ACME, it takes a few minutes to get the certificate.
+     During this time, the test page always fails.
+
 1. Read on for [next steps](../README.md#next-steps).
 
 ## Maintain
 
-The certificates need to be renewed every 90 days.
+If you are not using ACME,
+the certificates need to be renewed every 90 days.
 
 1. Follow [these steps](../credentials/README.md#renew-certificate) to renew
    the certificate.
