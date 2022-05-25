@@ -28,7 +28,7 @@ because SXG requires the certificate to have a
    openssl ecparam -out privkey.pem -name prime256v1 -genkey
    ```
 
-1. Create a certificate signing request for the private key.
+1. Create a certificate signing request (CSR) for the private key.
 
    ```bash
    openssl req -new -sha256 -key privkey.pem -out cert.csr \
@@ -37,10 +37,75 @@ because SXG requires the certificate to have a
 
 At this point, you have two options:
 
-### Option 1: Development certificate
+### Option 1: Automatic Certificate Management Environment (ACME)
 
-When developing or testing, you can create your own SXG certificate. It will
-not work in production.
+`sxg-rs` can create SXG certificates by connecting to [Certificate
+Authorities](https://github.com/google/webpackager/wiki/Certificate-Authorities)
+which provide ACME service.
+
+1. Using Google as the Certificate Authority
+   1. Sign up for the preview
+      [here](https://cloud.google.com/blog/products/identity-security/automate-public-certificate-lifecycle-management-via--acme-client-api#:~:text=How%20can%20I%20get%20access).
+   1. Once you have access, follow the
+      [instructions](https://cloud.google.com/public-certificate-authority/docs/quickstart),
+      and get your
+      [key ID and HMAC](https://cloud.google.com/public-certificate-authority/docs/quickstart#request-key-hmac).
+
+      Some steps in Google Cloud's instruction need to be skipped.
+      * Skip the *Install a client* step,
+        because you have installed `sxg-rs` as your client.
+      * Skip all steps after the step *Request an EAB key ID and HMAC*,
+        because `sxg-rs` will do them.
+
+   1. For the [certificates section](../input.example.yaml#L38-L51) in `input.yaml`,
+      remove `pre_issued` section and uncommend `create_acme_account` section.
+      ```diff
+       # input.yaml
+       certificates:
+      -  pre_issued:
+      -     cert_file: credentials/cert.pem
+      -     issuer_file: credentials/issuer.pem
+         create_acme_account:
+           server_url: https://dv-sxg.acme-v02.api.pki.goog/directory
+           contact_email: YOUR_EMAIL
+           agreed_terms_of_service: https://pki.goog/GTS-SA.pdf
+           sxg_cert_request_file: credentials/cert.csr
+           eab:
+              key_id: YOUR_KEY_ID
+              base64_mac_key: YOUR_HMAC
+      ```
+
+### Option 2: Obtain from Certificate Authority
+
+You can obtain SXG certificates from [Certificate
+Authority](https://github.com/google/webpackager/wiki/Certificate-Authorities),
+by manually placing orders on their website.
+
+1. Using DigiCert as the Certificate Authority
+   1. Follow the [DigiCert
+      doc](https://docs.digicert.com/manage-certificates/certificate-profile-options/get-your-signed-http-exchange-certificate/).
+      Note:
+      1. Accounts should be created via the [SXG account signup
+         form](https://www.digicert.com/account/ietf/http-signed-exchange-account.php#create-account).
+         For existing accounts, you will need to reach out to DigiCert support to
+         enable the CanSignHttpExchanges option.
+      1. If setting the CAA DNS record using Cloudflare, add a trailing period
+         after `com`, so the value for CA domain name is: `digicert.com.;
+         cansignhttpexchanges=yes`.
+
+   1. From the files issued by DigiCert, rename `DigiCertCA.crt` as `issuer.pem`,
+      and rename `your_domain.crt` as `cert.pem`. Place them in this `credentials/`
+      directory.
+
+   1. After 90 days, the certificates need to be renewed
+      by following the steps in the [DigiCert
+      doc](https://docs.digicert.com/manage-certificates/renew-ssltls-certificate/).
+
+### Option 3: Development certificate
+
+When developing or testing, you can create your own SXG certificate. However, it will
+not work in production; Google's cache will not use an SXG signed by development
+certificate.
 
 1. Self-sign the certificate with "CanSignHttpExchanges" extension.
 
@@ -71,43 +136,3 @@ not work in production.
       google-chrome --guest \
         --ignore-certificate-errors-spki-list=`cat cert_sha256.txt`
       ```
-
-### Option 2: Production certificate
-
-For use in production, a SXG certificate must be obtained from a [Certificate
-Authority](https://github.com/google/webpackager/wiki/Certificate-Authorities).
-A production certificate enables the Google SXG Cache to prefetch your site's
-SXGs.
-
-1. Using DigiCert as the Certificate Authority
-   1. Follow the [DigiCert
-      doc](https://docs.digicert.com/manage-certificates/certificate-profile-options/get-your-signed-http-exchange-certificate/).
-      Note:
-      1. Accounts should be created via the [SXG account signup
-         form](https://www.digicert.com/account/ietf/http-signed-exchange-account.php#create-account).
-         For existing accounts, you will need to reach out to DigiCert support to
-         enable the CanSignHttpExchanges option.
-      1. If setting the CAA DNS record using Cloudflare, add a trailing period
-         after `com`, so the value for CA domain name is: `digicert.com.;
-         cansignhttpexchanges=yes`.
-
-   1. From the files issued by DigiCert, rename `DigiCertCA.crt` as `issuer.pem`,
-      and rename `your_domain.crt` as `cert.pem`. Place them in this `credentials/`
-      directory.
-
-1. Using Google as the Certificate Authority
-   1. [Sign up for the preview here](https://cloud.google.com/blog/products/identity-security/automate-public-certificate-lifecycle-management-via--acme-client-api#:~:text=How%20can%20I%20get%20access).
-   1. Once you have access, follow the [instructions](https://cloud.google.com/public-certificate-authority/docs), but use the following ACME Directory for SXG certs instead: `https://dv-sxg.acme-v02.api.pki.goog/directory`
-   1. Use the HMAC and KID (Key ID) you retrieved in the steps above in your configuration file
-      for use in retrieving the SXG certs.
-
-#### Renew certificate
-
-Production certificates need to be renewed every 90 days.
-
-1. Follow the steps in the [DigiCert
-   doc](https://docs.digicert.com/manage-certificates/renew-ssltls-certificate/)
-   to renew the certificate.
-1. From the files issued by DigiCert, rename `DigiCertCA.crt` as `issuer.pem`,
-   and rename `your_domain.crt` as `cert.pem`. Place them in this `credentials/`
-   directory.
