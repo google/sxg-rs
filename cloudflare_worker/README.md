@@ -110,7 +110,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    Copy the command from your `artifact.yaml`, and use it in `cloudflare_worker` folder to
    set the wrangler secret.
 
-1. Run `./publish.sh` to build and deploy the worker online.
+1. Run `cloudflare_worker/publish.sh` to build and deploy the worker online.
 
 1. Go to the [workers dashboard](https://dash.cloudflare.com/workers), and edit
    the `your_domain.com/*` route to fail open, like this:
@@ -132,7 +132,7 @@ the certificates need to be renewed every 90 days.
 1. Follow [these steps](../credentials/README.md#renew-certificate) to renew
    the certificate.
 1. Run `cargo run -p tools -- gen-config --input input.yaml --artifact artifact.yaml`.
-1. Run `./publish.sh` to restart the worker.
+1. Run `cloudflare_worker/publish.sh` to restart the worker.
 
 ## Uninstall
 
