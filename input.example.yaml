@@ -46,6 +46,8 @@ certificates:
   #   # Read and aggree the terms of service before uncommenting next line.
   #   # agreed_terms_of_service: https://pki.goog/GTS-SA.pdf
   #   sxg_cert_request_file: credentials/cert.csr
+  #   # To find your eab key, please follow
+  #   # https://cloud.google.com/public-certificate-authority/docs/quickstart#request-key-hmac
   #   eab:
   #     base64_mac_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXQ
   #     key_id: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX

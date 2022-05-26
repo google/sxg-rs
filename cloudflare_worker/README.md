@@ -42,6 +42,11 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 
 1. Install [Rust](https://www.rust-lang.org/tools/install).
 1. Install [@cloudflare/wrangler](https://github.com/cloudflare/wrangler).
+1. Create a Cloudflare account and
+   [sign up](https://dash.cloudflare.com/sign-up/workers) for Workers account.
+   Their
+   [free tier plan](https://developers.cloudflare.com/workers/platform/pricing/)
+   is sufficient to power up `sxg-rs`.
 
 1. Clone this repo and cd into the repository root folder.
    ```bash
@@ -73,7 +78,11 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 
    * If you are using
    [ACME](../credentials/README.md#option-1-automatic-certificate-management-environment-acme),
-   you should have removed `pre_issued` and added `create_acme_account` in `input.yaml`.
+   you should have followed the instructions to comment the entire `pre_issued`
+   [section](../input.example.yaml#L39-L41),
+   and uncomment `create_acme_account`
+   [section](../input.example.yaml#L42-L53)
+   in `input.yaml`.
 
 1. Run following command.
    ```bash
