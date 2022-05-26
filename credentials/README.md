@@ -58,22 +58,33 @@ which provide ACME service.
       * Skip all steps after the step *Request an EAB key ID and HMAC*,
         because `sxg-rs` will do them.
 
-   1. For the [certificates section](../input.example.yaml#L38-L51) in `input.yaml`,
-      remove `pre_issued` section and uncomment `create_acme_account` section.
+   1. For the [certificates section](../input.example.yaml#L38-L53) in `input.yaml`,
+      comment `pre_issued` section and uncomment `create_acme_account` section.
       ```diff
-       # input.yaml
+       # the last few lines in input.yaml
        certificates:
       -  pre_issued:
       -     cert_file: credentials/cert.pem
       -     issuer_file: credentials/issuer.pem
-         create_acme_account:
-           server_url: https://dv-sxg.acme-v02.api.pki.goog/directory
-           contact_email: YOUR_EMAIL
-           agreed_terms_of_service: https://pki.goog/GTS-SA.pdf
-           sxg_cert_request_file: credentials/cert.csr
-           eab:
-              key_id: YOUR_KEY_ID
-              base64_mac_key: YOUR_HMAC
+      -  # create_acme_account:
+      -  #   server_url: https://dv-sxg.acme-v02.api.pki.goog/directory
+      -  #   contact_email: YOUR_EMAIL
+      -  #   agreed_terms_of_service: https://pki.goog/GTS-SA.pdf
+      -  #   sxg_cert_request_file: credentials/cert.csr
+      -  #   eab:
+      -  #      key_id: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXQ
+      -  #      base64_mac_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+      +  # pre_issued:
+      +  #    cert_file: credentials/cert.pem
+      +  #    issuer_file: credentials/issuer.pem
+      +  create_acme_account:
+      +    server_url: https://dv-sxg.acme-v02.api.pki.goog/directory
+      +    contact_email: YOUR_EMAIL
+      +    agreed_terms_of_service: https://pki.goog/GTS-SA.pdf
+      +    sxg_cert_request_file: credentials/cert.csr
+      +    eab:
+      +       key_id: YOUR_KEY_ID
+      +       base64_mac_key: YOUR_HMAC
       ```
 
 ### Option 2: Obtain from Certificate Authority
