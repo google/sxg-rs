@@ -130,6 +130,9 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 1. To check whether the worker generates a valid SXG,
    use Chrome browser to open `https://${WORKER_HOST}/.sxg/test.html`.
 
+   * If the worker shows error, you can use
+     `cd cloudflare_worker && wrangler tail --format pretty` to see the logs.
+
    * If you are using ACME, it takes a few minutes to get the certificate.
      During this time, the test page always fails.
 
