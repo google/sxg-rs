@@ -51,12 +51,9 @@ const workerPromise = (async () => {
   return worker;
 })();
 
-if (typeof PRIVATE_KEY_JWK === 'undefined') {
-  throw 'The wrangler secret PRIVATE_KEY_JWK is not set.';
-}
 const sxgSigner = createSignerFromJwk(
   crypto.subtle,
-  JSON.parse(PRIVATE_KEY_JWK)
+  typeof PRIVATE_KEY_JWK === 'string' ? JSON.parse(PRIVATE_KEY_JWK) : null
 );
 
 addEventListener('fetch', (event: FetchEvent) => {

@@ -22,7 +22,7 @@ declare global {
   const HTML_HOST: string;
   const ISSUER_PEM: string;
   const OCSP: KVNamespace;
-  const PRIVATE_KEY_JWK: string;
+  const PRIVATE_KEY_JWK: string | undefined;
   const ACME_PRIVATE_KEY_JWK: string;
   const ACME_ACCOUNT: string;
   const SXG_CONFIG: string;
