@@ -152,16 +152,17 @@ fn get_global_user() -> GlobalUser {
     user
 }
 
+const STORAGE_NAME: &str = "OCSP";
 // Get the ID of the KV namespace for OCSP.
 // If there is no such KV namespace, one will be created.
 fn get_ocsp_kv_id(user: &GlobalUser, account_id: &str) -> String {
     let client = wrangler::http::cf_v4_client(user).unwrap();
     let target: wrangler::settings::toml::Target = Default::default();
     let namespaces = wrangler::kv::namespace::list(&client, &target).unwrap();
-    if let Some(namespace) = namespaces.into_iter().find(|n| n.title == "sxg-OCSP") {
+    if let Some(namespace) = namespaces.into_iter().find(|n| n.title == STORAGE_NAME) {
         return namespace.id;
     }
-    let namespace = wrangler::kv::namespace::create(&client, account_id, "OCSP")
+    let namespace = wrangler::kv::namespace::create(&client, account_id, STORAGE_NAME)
         .unwrap()
         .result;
     namespace.id
@@ -319,7 +320,7 @@ pub fn main(opts: Opts) -> Result<()> {
         zone_id: input.cloudflare.zone_id.clone(),
         routes,
         kv_namespaces: vec![ConfigKvNamespace {
-            binding: String::from("OCSP"),
+            binding: STORAGE_NAME.to_string(),
             id: artifact
                 .cloudflare_kv_namespace_id
                 .clone()
