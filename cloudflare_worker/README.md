@@ -96,6 +96,8 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
      [Cloudflare Docs](https://developers.cloudflare.com/workers/platform/routes/#matching-behavior),
      you can modify the `cloudflare.routes` values in your `input.yaml`, and run this step again.
 
+1. Run `cloudflare_worker/publish.sh` to build and deploy the worker online.
+
 1. Put your private key as a
    [secret](https://developers.cloudflare.com/workers/cli-wrangler/commands#secret)
    to cloudflare worker.
@@ -119,7 +121,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    Copy the command from your `artifact.yaml`, and use it in `cloudflare_worker` folder to
    set the wrangler secret.
 
-1. Run `cloudflare_worker/publish.sh` to build and deploy the worker online.
+1. Run `cloudflare_worker/publish.sh` to let the worker load the private keys.
 
 1. Go to the [workers dashboard](https://dash.cloudflare.com/workers), and edit
    the `your_domain.com/*` route to fail open, like this:
