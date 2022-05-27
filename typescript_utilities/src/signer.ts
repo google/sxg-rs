@@ -20,7 +20,16 @@ export type Signer = (message: Uint8Array) => Promise<Uint8Array>;
 // TODO: give `subtle` parameter a type that is recognized
 // in both NodeJs and Browser.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function fromJwk(subtle: any, jwk: Object): Signer {
+export function fromJwk(subtle: any, jwk: object | null): Signer {
+  if (jwk === null) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    return async function signer(_message: Uint8Array): Promise<Uint8Array> {
+      console.error(
+        'Creating an empty signature, because the wrangler secret PRIVATE_KEY_JWK is not set'
+      );
+      return new Uint8Array(64);
+    };
+  }
   const privateKeyPromise = (async function initPrivateKey() {
     return await subtle.importKey(
       'jwk',
