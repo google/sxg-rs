@@ -134,8 +134,8 @@ function createRuntime() {
 async function updateStateMachine() {
   const worker = await workerPromise;
   const runtime = createRuntime();
-  await worker.updateOcspInStorage(runtime);
   await worker.updateAcmeStateMachine(runtime, ACME_ACCOUNT);
+  await worker.updateOcspInStorage(runtime);
 }
 
 async function handleRequest(request: Request) {
