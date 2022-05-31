@@ -50,7 +50,7 @@ pub struct Account {
 
 /// The runtime context of an ongoing ACME certificate request, which is
 /// waiting for HTTP challenge.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct OngoingOrder {
     authorization_url: String,
     challenge_url: String,
