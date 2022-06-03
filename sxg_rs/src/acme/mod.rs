@@ -335,13 +335,7 @@ async fn get_http_challenge(
     let challenge: &Challenge = authorization
         .challenges
         .iter()
-        .find_map(|challenge| {
-            if challenge.r#type == "http-01" {
-                Some(challenge)
-            } else {
-                None
-            }
-        })
+        .find(|challenge| challenge.r#type == "http-01")
         .ok_or_else(|| Error::msg("The authorization does not have http-01 type challenge"))?;
     Ok((*challenge).clone())
 }

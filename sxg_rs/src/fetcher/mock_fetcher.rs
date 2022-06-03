@@ -18,14 +18,16 @@ use super::Fetcher;
 use crate::http::{HttpRequest, HttpResponse};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use std::cell::RefCell;
+use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc;
-use tokio::time::timeout;
+use tokio::{
+    sync::{mpsc, Mutex},
+    time::timeout,
+};
 
 pub struct MockFetcher {
     request_sender: mpsc::Sender<HttpRequest>,
-    response_receiver: RefCell<mpsc::Receiver<HttpResponse>>,
+    response_receiver: Arc<Mutex<mpsc::Receiver<HttpResponse>>>,
     time_limit: Duration,
 }
 
@@ -40,7 +42,7 @@ pub fn create() -> (MockFetcher, MockServer) {
     let (response_sender, response_receiver) = mpsc::channel(1);
     let mock_fetcher = MockFetcher {
         request_sender,
-        response_receiver: RefCell::new(response_receiver),
+        response_receiver: Arc::new(Mutex::new(response_receiver)),
         time_limit: Duration::from_secs(1),
     };
     let mock_server = MockServer {
@@ -56,19 +58,16 @@ impl Fetcher for MockFetcher {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse> {
         let request_url = request.url.clone();
         self.request_sender.send(request).await?;
-        timeout(
-            self.time_limit,
-            self.response_receiver.try_borrow_mut()?.recv(),
-        )
-        .await
-        .map_err(|_e| {
-            anyhow!(
-                "Failed to get response for URL \"{}\" within time limit, \
-                did you set up \"handle_next_request\" on the MockServer side?",
-                request_url,
-            )
-        })?
-        .ok_or_else(|| anyhow!("No more message"))
+        timeout(self.time_limit, self.response_receiver.lock().await.recv())
+            .await
+            .map_err(|_e| {
+                anyhow!(
+                    "Failed to get response for URL \"{}\" within time limit, \
+                    did you set up \"handle_next_request\" on the MockServer side?",
+                    request_url,
+                )
+            })?
+            .ok_or_else(|| anyhow!("No more message"))
     }
 }
 
