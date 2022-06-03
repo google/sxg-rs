@@ -24,13 +24,13 @@ use std::time::{Duration, SystemTime};
 
 const ACME_STORAGE_KEY: &str = "ACME";
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AcmeStorageData {
     pub certificates: Vec<String>,
     task: Option<Task>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Task {
     order: OngoingOrder,
     schedule: Schedule,
@@ -211,7 +211,9 @@ pub async fn update_state(runtime: &Runtime, account: &Account) -> Result<()> {
     .await;
     match result {
         Ok(()) => {
-            write_state(runtime, &new_state).await?;
+            if old_state != new_state {
+                write_state(runtime, &new_state).await?;
+            }
             Ok(())
         }
         Err(e) => {
