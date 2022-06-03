@@ -75,7 +75,7 @@ fn get_global_user() -> GlobalUser {
         user = GlobalUser::new();
     }
     let user = user.unwrap();
-    println!("Successfully login to Cloudflare");
+    println!("Successful login to Cloudflare");
     user
 }
 
