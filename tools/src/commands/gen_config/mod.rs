@@ -290,8 +290,9 @@ pub fn main(opts: Opts) -> Result<()> {
         }
         SxgCertConfig::CreateAcmeAccount(acme_config) => {
             if artifact.acme_account.is_none() {
-                let (acme_private_key, acme_account) =
-                    tokio_block_on(create_acme_key_and_account(acme_config, &input.sxg_worker.html_host))?;
+                let (acme_private_key, acme_account) = tokio_block_on(
+                    create_acme_key_and_account(acme_config, &input.sxg_worker.html_host),
+                )?;
                 artifact.acme_account = Some(acme_account);
                 artifact.acme_private_key_instruction = Some(create_wrangler_secret_instruction(
                     "ACME_PRIVATE_KEY_JWK",
@@ -305,7 +306,10 @@ pub fn main(opts: Opts) -> Result<()> {
     routes.extend(vec![
         format!("{}/.well-known/sxg-certs/*", input.sxg_worker.html_host),
         format!("{}/.well-known/sxg-validity/*", input.sxg_worker.html_host),
-        format!("{}/.well-known/acme-challenge/*", input.sxg_worker.html_host),
+        format!(
+            "{}/.well-known/acme-challenge/*",
+            input.sxg_worker.html_host
+        ),
     ]);
     let wrangler_toml_output = WranglerManifest {
         name: input.cloudflare.worker_name.clone(),
