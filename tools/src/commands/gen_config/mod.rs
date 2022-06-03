@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+mod cloudflare;
+
 use crate::linux_commands::generate_private_key_pem;
 use crate::runtime::openssl_signer::OpensslSigner;
-use crate::tokio_block_on;
 use anyhow::{Error, Result};
 use clap::Parser;
+use cloudflare::CloudlareSpecificInput;
 use serde::{Deserialize, Serialize};
 use sxg_rs::acme::{directory::Directory as AcmeDirectory, Account as AcmeAccount};
 use sxg_rs::crypto::EcPrivateKey;
-use wrangler::settings::global_user::GlobalUser;
-use wrangler::settings::toml::ConfigKvNamespace;
 
 #[derive(Debug, Parser)]
 pub struct Opts {
@@ -47,7 +47,7 @@ pub struct Config {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-enum SxgCertConfig {
+pub enum SxgCertConfig {
     PreIssued {
         cert_file: String,
         issuer_file: String,
@@ -56,7 +56,7 @@ enum SxgCertConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct AcmeConfig {
+pub struct AcmeConfig {
     server_url: String,
     contact_email: String,
     agreed_terms_of_service: String,
@@ -65,18 +65,9 @@ struct AcmeConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct EabConfig {
+pub struct EabConfig {
     base64_mac_key: String,
     key_id: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct CloudlareSpecificInput {
-    account_id: String,
-    zone_id: String,
-    routes: Vec<String>,
-    worker_name: String,
-    deploy_on_workers_dev_only: bool,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -84,41 +75,6 @@ pub struct Artifact {
     acme_account: Option<AcmeAccount>,
     acme_private_key_instruction: Option<String>,
     cloudflare_kv_namespace_id: Option<String>,
-}
-
-#[derive(Default, Deserialize, Serialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-struct WranglerVars {
-    html_host: String,
-    sxg_config: String,
-    cert_pem: Option<String>,
-    issuer_pem: Option<String>,
-    acme_account: Option<String>,
-}
-
-// TODO: Use `wrangler::settings::toml::Triggers`
-// after [this PR](https://github.com/cloudflare/wrangler/pull/2259)
-// is deployed to the latest `wrangler` version.
-#[derive(Deserialize, Serialize)]
-pub struct Triggers {
-    pub crons: Vec<String>,
-}
-
-// TODO: Use `wrangler::settings::toml::Manifest`
-// after [this issue](https://github.com/cloudflare/wrangler/issues/2037)
-// is resolved.
-#[derive(Deserialize, Serialize)]
-struct WranglerManifest {
-    name: String,
-    #[serde(rename = "type")]
-    target_type: String,
-    account_id: String,
-    zone_id: String,
-    routes: Vec<String>,
-    workers_dev: Option<bool>,
-    kv_namespaces: Vec<ConfigKvNamespace>,
-    vars: WranglerVars,
-    triggers: Option<Triggers>,
 }
 
 // Set working directory to the root folder of the "sxg-rs" repository.
@@ -134,37 +90,6 @@ fn goto_repository_root() -> Result<(), std::io::Error> {
         .unwrap();
     std::env::set_current_dir(repo_root)?;
     Ok(())
-}
-
-// Get the Cloudflare user.
-// If there is no active user, the terminal will display a login link.
-// This function will wait for the login process before returning.
-fn get_global_user() -> GlobalUser {
-    println!("Checking Cloudflare login state");
-    let mut user = GlobalUser::new();
-    if user.is_err() {
-        wrangler::login::run(None).unwrap();
-        user = GlobalUser::new();
-    }
-    let user = user.unwrap();
-    println!("Successfully login to Cloudflare");
-    user
-}
-
-const STORAGE_NAME: &str = "OCSP";
-// Get the ID of the KV namespace for OCSP.
-// If there is no such KV namespace, one will be created.
-fn get_ocsp_kv_id(user: &GlobalUser, account_id: &str) -> String {
-    let client = wrangler::http::cf_v4_client(user).unwrap();
-    let target: wrangler::settings::toml::Target = Default::default();
-    let namespaces = wrangler::kv::namespace::list(&client, &target).unwrap();
-    if let Some(namespace) = namespaces.into_iter().find(|n| n.title == STORAGE_NAME) {
-        return namespace.id;
-    }
-    let namespace = wrangler::kv::namespace::create(&client, account_id, STORAGE_NAME)
-        .unwrap()
-        .result;
-    namespace.id
 }
 
 fn read_certificate_pem_file(path: &str) -> Result<String> {
@@ -240,16 +165,6 @@ async fn create_acme_key_and_account(
     Ok((acme_private_key, account))
 }
 
-fn create_wrangler_secret_instruction(name: &str, value: &str) -> String {
-    let base64_value = base64::encode(value);
-    format!(
-        "echo {} | openssl enc -base64 -d | wrangler secret put {}",
-        base64_value, name
-    )
-}
-
-const WRANGLER_TOML: &str = "cloudflare_worker/wrangler.toml";
-
 fn read_artifact(file_name: &str) -> Result<Artifact> {
     let file_content = std::fs::read_to_string(file_name)?;
     let artifact = serde_yaml::from_str(&file_content)?;
@@ -266,75 +181,14 @@ pub fn main(opts: Opts) -> Result<()> {
         println!("Creating a new artifact");
         Default::default()
     });
-    if artifact.cloudflare_kv_namespace_id.is_none() {
-        if opts.use_ci_mode {
-            println!("Skipping KV namespace creation, because --use-ci-mode is set.")
-        } else {
-            let user = get_global_user();
-            artifact.cloudflare_kv_namespace_id =
-                Some(get_ocsp_kv_id(&user, &input.cloudflare.account_id))
-        }
-    }
-    let mut wrangler_vars = WranglerVars {
-        html_host: input.sxg_worker.html_host.clone(),
-        sxg_config: serde_yaml::to_string(&input.sxg_worker)?,
-        ..Default::default()
-    };
-    match &input.certificates {
-        SxgCertConfig::PreIssued {
-            cert_file,
-            issuer_file,
-        } => {
-            wrangler_vars.cert_pem = Some(read_certificate_pem_file(cert_file)?);
-            wrangler_vars.issuer_pem = Some(read_certificate_pem_file(issuer_file)?);
-        }
-        SxgCertConfig::CreateAcmeAccount(acme_config) => {
-            if artifact.acme_account.is_none() {
-                let (acme_private_key, acme_account) = tokio_block_on(
-                    create_acme_key_and_account(acme_config, &input.sxg_worker.html_host),
-                )?;
-                artifact.acme_account = Some(acme_account);
-                artifact.acme_private_key_instruction = Some(create_wrangler_secret_instruction(
-                    "ACME_PRIVATE_KEY_JWK",
-                    &serde_json::to_string(&acme_private_key)?,
-                ))
-            }
-            wrangler_vars.acme_account = Some(serde_json::to_string(&artifact.acme_account)?);
-        }
-    };
-    let mut routes = input.cloudflare.routes.clone();
-    routes.extend(vec![
-        format!("{}/.well-known/sxg-certs/*", input.sxg_worker.html_host),
-        format!("{}/.well-known/sxg-validity/*", input.sxg_worker.html_host),
-        format!(
-            "{}/.well-known/acme-challenge/*",
-            input.sxg_worker.html_host
-        ),
-    ]);
-    let wrangler_toml_output = WranglerManifest {
-        name: input.cloudflare.worker_name.clone(),
-        target_type: "rust".to_string(),
-        account_id: input.cloudflare.account_id.clone(),
-        zone_id: input.cloudflare.zone_id.clone(),
-        routes,
-        kv_namespaces: vec![ConfigKvNamespace {
-            binding: STORAGE_NAME.to_string(),
-            id: artifact
-                .cloudflare_kv_namespace_id
-                .clone()
-                .or_else(|| Some("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".to_string())),
-            preview_id: None,
-        }],
-        workers_dev: Some(input.cloudflare.deploy_on_workers_dev_only),
-        vars: wrangler_vars,
-        triggers: Some(Triggers {
-            crons: vec![
-                // The syntax is at https://developers.cloudflare.com/workers/platform/cron-triggers
-                // This triggers at every minute.
-                "* * * * *".to_string(),
-            ],
-        }),
-    };
+
+    cloudflare::main(
+        opts.use_ci_mode,
+        &input.sxg_worker,
+        &input.certificates,
+        &input.cloudflare,
+        &mut artifact,
+    )?;
 
     std::fs::write(
         &opts.artifact,
@@ -345,17 +199,5 @@ pub fn main(opts: Opts) -> Result<()> {
             serde_yaml::to_string(&artifact)?
         ),
     )?;
-
-    std::fs::write(
-        WRANGLER_TOML,
-        format!(
-            "# This file is generated by command \"cargo run -p tools -- gen-config\".\n\
-            # Please note that anything you modify won't be preserved\n\
-            # at the next time you run \"cargo run -p tools -- -gen-config\".\n\
-            {}",
-            toml::to_string_pretty(&wrangler_toml_output)?
-        ),
-    )?;
-    println!("Successfully wrote config to {}", WRANGLER_TOML);
     Ok(())
 }
