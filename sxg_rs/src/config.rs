@@ -22,9 +22,7 @@ use std::collections::BTreeSet;
 pub struct Config {
     pub cert_url_dirname: String,
     pub forward_request_headers: BTreeSet<String>,
-    // This field is only needed by Fastly, because Cloudflare uses [vars]
-    // to set this where the TypeScript wrapper can read it.
-    pub html_host: Option<String>,
+    pub html_host: String,
     // This field is only needed by Fastly, because Cloudflare uses secret
     // env variables to store private key.
     // TODO: check if Fastly edge dictionary is ok to store private key.
@@ -90,7 +88,7 @@ validity_url_dirname: "//.well-known/sxg-validity"
                 .map(|s| s.to_string())
                 .collect()
         );
-        assert_eq!(config.html_host, Some("my_domain.com".into()));
+        assert_eq!(config.html_host, "my_domain.com".to_string());
         assert_eq!(
             config.strip_request_headers,
             ["forwarded"].iter().map(|s| s.to_string()).collect()

@@ -40,7 +40,6 @@ pub struct Opts {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
-    domain_name: String,
     sxg_worker: sxg_rs::config::Config,
     certificates: SxgCertConfig,
     cloudflare: CloudlareSpecificInput,
@@ -262,16 +261,11 @@ pub fn main(opts: Opts) -> Result<()> {
         println!("The environment variable $CI is set, but --use-ci-mode is not set.");
     }
     goto_repository_root()?;
-    let mut input: Config = serde_yaml::from_str(&std::fs::read_to_string(&opts.input)?)?;
+    let input: Config = serde_yaml::from_str(&std::fs::read_to_string(&opts.input)?)?;
     let mut artifact: Artifact = read_artifact(&opts.artifact).unwrap_or_else(|_| {
         println!("Creating a new artifact");
         Default::default()
     });
-    input.sxg_worker.html_host = input
-        .sxg_worker
-        .html_host
-        .clone() // TODO: Remove this clone while keep Rust compiler happy.
-        .or_else(|| Some(input.domain_name.clone()));
     if artifact.cloudflare_kv_namespace_id.is_none() {
         if opts.use_ci_mode {
             println!("Skipping KV namespace creation, because --use-ci-mode is set.")
@@ -282,7 +276,7 @@ pub fn main(opts: Opts) -> Result<()> {
         }
     }
     let mut wrangler_vars = WranglerVars {
-        html_host: input.domain_name.clone(),
+        html_host: input.sxg_worker.html_host.clone(),
         sxg_config: serde_yaml::to_string(&input.sxg_worker)?,
         ..Default::default()
     };
@@ -297,7 +291,7 @@ pub fn main(opts: Opts) -> Result<()> {
         SxgCertConfig::CreateAcmeAccount(acme_config) => {
             if artifact.acme_account.is_none() {
                 let (acme_private_key, acme_account) =
-                    tokio_block_on(create_acme_key_and_account(acme_config, &input.domain_name))?;
+                    tokio_block_on(create_acme_key_and_account(acme_config, &input.sxg_worker.html_host))?;
                 artifact.acme_account = Some(acme_account);
                 artifact.acme_private_key_instruction = Some(create_wrangler_secret_instruction(
                     "ACME_PRIVATE_KEY_JWK",
@@ -309,9 +303,9 @@ pub fn main(opts: Opts) -> Result<()> {
     };
     let mut routes = input.cloudflare.routes.clone();
     routes.extend(vec![
-        format!("{}/.well-known/sxg-certs/*", input.domain_name),
-        format!("{}/.well-known/sxg-validity/*", input.domain_name),
-        format!("{}/.well-known/acme-challenge/*", input.domain_name),
+        format!("{}/.well-known/sxg-certs/*", input.sxg_worker.html_host),
+        format!("{}/.well-known/sxg-validity/*", input.sxg_worker.html_host),
+        format!("{}/.well-known/acme-challenge/*", input.sxg_worker.html_host),
     ]);
     let wrangler_toml_output = WranglerManifest {
         name: input.cloudflare.worker_name.clone(),
