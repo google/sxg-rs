@@ -386,10 +386,9 @@ impl SxgWorker {
     // TODO: implement get_fallback_url_and_cert_origin, so that Cloudflare Worker can use it.
     pub fn get_fallback_url(&self, original_url: &Url) -> Result<Url> {
         let mut fallback = original_url.clone();
-        if let Some(html_host) = &self.config.html_host {
-            if !html_host.is_empty() {
-                fallback.set_host(Some(html_host)).map_err(Error::new)?;
-            }
+        let html_host = &self.config.html_host;
+        if !html_host.is_empty() {
+            fallback.set_host(Some(html_host)).map_err(Error::new)?;
         }
         Ok(fallback)
     }

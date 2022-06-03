@@ -14,8 +14,8 @@
 
 # Please replace ALL-CAP values with yours.
 ---
-domain_name: YOUR_DOMAIN # example.com
 sxg_worker:
+  html_host: YOUR_DOMAIN # example.com
   cert_url_dirname: ".well-known/sxg-certs"
   forward_request_headers:
     - user-agent

@@ -66,7 +66,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    but you have to change following values with yours.
 
    - Put your domain name at
-     [line 17](../input.example.yaml#L17),
+     [line 18](../input.example.yaml#L18),
      [line 34-35](../input.example.yaml#L34-L35),
    - Put your Cloudflare account ID and zone ID at
      [line 29-30](../input.example.yaml#L29-L30).
