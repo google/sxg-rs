@@ -24,7 +24,6 @@ anyhow = "1.0.57"
 async-trait = "0.1.53"
 base64 = "0.13.0"
 clap = { version = "3.1.18", features = ["derive"] }
-cloudflare = "0.9.1"
 ctrlc = "3.2.2"
 der-parser = { version = "7.0.0", features = ["bigint", "serialize"] }
 http = "0.2.7"
