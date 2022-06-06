@@ -24,7 +24,7 @@ debug = false
 
 [dependencies]
 anyhow = "1.0.57"
-async-trait = "0.1.53"
+async-trait = "0.1.56"
 base64 = "0.13.0"
 fastly = "^0.8.5"
 http = "0.2.7"
@@ -35,4 +35,4 @@ pem = "1.0.2"
 serde = { version = "1.0.137", features = ["derive"] }
 serde_yaml = "0.8.24"
 sxg_rs = { path = "../sxg_rs", features = ["rust_signer"] }
-tokio = { version = "1.18.2", features = ["rt"] }
+tokio = { version = "1.19.2", features = ["rt"] }
