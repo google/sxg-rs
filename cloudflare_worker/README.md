@@ -25,8 +25,8 @@ one of the [Core Web Vitals](https://web.dev/vitals/).
 
 Alternatively, enabling [Cloudflare Automatic Signed
 Exchanges](https://support.cloudflare.com/hc/en-us/articles/4411075595661-Automatic-Signed-Exchanges-SXGs-)
-would provide similar functionality while also providing automatic
-software upgrades and certificate renewals.
+provides similar functionality along with automatic software upgrades and
+certificate renewals.
 
 ## Ensure compatibility with SXG
 
