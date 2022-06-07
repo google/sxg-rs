@@ -23,9 +23,9 @@ Search](https://developers.google.com/search/docs/advanced/experience/signed-exc
 in order to improve its [Largest Contentful Paint](https://web.dev/lcp/),
 one of the [Core Web Vitals](https://web.dev/vitals/).
 
-Alternatively, enabling [Cloudflare Automatic Signed
+Alternatively, [Cloudflare Automatic Signed
 Exchanges](https://support.cloudflare.com/hc/en-us/articles/4411075595661-Automatic-Signed-Exchanges-SXGs-)
-provides similar functionality along with automatic software upgrades and
+provides similar functionality as well as automatic software upgrades and
 certificate renewals.
 
 ## Ensure compatibility with SXG
