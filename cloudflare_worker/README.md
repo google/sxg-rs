@@ -23,6 +23,11 @@ Search](https://developers.google.com/search/docs/advanced/experience/signed-exc
 in order to improve its [Largest Contentful Paint](https://web.dev/lcp/),
 one of the [Core Web Vitals](https://web.dev/vitals/).
 
+Alternatively, enabling [Cloudflare Automatic Signed
+Exchanges](https://support.cloudflare.com/hc/en-us/articles/4411075595661-Automatic-Signed-Exchanges-SXGs-)
+would provide similar functionality while also providing automatic
+software upgrades and certificate renewals.
+
 ## Ensure compatibility with SXG
 
 The Google SXG Cache may reuse an SXG for several visits to the page, or for
