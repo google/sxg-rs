@@ -65,12 +65,12 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    For most fields you can use the values from the example file,
    but you have to change following values with yours.
 
-   - Put your domain name at
-     [line 18](../input.example.yaml#L18),
-     [line 34-35](../input.example.yaml#L34-L35),
-   - Put your Cloudflare account ID and zone ID at
-     [line 29-30](../input.example.yaml#L29-L30).
-     To find them,
+   - Replace every instance of `YOUR_DOMAIN` with your domain name. For
+     instance, in [`html_host`](../input.example.yaml#L18) and
+     [`routes`](../input.example.yaml#L34-L35).
+   - Put your Cloudflare account ID and zone ID in the
+     [`cloudflare` section](../input.example.yaml#L29-L30).
+     To determine the IDs,
      see [this screenshot](https://forum.aapanel.com/d/3914-how-to-get-zone-id-of-cloudflare).
 
 1. Get an SXG-compatible certificate
@@ -96,7 +96,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
      [Cloudflare Docs](https://developers.cloudflare.com/workers/platform/routes/#matching-behavior),
      you can modify the `cloudflare.routes` values in your `input.yaml`, and run this step again.
 
-1. Run `cd cloudflare_worker && ./publish.sh` to build and deploy the worker online.
+1. Run `(cd cloudflare_worker && ./publish.sh)` to build and deploy the worker online.
 
 1. Put your private key as a
    [secret](https://developers.cloudflare.com/workers/cli-wrangler/commands#secret)
@@ -105,7 +105,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
       ```bash
       go run credentials/parse_private_key.go <credentials/privkey.pem
       ```
-   1. Run `cd cloudflare_worker && wrangler secret put PRIVATE_KEY_JWK`. (Use the string
+   1. Run `(cd cloudflare_worker && wrangler secret put PRIVATE_KEY_JWK)`. (Use the string
       `PRIVATE_KEY_JWK` as is, and don't replace it with the
       actual private key.)
    1. The terminal will interactively ask for the value of the secret.
@@ -121,7 +121,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    Copy the command from your `artifact.yaml`, and use it in `cloudflare_worker` folder to
    set the wrangler secret.
 
-1. Run `cd cloudflare_worker && ./publish.sh` to let the worker load the private keys.
+1. Run `(cd cloudflare_worker && ./publish.sh)` to let the worker load the private keys.
 
 1. Go to the [workers dashboard](https://dash.cloudflare.com/workers), and edit
    the `your_domain.com/*` route to fail open, like this:
@@ -131,7 +131,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    use Chrome browser to open `https://${WORKER_HOST}/.sxg/test.html`.
 
    * If the worker shows error, you can use
-     `cd cloudflare_worker && wrangler tail --format pretty` to see the logs.
+     `(cd cloudflare_worker && wrangler tail --format pretty)` to see the logs.
 
    * If you are using ACME, it takes a few minutes to get the certificate.
      During this time, the test page always fails.
