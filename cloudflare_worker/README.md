@@ -66,7 +66,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    but you have to change following values with yours.
 
    - Replace every instance of `YOUR_DOMAIN` with your domain name. For
-     instance, in [`html_host`](../input.example.yaml#L18) and
+     example, in [`html_host`](../input.example.yaml#L18) and
      [`routes`](../input.example.yaml#L34-L35).
    - Put your Cloudflare account ID and zone ID in the
      [`cloudflare` section](../input.example.yaml#L29-L30).
