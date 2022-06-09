@@ -32,7 +32,6 @@ cloudflare:
   # https://developers.cloudflare.com/workers/platform/routing/routes/
   routes:
     - https://YOUR_DOMAIN/*
-    - https://*.YOUR_DOMAIN/images/*
   worker_name: sxg
   deploy_on_workers_dev_only: false
 certificates:

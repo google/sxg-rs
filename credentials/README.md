@@ -44,9 +44,10 @@ Authorities](https://github.com/google/webpackager/wiki/Certificate-Authorities)
 which provide ACME service.
 
 1. Using Google as the Certificate Authority
-   1. Read and agree [terms of service](https://pki.goog/GTS-SA.pdf).
+   1. Read and agree to the [terms of service](https://pki.goog/GTS-SA.pdf).
    1. Sign up for the preview
       [here](https://cloud.google.com/blog/products/identity-security/automate-public-certificate-lifecycle-management-via--acme-client-api#:~:text=How%20can%20I%20get%20access).
+      It may take a few days for the signup to be processed.
    1. Once you have access, follow the
       [instructions](https://cloud.google.com/public-certificate-authority/docs/quickstart),
       and get your
@@ -58,7 +59,7 @@ which provide ACME service.
       * Skip all steps after the step *Request an EAB key ID and HMAC*,
         because `sxg-rs` will do them.
 
-   1. For the [certificates section](../input.example.yaml#L38-L53) in `input.yaml`,
+   1. For the [certificates section](../input.example.yaml#L37-L52) in `input.yaml`,
       comment `pre_issued` section and uncomment `create_acme_account` section.
       ```diff
        # the last few lines in input.yaml
@@ -145,6 +146,6 @@ certificate.
       ```
    1. Launch Chrome with these flags:
       ```bash
-      google-chrome --guest \
+      google-chrome --guest --user-data-dir=/tmp/udd \
         --ignore-certificate-errors-spki-list=`cat cert_sha256.txt`
       ```
