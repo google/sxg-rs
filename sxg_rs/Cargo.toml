@@ -35,7 +35,7 @@ anyhow = "1.0.57"
 async-trait = "0.1.56"
 base64 = "0.13.0"
 chrono = { version = "0.4.19", features = ["serde"] }
-der-parser = { version = "7.0.0", features = ["bigint", "serialize"] }
+der-parser = { version = "8.1.0", features = ["bigint", "serialize"] }
 futures = { version = "0.3.21" }
 getrandom = { version = "0.2.7", features = ["js"] }
 http = "0.2.8"
