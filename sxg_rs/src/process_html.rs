@@ -152,13 +152,23 @@ pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> Result<Ht
             Ok(())
         }),
     ];
-    let output = lol_html::rewrite_str(
+    let output = match lol_html::rewrite_str(
         &input_body,
         lol_html::Settings {
             element_content_handlers,
             ..lol_html::Settings::default()
         },
-    )?;
+    ) {
+        Ok(output) => output,
+        // Return the default input on error
+        Err(_) => {
+            return Ok(HttpResponse {
+                headers: input.headers,
+                status: input.status,
+                body: input_body.into_bytes(),
+            });
+        }
+    };
     if !known_utf8 {
         return Ok(HttpResponse {
             headers: input.headers,
