@@ -20,10 +20,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.57"
+anyhow = "1.0.58"
 async-trait = "0.1.56"
 base64 = "0.13.0"
-clap = { version = "3.2.3", features = ["derive"] }
+clap = { version = "3.2.6", features = ["derive"] }
 ctrlc = "3.2.2"
 der-parser = { version = "7.0.0", features = ["bigint", "serialize"] }
 http = "0.2.8"
