@@ -23,7 +23,7 @@ pub enum OpensslSigner<'a> {
     Hmac(&'a [u8]),
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<'a> Signer for OpensslSigner<'a> {
     async fn sign(&self, message: &[u8], format: SignatureFormat) -> Result<Vec<u8>> {
         let tmp_file = execute_and_parse_stdout(&mut Command::new("mktemp"))?;
