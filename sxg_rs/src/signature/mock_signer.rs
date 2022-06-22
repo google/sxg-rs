@@ -18,7 +18,8 @@ use async_trait::async_trait;
 
 pub struct MockSigner;
 
-#[async_trait(?Send)]
+#[cfg_attr(feature = "wasm", async_trait(?Send))]
+#[cfg_attr(not(feature = "wasm"), async_trait)]
 impl Signer for MockSigner {
     async fn sign(&self, _message: &[u8], format: Format) -> Result<Vec<u8>> {
         match format {

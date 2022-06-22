@@ -15,14 +15,16 @@
 #[cfg(feature = "wasm")]
 pub mod js_storage;
 
+use crate::utils::{MaybeSend, MaybeSync};
 use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-#[async_trait(?Send)]
-pub trait Storage {
+#[cfg_attr(feature = "wasm", async_trait(?Send))]
+#[cfg_attr(not(feature = "wasm"), async_trait)]
+pub trait Storage: MaybeSend + MaybeSync {
     async fn read(&self, k: &str) -> Result<Option<String>>;
     async fn write(&self, k: &str, v: &str) -> Result<()>;
 }
@@ -35,7 +37,8 @@ impl InMemoryStorage {
     }
 }
 
-#[async_trait(?Send)]
+#[cfg_attr(feature = "wasm", async_trait(?Send))]
+#[cfg_attr(not(feature = "wasm"), async_trait)]
 impl Storage for InMemoryStorage {
     async fn read(&self, k: &str) -> Result<Option<String>> {
         let guard = self.0.read().await;

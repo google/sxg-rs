@@ -501,4 +501,32 @@ validity_url_dirname: "//.well-known/sxg-validity"
             Some(PresetContent::Direct(HttpResponse { status: 404, .. }))
         ));
     }
+    #[cfg(not(feature = "wasm"))]
+    #[test]
+    fn require_send() {
+        use std::collections::BTreeSet;
+        // Require async fns to implement Send, so they can be shared across
+        // threads. This is required by hyper, as used in http_server. See
+        // https://blog.rust-lang.org/inside-rust/2019/10/11/AsyncAwait-Not-Send-Error-Improvements.html.
+        // Adding the requirement directly in this test makes it easier to
+        // diagnose; compiler errors are more specific than when the
+        // requirement is indirect via hyper. Values don't matter in this test;
+        // we're only verifying types.
+        let worker = new_worker();
+        let runtime = Runtime::default();
+        fn is_send<T: Send>(_: T) {}
+        is_send(worker.serve_preset_content(&runtime, "https://my_domain.com/unknown"));
+        is_send(worker.create_signed_exchange(
+            &runtime,
+            CreateSignedExchangeParams {
+                fallback_url: "",
+                cert_origin: "",
+                payload_body: b"",
+                payload_headers: Headers::new(vec![], &BTreeSet::new()),
+                skip_process_link: false,
+                status_code: 200,
+                header_integrity_cache: http_cache::NullCache {},
+            },
+        ));
+    }
 }

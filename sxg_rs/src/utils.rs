@@ -69,6 +69,28 @@ pub async fn await_js_promise(
         .map_err(|e| anyhow!("{:?}", e).context("JavaScript throws an error asynchronously"))
 }
 
+/// A trait for a type implements Send except when feature = "wasm".
+#[cfg(feature = "wasm")]
+pub trait MaybeSend {}
+#[cfg(feature = "wasm")]
+impl<T> MaybeSend for T {}
+
+#[cfg(not(feature = "wasm"))]
+pub trait MaybeSend: Send {}
+#[cfg(not(feature = "wasm"))]
+impl<T: Send> MaybeSend for T {}
+
+/// A trait for a type implements Sync except when feature = "wasm".
+#[cfg(feature = "wasm")]
+pub trait MaybeSync {}
+#[cfg(feature = "wasm")]
+impl<T> MaybeSync for T {}
+
+#[cfg(not(feature = "wasm"))]
+pub trait MaybeSync: Sync {}
+#[cfg(not(feature = "wasm"))]
+impl<T: Sync> MaybeSync for T {}
+
 // #[warn(clippy::too_many_arguments)]
 pub async fn signed_headers_and_payload(
     fallback_url: &Url,
