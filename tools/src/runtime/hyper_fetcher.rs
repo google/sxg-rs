@@ -41,7 +41,7 @@ impl Default for HyperFetcher {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl Fetcher for HyperFetcher {
     async fn fetch(&self, request: SxgRsRequest) -> Result<SxgRsResponse> {
         let request: http::Request<Vec<u8>> = request
