@@ -390,7 +390,7 @@ static CACHE_CONTROL_HEADERS_SET: Lazy<HashSet<&'static str>> =
 // Checks whether to serve SXG based on the Accept header of the HTTP request.
 // Returns Ok iff the input string has a `application/signed-exchange;v=b3`,
 // and either accept_filter != PrefersSxg or its `q` value is 1.
-fn validate_accept_header(accept: &str, accept_filter: AcceptFilter) -> Result<()> {
+pub fn validate_accept_header(accept: &str, accept_filter: AcceptFilter) -> Result<()> {
     let accept = accept.trim();
     let accept = parse_accept_header(accept)?;
     if accept.is_empty() {
