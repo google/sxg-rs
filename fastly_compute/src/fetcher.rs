@@ -37,7 +37,7 @@ impl FastlyFetcher {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl Fetcher for FastlyFetcher {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse> {
         let request: ::http::request::Request<Vec<u8>> = request.try_into()?;
