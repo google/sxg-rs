@@ -126,6 +126,13 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    Copy the command from your `artifact.yaml`, and use it in `cloudflare_worker` folder to
    set the wrangler secret.
 
+1. If you are using ACME, ensure that Cloudflare's
+   [Browser Integrity Check](https://support.cloudflare.com/hc/en-us/articles/200170086-Understanding-the-Cloudflare-Browser-Integrity-Check)
+   is **turned off** for URLs like `YOUR_DOMAIN/.well-known/acme-challenge/*`.
+   ACME servers use these URLs to verify your ownership of the domain,
+   however Cloudflare's Browser Integrity Check blocks ACME servers,
+   because ACME servers are not browsers.
+
 1. Run `(cd cloudflare_worker && ./publish.sh)` to let the worker load the private keys.
 
 1. Go to the [workers dashboard](https://dash.cloudflare.com/workers), and edit
