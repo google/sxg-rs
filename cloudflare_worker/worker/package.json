@@ -8,9 +8,9 @@
     "lint": "gts lint"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "3.13.0",
-    "@types/node": "16.11.41",
-    "esbuild": "0.14.47",
+    "@cloudflare/workers-types": "3.14.0",
+    "@types/node": "16.11.43",
+    "esbuild": "0.14.48",
     "glob": "7.2.3",
     "gts": "3.1.0",
     "tslib": "2.4.0",
