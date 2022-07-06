@@ -59,7 +59,7 @@ which provide ACME service.
       * Skip all steps after the step *Request an EAB key ID and HMAC*,
         because `sxg-rs` will do them.
 
-   1. For the [certificates section](../input.example.yaml#L37-L52) in `input.yaml`,
+   1. For the [certificates section](../input.example.yaml#L28-L43) in `input.yaml`,
       comment `pre_issued` section and uncomment `create_acme_account` section.
       ```diff
        # the last few lines in input.yaml
