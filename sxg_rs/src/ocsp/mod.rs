@@ -39,7 +39,12 @@ use x509_parser::{
 fn create_ocsp_request(cert: &X509Certificate, issuer: &X509Certificate) -> Vec<u8> {
     let hash_algorithm = HashAlgorithm::Sha1;
     let issuer_name = issuer.tbs_certificate.subject.as_raw();
-    let issuer_key = issuer.tbs_certificate.subject_pki.subject_public_key.data;
+    let issuer_key = issuer
+        .tbs_certificate
+        .subject_pki
+        .subject_public_key
+        .data
+        .as_ref();
     let issuer_key_hash = hash_algorithm.digest(issuer_key);
     let issuer_name_hash = hash_algorithm.digest(issuer_name);
     let serial_number = cert.tbs_certificate.raw_serial();
