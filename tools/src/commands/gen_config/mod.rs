@@ -81,10 +81,10 @@ pub struct EabConfig {
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Artifact {
-    acme_account: Option<AcmeAccount>,
-    acme_private_key: Option<EcPrivateKey>,
-    acme_private_key_instructions: BTreeMap<String, String>,
-    cloudflare_kv_namespace_id: Option<String>,
+    pub acme_account: Option<AcmeAccount>,
+    pub acme_private_key: Option<EcPrivateKey>,
+    pub acme_private_key_instructions: BTreeMap<String, String>,
+    pub cloudflare_kv_namespace_id: Option<String>,
 }
 
 // Set working directory to the root folder of the "sxg-rs" repository.
@@ -175,7 +175,7 @@ async fn create_acme_key_and_account(
     Ok((acme_private_key, account))
 }
 
-fn read_artifact(file_name: &str) -> Result<Artifact> {
+pub fn read_artifact(file_name: &str) -> Result<Artifact> {
     let file_content = std::fs::read_to_string(file_name)?;
     let artifact = serde_yaml::from_str(&file_content)?;
     Ok(artifact)
