@@ -25,15 +25,6 @@ sxg_worker:
   strip_response_headers:
     - set-cookie
   validity_url_dirname: ".well-known/sxg-validity"
-cloudflare:
-  account_id: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  zone_id: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  # You can define URL patterns for the SXG worker. See Cloudflare's doc at
-  # https://developers.cloudflare.com/workers/platform/routing/routes/
-  routes:
-    - https://YOUR_DOMAIN/*
-  worker_name: sxg
-  deploy_on_workers_dev_only: false
 certificates:
   pre_issued:
     cert_file: credentials/cert.pem
@@ -50,3 +41,12 @@ certificates:
   #   eab:
   #     base64_mac_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXQ
   #     key_id: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+cloudflare:
+  account_id: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  zone_id: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  # You can define URL patterns for the SXG worker. See Cloudflare's doc at
+  # https://developers.cloudflare.com/workers/platform/routing/routes/
+  routes:
+    - https://YOUR_DOMAIN/*
+  worker_name: sxg
+  deploy_on_workers_dev_only: false

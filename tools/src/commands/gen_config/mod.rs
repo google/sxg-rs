@@ -17,11 +17,17 @@ mod cloudflare;
 use crate::linux_commands::generate_private_key_pem;
 use crate::runtime::openssl_signer::OpensslSigner;
 use anyhow::{Error, Result};
-use clap::Parser;
+use clap::{ArgEnum, Parser};
 use cloudflare::CloudlareSpecificInput;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use sxg_rs::acme::{directory::Directory as AcmeDirectory, Account as AcmeAccount};
 use sxg_rs::crypto::EcPrivateKey;
+
+#[derive(ArgEnum, Clone, Debug, Eq, PartialEq)]
+enum Platform {
+    Cloudflare,
+}
 
 #[derive(Debug, Parser)]
 pub struct Opts {
@@ -33,16 +39,18 @@ pub struct Opts {
     /// A YAML file containing the generated values.
     #[clap(long, value_name = "FILE_NAME")]
     artifact: String,
-    /// No longer log in to worker service providers.
+    /// If set `true`, no longer log in to worker service providers.
     #[clap(long)]
     use_ci_mode: bool,
+    #[clap(arg_enum, long)]
+    platform: Platform,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     sxg_worker: sxg_rs::config::Config,
     certificates: SxgCertConfig,
-    cloudflare: CloudlareSpecificInput,
+    cloudflare: Option<CloudlareSpecificInput>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -73,7 +81,7 @@ pub struct EabConfig {
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Artifact {
     acme_account: Option<AcmeAccount>,
-    acme_private_key_instruction: Option<String>,
+    acme_private_key_instructions: BTreeMap<String, String>,
     cloudflare_kv_namespace_id: Option<String>,
 }
 
@@ -182,13 +190,19 @@ pub fn main(opts: Opts) -> Result<()> {
         Default::default()
     });
 
-    cloudflare::main(
-        opts.use_ci_mode,
-        &input.sxg_worker,
-        &input.certificates,
-        &input.cloudflare,
-        &mut artifact,
-    )?;
+    match opts.platform {
+        Platform::Cloudflare => {
+            cloudflare::main(
+                opts.use_ci_mode,
+                &input.sxg_worker,
+                &input.certificates,
+                &input
+                    .cloudflare
+                    .expect(r#"Input file does not contain "cloudflare" section."#),
+                &mut artifact,
+            )?;
+        }
+    };
 
     std::fs::write(
         &opts.artifact,
