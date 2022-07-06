@@ -16,12 +16,20 @@ use anyhow::{Error, Result};
 use std::path::Path;
 use std::process::Command;
 
-/// Executes a command, and returns the stdout as bytes.
+/// Executes a command, checks the exit code, and returns the stdout as bytes.
 pub fn execute(command: &mut Command) -> Result<Vec<u8>> {
     let output = command
         .output()
         .map_err(|e| Error::new(e).context(format!("Failed to execute command {:?}", command)))?;
-    Ok(output.stdout)
+    if output.status.success() {
+        Ok(output.stdout)
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        Err(Error::msg(stderr).context(format!(
+            "Command {:?} exited with non-succesful status",
+            command,
+        )))
+    }
 }
 
 /// Executes a command, and parses the stdout as a string.
