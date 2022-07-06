@@ -33,7 +33,7 @@ pub fn get_der_from_pem(pem_text: &str, expected_tag: &str) -> Result<Vec<u8>> {
     ))
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EcPublicKey {
     pub crv: String,
     pub kty: String,
@@ -43,10 +43,11 @@ pub struct EcPublicKey {
     pub y: Vec<u8>,
 }
 
+#[derive(Debug, Deserialize)]
 pub struct EcPrivateKey {
-    // Only used when --feature=rust_signer.
-    #[allow(dead_code)]
+    #[serde(with = "crate::serde_helpers::base64")]
     d: Vec<u8>,
+    #[serde(flatten)]
     pub public_key: EcPublicKey,
 }
 

@@ -82,6 +82,7 @@ pub struct EabConfig {
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Artifact {
     acme_account: Option<AcmeAccount>,
+    acme_private_key: Option<EcPrivateKey>,
     acme_private_key_instructions: BTreeMap<String, String>,
     cloudflare_kv_namespace_id: Option<String>,
 }
