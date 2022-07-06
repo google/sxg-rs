@@ -35,7 +35,7 @@ anyhow = "1.0.58"
 async-trait = "0.1.56"
 base64 = "0.13.0"
 chrono = { version = "0.4.19", features = ["serde"] }
-der-parser = { version = "7.0.0", features = ["bigint", "serialize"] }
+der-parser = { version = "8.1.0", features = ["bigint", "serialize"] }
 futures = { version = "0.3.21" }
 getrandom = { version = "0.2.7", features = ["js"] }
 http = "0.2.8"
@@ -55,7 +55,7 @@ url = "2.2.2"
 wasm-bindgen = { version = "0.2.81", features = ["serde-serialize"] }
 wasm-bindgen-futures = "0.4.31"
 web-sys = { version = "0.3.58", features = ["console"] }
-x509-parser = "0.13.2"
+x509-parser = "0.14.0"
 
 [dev-dependencies]
 tokio-test = "0.4.2"
