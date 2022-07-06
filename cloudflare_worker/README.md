@@ -72,9 +72,9 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 
    - Replace every instance of `YOUR_DOMAIN` with your domain name. For
      example, in [`html_host`](../input.example.yaml#L18) and
-     [`routes`](../input.example.yaml#L34-L35).
+     [`routes`](../input.example.yaml#L50).
    - Put your Cloudflare account ID and zone ID in the
-     [`cloudflare` section](../input.example.yaml#L29-L30).
+     [`cloudflare` section](../input.example.yaml#L45-L46).
      To determine the IDs,
      see [this screenshot](https://forum.aapanel.com/d/3914-how-to-get-zone-id-of-cloudflare).
 
@@ -84,14 +84,14 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    * If you are using
    [ACME](../credentials/README.md#option-1-automatic-certificate-management-environment-acme),
    you should have followed the instructions to comment the entire `pre_issued`
-   [section](../input.example.yaml#L39-L41),
+   [section](../input.example.yaml#L29-L31),
    and uncomment `create_acme_account`
-   [section](../input.example.yaml#L42-L53)
+   [section](../input.example.yaml#L32-L43)
    in `input.yaml`.
 
 1. Run following command.
    ```bash
-   cargo run -p tools -- gen-config --input input.yaml --artifact artifact.yaml
+   cargo run -p tools -- gen-config --input input.yaml --artifact artifact.yaml --platform cloudflare
    ```
    This command will create a `cloudflare_worker/wrangler.toml` that is used by the `wrangler` command.
 
@@ -157,7 +157,7 @@ the certificates need to be renewed every 90 days.
 
 1. Follow [these steps](../credentials/README.md#renew-certificate) to renew
    the certificate.
-1. Run `cargo run -p tools -- gen-config --input input.yaml --artifact artifact.yaml`.
+1. Run `cargo run -p tools -- gen-config --input input.yaml --artifact artifact.yaml --platform cloudflare`.
 1. Run `cloudflare_worker/publish.sh` to restart the worker.
 
 ## Uninstall

@@ -16,12 +16,19 @@ mod cloudflare;
 
 use crate::linux_commands::generate_private_key_pem;
 use crate::runtime::openssl_signer::OpensslSigner;
+use crate::tokio_block_on;
 use anyhow::{Error, Result};
-use clap::Parser;
+use clap::{ArgEnum, Parser};
 use cloudflare::CloudlareSpecificInput;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use sxg_rs::acme::{directory::Directory as AcmeDirectory, Account as AcmeAccount};
 use sxg_rs::crypto::EcPrivateKey;
+
+#[derive(ArgEnum, Clone, Debug, Eq, PartialEq)]
+enum Platform {
+    Cloudflare,
+}
 
 #[derive(Debug, Parser)]
 pub struct Opts {
@@ -33,16 +40,18 @@ pub struct Opts {
     /// A YAML file containing the generated values.
     #[clap(long, value_name = "FILE_NAME")]
     artifact: String,
-    /// No longer log in to worker service providers.
+    /// If set `true`, no longer log in to worker service providers.
     #[clap(long)]
     use_ci_mode: bool,
+    #[clap(arg_enum, long)]
+    platform: Option<Platform>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     sxg_worker: sxg_rs::config::Config,
     certificates: SxgCertConfig,
-    cloudflare: CloudlareSpecificInput,
+    cloudflare: Option<CloudlareSpecificInput>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -73,7 +82,8 @@ pub struct EabConfig {
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Artifact {
     acme_account: Option<AcmeAccount>,
-    acme_private_key_instruction: Option<String>,
+    acme_private_key: Option<EcPrivateKey>,
+    acme_private_key_instructions: BTreeMap<String, String>,
     cloudflare_kv_namespace_id: Option<String>,
 }
 
@@ -181,14 +191,31 @@ pub fn main(opts: Opts) -> Result<()> {
         println!("Creating a new artifact");
         Default::default()
     });
+    if let SxgCertConfig::CreateAcmeAccount(acme_config) = &input.certificates {
+        if artifact.acme_account.is_none() {
+            let (acme_private_key, acme_account) = tokio_block_on(create_acme_key_and_account(
+                acme_config,
+                &input.sxg_worker.html_host,
+            ))?;
+            artifact.acme_account = Some(acme_account);
+            artifact.acme_private_key = Some(acme_private_key);
+        }
+    };
 
-    cloudflare::main(
-        opts.use_ci_mode,
-        &input.sxg_worker,
-        &input.certificates,
-        &input.cloudflare,
-        &mut artifact,
-    )?;
+    match opts.platform {
+        Some(Platform::Cloudflare) => {
+            cloudflare::main(
+                opts.use_ci_mode,
+                &input.sxg_worker,
+                &input.certificates,
+                &input
+                    .cloudflare
+                    .expect(r#"Input file does not contain "cloudflare" section."#),
+                &mut artifact,
+            )?;
+        }
+        None => (),
+    };
 
     std::fs::write(
         &opts.artifact,

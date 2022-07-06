@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::{create_acme_key_and_account, read_certificate_pem_file, Artifact, SxgCertConfig};
-use crate::tokio_block_on;
+use super::{read_certificate_pem_file, Artifact, SxgCertConfig};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sxg_rs::config::Config as SxgConfig;
@@ -134,17 +133,14 @@ pub fn main(
             wrangler_vars.cert_pem = Some(read_certificate_pem_file(cert_file)?);
             wrangler_vars.issuer_pem = Some(read_certificate_pem_file(issuer_file)?);
         }
-        SxgCertConfig::CreateAcmeAccount(acme_config) => {
-            if artifact.acme_account.is_none() {
-                let (acme_private_key, acme_account) = tokio_block_on(
-                    create_acme_key_and_account(acme_config, &sxg_input.html_host),
-                )?;
-                artifact.acme_account = Some(acme_account);
-                artifact.acme_private_key_instruction = Some(create_wrangler_secret_instruction(
+        SxgCertConfig::CreateAcmeAccount(_) => {
+            artifact.acme_private_key_instructions.insert(
+                "cloudflare".to_string(),
+                create_wrangler_secret_instruction(
                     "ACME_PRIVATE_KEY_JWK",
-                    &serde_json::to_string(&acme_private_key)?,
-                ))
-            }
+                    &serde_json::to_string(&artifact.acme_private_key)?,
+                ),
+            );
             wrangler_vars.acme_account = Some(serde_json::to_string(&artifact.acme_account)?);
         }
     };
