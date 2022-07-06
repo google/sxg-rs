@@ -32,7 +32,7 @@ jobs:
       - run: npm install -g @cloudflare/wrangler
       - name: Gen config
         run: |
-          cargo run -p tools -- gen-config --use-ci-mode --input input.example.yaml --artifact artifact.yaml
+          cargo run -p tools -- gen-config --use-ci-mode --input input.example.yaml --artifact artifact.yaml --platform cloudflare
       - name: Build
         working-directory: cloudflare_worker
         run: |

@@ -44,7 +44,7 @@ pub struct Opts {
     #[clap(long)]
     use_ci_mode: bool,
     #[clap(arg_enum, long)]
-    platform: Platform,
+    platform: Option<Platform>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -203,7 +203,7 @@ pub fn main(opts: Opts) -> Result<()> {
     };
 
     match opts.platform {
-        Platform::Cloudflare => {
+        Some(Platform::Cloudflare) => {
             cloudflare::main(
                 opts.use_ci_mode,
                 &input.sxg_worker,
@@ -214,6 +214,7 @@ pub fn main(opts: Opts) -> Result<()> {
                 &mut artifact,
             )?;
         }
+        None => (),
     };
 
     std::fs::write(
