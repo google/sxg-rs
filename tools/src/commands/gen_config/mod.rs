@@ -16,6 +16,7 @@ mod cloudflare;
 
 use crate::linux_commands::generate_private_key_pem;
 use crate::runtime::openssl_signer::OpensslSigner;
+use crate::tokio_block_on;
 use anyhow::{Error, Result};
 use clap::{ArgEnum, Parser};
 use cloudflare::CloudlareSpecificInput;
@@ -189,6 +190,16 @@ pub fn main(opts: Opts) -> Result<()> {
         println!("Creating a new artifact");
         Default::default()
     });
+    if let SxgCertConfig::CreateAcmeAccount(acme_config) = &input.certificates {
+        if artifact.acme_account.is_none() {
+            let (acme_private_key, acme_account) = tokio_block_on(create_acme_key_and_account(
+                acme_config,
+                &input.sxg_worker.html_host,
+            ))?;
+            artifact.acme_account = Some(acme_account);
+            artifact.acme_private_key = Some(acme_private_key);
+        }
+    };
 
     match opts.platform {
         Platform::Cloudflare => {
