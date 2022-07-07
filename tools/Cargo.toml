@@ -37,5 +37,4 @@ sxg_rs = { path = "../sxg_rs", features = ["rust_signer"] }
 toml = "0.5.9"
 tokio = { version = "1.19.2", features = ["full"] }
 url = "2.2.2"
-warp = "0.3.2"
 wrangler = "1.19.12"
