@@ -77,9 +77,9 @@ pub async fn main(opts: Opts) -> Result<()> {
             ",
             acme_account.domain, challenge_token, challenge_answer
         );
+        wait_enter_key();
         None
     };
-    wait_enter_key();
     let certificate_pem = loop {
         runtime.now = std::time::SystemTime::now();
         update_acme_state_machine(&runtime, &acme_account).await?;
