@@ -25,7 +25,7 @@ use warp::Filter;
 #[clap(allow_hyphen_values = true)]
 pub struct Opts {
     #[clap(long)]
-    port: u16,
+    port: Option<u16>,
     #[clap(long)]
     artifact: String,
 }
@@ -42,6 +42,10 @@ fn start_warp_server(port: u16, answer: String) -> tokio::sync::oneshot::Sender<
     tx
 }
 
+fn wait_enter_key() {
+    std::io::stdin().read_line(&mut String::new()).unwrap();
+}
+
 pub async fn main(opts: Opts) -> Result<()> {
     let artifact = read_artifact(&opts.artifact)?;
     let acme_account = artifact.acme_account.unwrap();
@@ -51,15 +55,31 @@ pub async fn main(opts: Opts) -> Result<()> {
         fetcher: Box::new(HyperFetcher::new()),
         ..Default::default()
     };
-    let challenge_answer = loop {
+    let (challenge_token, challenge_answer) = loop {
         runtime.now = std::time::SystemTime::now();
         update_acme_state_machine(&runtime, &acme_account).await?;
-        if let Some((_token, answer)) = get_challenge_token_and_answer(&runtime).await? {
-            break answer;
+        if let Some((token, answer)) = get_challenge_token_and_answer(&runtime).await? {
+            break (token, answer);
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     };
-    let tx = start_warp_server(opts.port, challenge_answer);
+    let graceful_shutdown = if let Some(port) = opts.port {
+        Some(start_warp_server(port, challenge_answer))
+    } else {
+        println!(
+            "\
+            Please create a file in your HTTP server to serve the following URL.\n\
+            URL:\n\
+            http://{}/.well-known/acme-challenge/{}\n\
+            Plain-text content:\n\
+            {}\n\
+            Press Enter key after your HTTP server is ready.\
+            ",
+            acme_account.domain, challenge_token, challenge_answer
+        );
+        wait_enter_key();
+        None
+    };
     let certificate_pem = loop {
         runtime.now = std::time::SystemTime::now();
         update_acme_state_machine(&runtime, &acme_account).await?;
@@ -69,7 +89,9 @@ pub async fn main(opts: Opts) -> Result<()> {
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     };
-    let _ = tx.send(());
+    if let Some(tx) = graceful_shutdown {
+        let _ = tx.send(());
+    }
     println!("{}", certificate_pem);
     Ok(())
 }
