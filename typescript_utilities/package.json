@@ -8,7 +8,7 @@
   },
   "devDependencies": {
     "@types/jasmine": "4.0.3",
-    "esbuild": "0.14.48",
+    "esbuild": "0.14.49",
     "gts": "3.1.0",
     "jasmine-core": "4.2.0",
     "karma": "6.4.0",
