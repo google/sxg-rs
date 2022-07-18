@@ -19,11 +19,11 @@
     "typescript": "4.7.4"
   },
   "dependencies": {
-    "commander": "9.3.0",
-    "dompurify": "2.3.9",
+    "commander": "9.4.0",
+    "dompurify": "2.3.10",
     "fastify": "3.29.1",
     "jsdom": "19.0.0",
-    "node-fetch": "3.2.6",
+    "node-fetch": "3.2.9",
     "puppeteer": "13.7.0"
   },
   "engines": {
