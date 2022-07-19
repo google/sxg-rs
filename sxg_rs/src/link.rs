@@ -3,9 +3,9 @@ use crate::http_parser::{link::Link, parse_link_header, srcset};
 use futures::{stream, stream::StreamExt};
 use once_cell::sync::Lazy;
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::iter::once;
+use std::sync::Mutex;
 use url::{Origin, Url};
 
 // Filters the link header to comply with
@@ -26,7 +26,7 @@ pub(crate) async fn process_link_header(
     let (preloads, allowed_alt_sxgs) = preloads_and_allowed_alt_sxgs(links, fallback_url);
 
     let fallback_origin = fallback_url.origin();
-    let directives = RefCell::new(vec![]);
+    let directives = Mutex::new(vec![]);
     stream::iter(preloads)
         .for_each_concurrent(None, |link| async {
             let link = link;
@@ -82,7 +82,7 @@ pub(crate) async fn process_link_header(
             // If all allowed-alt-sxg directives were found, output the preload and allow
             // directives.
             if all_allow_sxg {
-                if let Ok(mut directives) = directives.try_borrow_mut() {
+                if let Ok(mut directives) = directives.try_lock() {
                     directives.push(link.clone());
                     directives.extend_from_slice(&allow_directives);
                 }
@@ -90,7 +90,8 @@ pub(crate) async fn process_link_header(
         })
         .await;
     directives
-        .take()
+        .into_inner()
+        .unwrap_or_default()
         .iter()
         .map(|link| link.serialize())
         .collect::<Vec<String>>()
@@ -184,7 +185,8 @@ mod tests {
 
     struct FakeIntegrityFetcher(std::result::Result<String, String>);
 
-    #[async_trait(?Send)]
+    #[cfg_attr(feature = "wasm", async_trait(?Send))]
+    #[cfg_attr(not(feature = "wasm"), async_trait)]
     impl HeaderIntegrityFetcher for FakeIntegrityFetcher {
         async fn fetch(&self, _url: &str) -> Result<String> {
             self.0.clone().map_err(|e| anyhow!(e))
@@ -354,9 +356,10 @@ mod tests {
     async fn fetch_header_integrity_out_of_order() {
         use crate::utils::tests::{out_of_order, OutOfOrderState};
         use futures::future::BoxFuture;
-        struct OutOfOrderFetcher<F: Fn() -> BoxFuture<'static, Result<String>>>(F);
-        #[async_trait(?Send)]
-        impl<F: Fn() -> BoxFuture<'static, Result<String>>> HeaderIntegrityFetcher
+        struct OutOfOrderFetcher<F: Fn() -> BoxFuture<'static, Result<String>> + Send + Sync>(F);
+        #[cfg_attr(feature = "wasm", async_trait(?Send))]
+        #[cfg_attr(not(feature = "wasm"), async_trait)]
+        impl<F: Fn() -> BoxFuture<'static, Result<String>> + Send + Sync> HeaderIntegrityFetcher
             for OutOfOrderFetcher<F>
         {
             async fn fetch(&self, url: &str) -> Result<String> {

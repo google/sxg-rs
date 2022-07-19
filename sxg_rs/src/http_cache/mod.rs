@@ -16,19 +16,22 @@
 pub mod js_http_cache;
 
 use crate::http::HttpResponse;
+use crate::utils::{MaybeSend, MaybeSync};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 
 /// An interface for storing HTTP responses in a cache.
-#[async_trait(?Send)]
-pub trait HttpCache {
+#[cfg_attr(feature = "wasm", async_trait(?Send))]
+#[cfg_attr(not(feature = "wasm"), async_trait)]
+pub trait HttpCache: MaybeSend + MaybeSync {
     async fn get(&self, url: &str) -> Result<HttpResponse>;
     async fn put(&self, url: &str, response: &HttpResponse) -> Result<()>;
 }
 
 pub struct NullCache;
 
-#[async_trait(?Send)]
+#[cfg_attr(feature = "wasm", async_trait(?Send))]
+#[cfg_attr(not(feature = "wasm"), async_trait)]
 impl HttpCache for NullCache {
     async fn get(&self, _url: &str) -> Result<HttpResponse> {
         Err(anyhow!("No cache entry found in NullCache"))

@@ -17,15 +17,16 @@ use crate::fetcher::{Fetcher, NULL_FETCHER};
 use crate::headers::Headers;
 use crate::http::{HttpRequest, HttpResponse, Method};
 use crate::http_cache::{HttpCache, NullCache};
-use crate::utils::signed_headers_and_payload;
+use crate::utils::{signed_headers_and_payload, MaybeSend, MaybeSync};
 use anyhow::{anyhow, Error, Result};
 use async_trait::async_trait;
 use once_cell::sync::Lazy;
 use std::collections::BTreeSet;
 use url::Url;
 
-#[async_trait(?Send)]
-pub trait HeaderIntegrityFetcher {
+#[cfg_attr(feature = "wasm", async_trait(?Send))]
+#[cfg_attr(not(feature = "wasm"), async_trait)]
+pub trait HeaderIntegrityFetcher: MaybeSend + MaybeSync {
     async fn fetch(&self, url: &str) -> Result<String>;
 }
 
@@ -55,7 +56,8 @@ static ERROR_RESPONSE: Lazy<HttpResponse> = Lazy::new(|| HttpResponse {
     status: 406,
 });
 
-#[async_trait(?Send)]
+#[cfg_attr(feature = "wasm", async_trait(?Send))]
+#[cfg_attr(not(feature = "wasm"), async_trait)]
 impl<'a, C: HttpCache> HeaderIntegrityFetcher for HeaderIntegrityFetcherImpl<'a, C> {
     async fn fetch(&self, url: &str) -> Result<String> {
         let integrity_response = match self.cache_get(url).await {
@@ -174,8 +176,8 @@ pub mod tests {
     use crate::fetcher::NULL_FETCHER;
     use crate::http_cache::NullCache;
     use anyhow::{anyhow, Result};
-    use std::cell::RefCell;
     use std::collections::HashMap;
+    use std::sync::Mutex;
 
     static EMPTY_SET: Lazy<BTreeSet<String>> = Lazy::new(BTreeSet::new);
 
@@ -197,7 +199,8 @@ pub mod tests {
 
     struct FakeFetcher<'a>(&'a HttpResponse);
 
-    #[async_trait(?Send)]
+    #[cfg_attr(feature = "wasm", async_trait(?Send))]
+    #[cfg_attr(not(feature = "wasm"), async_trait)]
     impl<'a> Fetcher for FakeFetcher<'a> {
         async fn fetch(&self, _request: HttpRequest) -> Result<HttpResponse> {
             Ok(self.0.clone())
@@ -223,22 +226,23 @@ pub mod tests {
         );
     }
 
-    // RefCell is good enough for our single-threaded, single-task unit tests, but tokio::Mutex
-    // would be necessary for more complex usage.
-    struct InMemoryCache<'a>(&'a RefCell<HashMap<String, HttpResponse>>);
+    struct InMemoryCache<'a>(&'a Mutex<HashMap<String, HttpResponse>>);
 
-    #[async_trait(?Send)]
+    #[cfg_attr(feature = "wasm", async_trait(?Send))]
+    #[cfg_attr(not(feature = "wasm"), async_trait)]
     impl HttpCache for InMemoryCache<'_> {
         async fn get(&self, url: &str) -> Result<HttpResponse> {
             self.0
-                .try_borrow()?
+                .try_lock()
+                .map_err(|_| anyhow!("locking mutex"))?
                 .get(url)
                 .cloned()
                 .ok_or_else(|| anyhow!("not found"))
         }
         async fn put(&self, url: &str, response: &HttpResponse) -> Result<()> {
             self.0
-                .try_borrow_mut()?
+                .try_lock()
+                .map_err(|_| anyhow!("locking mutex"))?
                 .insert(url.into(), response.clone());
             Ok(())
         }
@@ -246,7 +250,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn gets_header_integrity_from_cache() {
-        let store = RefCell::new(HashMap::new());
+        let store = Mutex::new(HashMap::new());
         let cache = InMemoryCache(&store);
         let response = HttpResponse {
             body: b"sha256-blah".to_vec(),
@@ -266,7 +270,7 @@ pub mod tests {
     }
     #[tokio::test]
     async fn gets_error_from_cache() {
-        let store = RefCell::new(HashMap::new());
+        let store = Mutex::new(HashMap::new());
         let cache = InMemoryCache(&store);
         let response = HttpResponse {
             body: b"something went wrong".to_vec(),
@@ -289,7 +293,7 @@ pub mod tests {
     }
     #[tokio::test]
     async fn puts_into_cache() {
-        let store = RefCell::new(HashMap::new());
+        let store = Mutex::new(HashMap::new());
 
         let strip_response_headers = BTreeSet::new();
         let fetcher = new_fetcher(
@@ -300,7 +304,7 @@ pub mod tests {
 
         let _ = fetcher.fetch(TEST_URL).await;
         assert_eq!(
-            store.borrow().get(TEST_URL).unwrap().body,
+            store.lock().unwrap().get(TEST_URL).unwrap().body,
             EXPECTED_HEADER_INTEGRITY.as_bytes(),
         );
     }
@@ -312,8 +316,11 @@ pub mod tests {
             stream::{self, StreamExt},
         };
         struct OutOfOrderCache<F: Fn() -> BoxFuture<'static, Result<HttpResponse>>>(F);
-        #[async_trait(?Send)]
-        impl<F: Fn() -> BoxFuture<'static, Result<HttpResponse>>> HttpCache for OutOfOrderCache<F> {
+        #[cfg_attr(feature = "wasm", async_trait(?Send))]
+        #[cfg_attr(not(feature = "wasm"), async_trait)]
+        impl<F: Fn() -> BoxFuture<'static, Result<HttpResponse>> + Send + Sync> HttpCache
+            for OutOfOrderCache<F>
+        {
             async fn get(&self, url: &str) -> Result<HttpResponse> {
                 println!("get: url = {}", url);
                 self.0().await
