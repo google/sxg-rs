@@ -39,22 +39,22 @@ der-parser = { version = "8.1.0", features = ["bigint", "serialize"] }
 futures = { version = "0.3.21" }
 getrandom = { version = "0.2.7", features = ["js"] }
 http = "0.2.8"
-js-sys = "0.3.58"
+js-sys = "0.3.59"
 lol_html = "0.3.1"
 nom = { version = "7.1.1", features = ["alloc"] }
 once_cell = "1.13.0"
 pem = "1.1.0"
 p256 = { version = "0.11.1", features = ["ecdsa"], optional = true }
-serde = { version = "1.0.139", features = ["derive"] }
+serde = { version = "1.0.140", features = ["derive"] }
 serde_json = "1.0.82"
 serde_yaml = "0.8.26"
 sha1 = "0.10.1"
 sha2 = "0.10.2"
-tokio = { version = "1.20.0", features = ["macros", "parking_lot", "sync", "time"] }
+tokio = { version = "1.20.1", features = ["macros", "parking_lot", "sync", "time"] }
 url = "2.2.2"
-wasm-bindgen = { version = "0.2.81", features = ["serde-serialize"] }
-wasm-bindgen-futures = "0.4.31"
-web-sys = { version = "0.3.58", features = ["console"] }
+wasm-bindgen = { version = "0.2.82", features = ["serde-serialize"] }
+wasm-bindgen-futures = "0.4.32"
+web-sys = { version = "0.3.59", features = ["console"] }
 x509-parser = "0.14.0"
 
 [dev-dependencies]
