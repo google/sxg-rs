@@ -23,19 +23,19 @@ edition = "2018"
 anyhow = "1.0.58"
 async-trait = "0.1.56"
 base64 = "0.13.0"
-clap = { version = "3.2.12", features = ["derive"] }
+clap = { version = "3.2.15", features = ["derive"] }
 ctrlc = "3.2.2"
 der-parser = { version = "7.0.0", features = ["bigint", "serialize"] }
 http = "0.2.8"
 hyper = { version = "0.14.20", features = ["client", "http2"]}
 hyper-tls = "0.5.0"
 pem = "1.1.0"
-serde = { version = "1.0.139", features = ["derive"] }
+serde = { version = "1.0.140", features = ["derive"] }
 serde_json = "1.0.82"
 serde_yaml = "0.8.26"
 sxg_rs = { path = "../sxg_rs", features = ["rust_signer"] }
 toml = "0.5.9"
-tokio = { version = "1.20.0", features = ["full"] }
+tokio = { version = "1.20.1", features = ["full"] }
 url = "2.2.2"
 warp = "0.3.2"
 wrangler = "1.19.12"
