@@ -28,7 +28,8 @@ impl RustSigner {
     }
 }
 
-#[async_trait(?Send)]
+#[cfg_attr(feature = "wasm", async_trait(?Send))]
+#[cfg_attr(not(feature = "wasm"), async_trait)]
 impl Signer for RustSigner {
     async fn sign(&self, message: &[u8], format: Format) -> Result<Vec<u8>> {
         use p256::ecdsa::signature::Signer as _;

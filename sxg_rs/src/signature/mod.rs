@@ -19,6 +19,7 @@ pub mod mock_signer;
 pub mod rust_signer;
 
 use crate::structured_header::{ParamItem, ShItem, ShParamList};
+use crate::utils::{MaybeSend, MaybeSync};
 use anyhow::{anyhow, Error, Result};
 use async_trait::async_trait;
 use der_parser::ber::{BerObject, BerObjectContent};
@@ -31,8 +32,9 @@ pub enum Format {
     EccAsn1,
 }
 
-#[async_trait(?Send)]
-pub trait Signer {
+#[cfg_attr(feature = "wasm", async_trait(?Send))]
+#[cfg_attr(not(feature = "wasm"), async_trait)]
+pub trait Signer: MaybeSend + MaybeSync {
     /// Signs the message, and returns in the given format.
     async fn sign(&self, message: &[u8], format: Format) -> Result<Vec<u8>>;
 }

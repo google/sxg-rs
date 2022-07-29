@@ -17,15 +17,23 @@ pub mod js_fetcher;
 pub mod mock_fetcher;
 
 use crate::http::{HttpRequest, HttpResponse};
+use crate::utils::{MaybeSend, MaybeSync};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 
 /// An interface for fetching resources from network.
-#[async_trait(?Send)]
-pub trait Fetcher {
+#[cfg_attr(feature = "wasm", async_trait(?Send))]
+#[cfg_attr(not(feature = "wasm"), async_trait)]
+pub trait Fetcher: MaybeSend + MaybeSync {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse>;
     /// Uses `Get` method and returns response body.
-    async fn get(&self, url: &str) -> Result<Vec<u8>> {
+    // `where Self: Sized` is because of
+    // https://github.com/rust-lang/rust/issues/51443 and in particular
+    // https://docs.rs/async-trait/0.1.36/async_trait/#dyn-traits.
+    async fn get(&self, url: &str) -> Result<Vec<u8>>
+    where
+        Self: Sized,
+    {
         let request = HttpRequest {
             body: vec![],
             headers: vec![],
@@ -41,7 +49,8 @@ pub const NULL_FETCHER: NullFetcher = NullFetcher {};
 
 pub struct NullFetcher;
 
-#[async_trait(?Send)]
+#[cfg_attr(feature = "wasm", async_trait(?Send))]
+#[cfg_attr(not(feature = "wasm"), async_trait)]
 impl Fetcher for NullFetcher {
     async fn fetch(&self, _request: HttpRequest) -> Result<HttpResponse> {
         Err(anyhow!("Not found"))

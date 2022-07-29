@@ -53,7 +53,8 @@ pub fn create() -> (MockFetcher, MockServer) {
     (mock_fetcher, mock_server)
 }
 
-#[async_trait(?Send)]
+#[cfg_attr(feature = "wasm", async_trait(?Send))]
+#[cfg_attr(not(feature = "wasm"), async_trait)]
 impl Fetcher for MockFetcher {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse> {
         let request_url = request.url.clone();

@@ -41,7 +41,8 @@ impl Default for HyperFetcher {
     }
 }
 
-#[async_trait(?Send)]
+#[cfg_attr(feature = "wasm", async_trait(?Send))]
+#[cfg_attr(not(feature = "wasm"), async_trait)]
 impl Fetcher for HyperFetcher {
     async fn fetch(&self, request: SxgRsRequest) -> Result<SxgRsResponse> {
         let request: http::Request<Vec<u8>> = request
