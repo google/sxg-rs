@@ -39,3 +39,7 @@ tokio = { version = "1.20.1", features = ["full"] }
 url = "2.2.2"
 warp = "0.3.2"
 wrangler = "1.19.12"
+
+[features]
+# Unsupported, but necessary to make `cargo some-cmd --all-features` happy.
+wasm = ["sxg_rs/wasm"]

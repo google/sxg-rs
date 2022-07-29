@@ -37,7 +37,8 @@ impl FastlyFetcher {
     }
 }
 
-#[async_trait]
+#[cfg_attr(feature = "wasm", async_trait(?Send))]
+#[cfg_attr(not(feature = "wasm"), async_trait)]
 impl Fetcher for FastlyFetcher {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse> {
         let request: ::http::request::Request<Vec<u8>> = request.try_into()?;
