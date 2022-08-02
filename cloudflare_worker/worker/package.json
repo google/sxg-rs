@@ -9,8 +9,8 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "3.14.1",
-    "@types/node": "16.11.45",
-    "esbuild": "0.14.50",
+    "@types/node": "16.11.47",
+    "esbuild": "0.14.51",
     "glob": "7.2.3",
     "gts": "3.1.0",
     "tslib": "2.4.0",

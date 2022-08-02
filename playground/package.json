@@ -13,7 +13,7 @@
     "@types/jsdom": "16.2.15",
     "@types/node": "17.0.18",
     "@types/node-fetch": "2.6.2",
-    "esbuild": "0.14.50",
+    "esbuild": "0.14.51",
     "gts": "3.1.0",
     "tslib": "2.4.0",
     "typescript": "4.7.4"
@@ -23,7 +23,7 @@
     "dompurify": "2.3.10",
     "fastify": "3.29.1",
     "jsdom": "19.0.0",
-    "node-fetch": "3.2.9",
+    "node-fetch": "3.2.10",
     "puppeteer": "13.7.0"
   },
   "engines": {
