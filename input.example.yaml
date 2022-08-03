@@ -26,11 +26,11 @@ sxg_worker:
     - set-cookie
   validity_url_dirname: ".well-known/sxg-validity"
 certificates:
-  pre_issued:
+  !pre_issued
     cert_file: credentials/cert.pem
     issuer_file: credentials/issuer.pem
   # # If this section is uncommented, an ACME account will be created.
-  # create_acme_account:
+  # !create_acme_account:
   #   server_url: https://dv-sxg.acme-v02.api.pki.goog/directory
   #   contact_email: YOUR_EMAIL
   #   # Read and aggree the terms of service before uncommenting next line.

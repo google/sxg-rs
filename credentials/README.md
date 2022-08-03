@@ -64,10 +64,10 @@ which provide ACME service.
       ```diff
        # the last few lines in input.yaml
        certificates:
-      -  pre_issued:
+      -  !pre_issued:
       -     cert_file: credentials/cert.pem
       -     issuer_file: credentials/issuer.pem
-      -  # create_acme_account:
+      -  # !create_acme_account:
       -  #   server_url: https://dv-sxg.acme-v02.api.pki.goog/directory
       -  #   contact_email: YOUR_EMAIL
       -  #   agreed_terms_of_service: https://pki.goog/GTS-SA.pdf
@@ -75,10 +75,10 @@ which provide ACME service.
       -  #   eab:
       -  #      key_id: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXQ
       -  #      base64_mac_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-      +  # pre_issued:
+      +  # !pre_issued:
       +  #    cert_file: credentials/cert.pem
       +  #    issuer_file: credentials/issuer.pem
-      +  create_acme_account:
+      +  !create_acme_account:
       +    server_url: https://dv-sxg.acme-v02.api.pki.goog/directory
       +    contact_email: YOUR_EMAIL
       +    agreed_terms_of_service: https://pki.goog/GTS-SA.pdf
