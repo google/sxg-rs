@@ -41,6 +41,7 @@ jobs:
           cargo run -p tools -- gen-config --use-ci-mode --input input.example.yaml --artifact artifact.yaml
           cp fastly_compute/fastly.example.toml fastly_compute/fastly.toml
           cp fastly_compute/config.example.yaml fastly_compute/config.yaml
+          cp http_server/config.example.yaml http_server/config.yaml
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
