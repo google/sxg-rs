@@ -41,13 +41,18 @@ jobs:
           cargo run -p tools -- gen-config --use-ci-mode --input input.example.yaml --artifact artifact.yaml
           cp fastly_compute/fastly.example.toml fastly_compute/fastly.toml
           cp fastly_compute/config.example.yaml fastly_compute/config.yaml
+          cp http_server/config.example.yaml http_server/config.yaml
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-features
+          args: --workspace --exclude http_server --all-features
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --package http_server
   TypeScript:
     runs-on: ubuntu-latest
     steps:

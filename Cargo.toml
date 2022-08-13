@@ -2,6 +2,7 @@
 members = [
   "cloudflare_worker",
   "fastly_compute",
+  "http_server",
   "sxg_rs",
   "tools",
 ]

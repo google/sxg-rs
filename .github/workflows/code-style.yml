@@ -44,10 +44,15 @@ jobs:
           touch cloudflare_worker/wrangler.toml
           touch fastly_compute/fastly.toml
           touch fastly_compute/config.yaml
+          touch http_server/config.yaml
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --all-targets --all-features -- -D warnings
+          args: --workspace --exclude http_server --all-features --all-targets -- -D warnings
+      - uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --package http_server --all-targets -- -D warnings
   TypeScript:
     runs-on: ubuntu-latest
     steps:
