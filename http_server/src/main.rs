@@ -131,9 +131,7 @@ async fn generate_sxg_response(
                 status_code: 200,
                 fallback_url: &format!("{}", fallback_url),
                 cert_origin: &cert_origin,
-                // The fastly crate provides only read access to dictionaries, so
-                // header integrities cannot be cached. However, I believe the
-                // subresource_fetcher will go through the cache.
+                // TODO: Specify a non-null header_integrity_cache.
                 header_integrity_cache: sxg_rs::http_cache::NullCache {},
             },
         )
@@ -144,7 +142,10 @@ async fn generate_sxg_response(
 
 async fn serve_preset_content(url: &str) -> Option<PresetContent> {
     let ocsp_fetcher = HttpsFetcher(&HTTPS_CLIENT);
-    // TODO: Store OCSP in database?
+    // TODO: Create a Storage impl that persists across restarts (and maybe
+    // also between replicas), per
+    // https://gist.github.com/sleevi/5efe9ef98961ecfb4da8 rule #1. Filesystem
+    // support should be sufficient.
     let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
         sxg_signer: Box::new(WORKER.create_rust_signer().ok()?),
@@ -166,6 +167,7 @@ async fn handle(client_ip: IpAddr, req: Request<Body>, backend: String) -> Resul
     // TODO: Proxy unsigned if SXG fails.
     // TODO: If over 8MB or MICE fails midstream, send the consumed portion and stream the rest.
     // TODO: Wrap errors with additional context before returning.
+    // TODO: Additional work necessary for ACME support?
     let fallback_url: Uri;
     let sxg_payload;
     let req_url = url::Url::parse(&format!("https://{}/", WORKER.config().html_host))?
