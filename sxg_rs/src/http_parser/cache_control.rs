@@ -25,7 +25,7 @@ use nom::{
 use std::time::Duration;
 
 // https://datatracker.ietf.org/doc/html/rfc7234#section-5.2
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Directive {
     SMaxAge(Duration),
     MaxAge(Duration),
