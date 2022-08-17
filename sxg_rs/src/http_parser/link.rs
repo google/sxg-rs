@@ -27,7 +27,7 @@ use std::borrow::Cow;
 // from https://datatracker.ietf.org/doc/html/rfc8288#section-3.
 // Parameters with alternate character encodings (via RFC8187) are not
 // supported.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Link<'a> {
     pub uri: String,
     pub params: Vec<(Cow<'a, str>, Option<String>)>,

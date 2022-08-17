@@ -57,7 +57,7 @@ pub struct SxgWorker {
     certificates: VecDeque<CertificateChain>,
 }
 
-#[derive(Serialize, Debug, PartialEq)]
+#[derive(Serialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum PresetContent {
     Direct(HttpResponse),

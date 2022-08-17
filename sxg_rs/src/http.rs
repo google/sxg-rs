@@ -53,7 +53,7 @@ impl TryInto<::http::request::Request<Vec<u8>>> for HttpRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct HttpResponse {
     pub body: Vec<u8>,
     pub headers: HeaderFields,
