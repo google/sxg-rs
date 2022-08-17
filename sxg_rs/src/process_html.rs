@@ -19,7 +19,6 @@
 use crate::http::HttpResponse;
 use crate::http_parser::link::Link;
 use crate::link::ALLOWED_PARAM_NAMES;
-use anyhow::Result;
 use serde::Deserialize;
 use std::borrow::Cow;
 
@@ -57,7 +56,7 @@ fn parse_content_type(content_type_header_value: &str) -> ContentType {
 ///   `<script>window.isSXG=...</script>`, where `...` is true or false.
 /// - The `content-length` header is updated to the new value.
 /// If input charset is not UTF8, the input will be returned back without any modification.
-pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> Result<HttpResponse> {
+pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> HttpResponse {
     let content_type_header = input.headers.iter().find_map(|(name, value)| {
         if name.eq_ignore_ascii_case("content-type") {
             Some(value)
@@ -70,22 +69,22 @@ pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> Result<Ht
         match parse_content_type(content_type_header) {
             ContentType::HtmlUtf8 => known_utf8 = true,
             ContentType::HtmlOther => (),
-            ContentType::Other => return Ok(input),
+            ContentType::Other => return input,
         };
     } else {
         // Doesn't process HTML because content-type header does not exsist.
-        return Ok(input);
+        return input;
     }
     let input_body = match String::from_utf8(input.body) {
         Ok(input_body) => input_body,
         Err(e) => {
             // Doesn't process HTML because input body bytes can't be parsed at UTF-8 string, for
             // example, a UTF-16 BOM exsists.
-            return Ok(HttpResponse {
+            return HttpResponse {
                 body: e.into_bytes(),
                 headers: input.headers,
                 status: input.status,
-            });
+            };
         }
     };
     let mut link_headers: Vec<String> = vec![];
@@ -162,19 +161,19 @@ pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> Result<Ht
         Ok(output) => output,
         // Return the default input on error
         Err(_) => {
-            return Ok(HttpResponse {
+            return HttpResponse {
                 headers: input.headers,
                 status: input.status,
                 body: input_body.into_bytes(),
-            });
+            };
         }
     };
     if !known_utf8 {
-        return Ok(HttpResponse {
+        return HttpResponse {
             headers: input.headers,
             status: input.status,
             body: input_body.into_bytes(),
-        });
+        };
     }
     let mut output_headers = input.headers;
     if !link_headers.is_empty() {
@@ -186,11 +185,11 @@ pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> Result<Ht
             *value = format!("{}", output_body.len());
         }
     }
-    Ok(HttpResponse {
+    HttpResponse {
         body: output_body,
         headers: output_headers,
         status: input.status,
-    })
+    }
 }
 
 #[cfg(test)]
@@ -213,16 +212,16 @@ mod tests {
         );
         assert_eq!(parse_content_type(r#"text/plain"#), ContentType::Other);
     }
-    fn quick_process(content_type: &str, input_body: &str) -> String {
+    fn quick_process(content_type: &str, input_body: &str, is_sxg: bool) -> String {
         let output = process_html(
             HttpResponse {
                 status: 200,
                 headers: vec![("content-type".to_string(), content_type.to_string())],
                 body: input_body.to_string().into_bytes(),
             },
-            ProcessHtmlOption { is_sxg: true },
+            ProcessHtmlOption { is_sxg },
         );
-        String::from_utf8(output.unwrap().body).unwrap()
+        String::from_utf8(output.body).unwrap()
     }
     #[test]
     fn it_processes_html() {
@@ -230,12 +229,29 @@ mod tests {
             quick_process(
                 "text/html;charset=utf-8",
                 "<script data-issxg-var></script>",
+                true,
             ),
             "<script data-issxg-var>window.isSXG=true</script>"
         );
+        assert_eq!(
+            quick_process(
+                "text/html;charset=utf-8",
+                "<template data-sxg-only><p>test</p></template>",
+                true,
+            ),
+            "<p>test</p>"
+        );
+        assert_eq!(
+            quick_process(
+                "text/html;charset=utf-8",
+                "<template data-sxg-only><p>test</p></template>",
+                false,
+            ),
+            ""
+        );
         // HTML is not processed when charset is not specified.
         assert_eq!(
-            quick_process("text/html", "<script data-issxg-var></script>",),
+            quick_process("text/html", "<script data-issxg-var></script>", true),
             "<script data-issxg-var></script>",
         );
         // Meta tag of charset is supported.
@@ -243,7 +259,8 @@ mod tests {
             quick_process(
                 "text/html",
                 "<meta http-equiv=content-type content=\"text/html;charset=utf-8\">\
-                <script data-issxg-var></script>"
+                <script data-issxg-var></script>",
+                true,
             ),
             "<meta http-equiv=content-type content=\"text/html;charset=utf-8\">\
             <script data-issxg-var>window.isSXG=true</script>"
@@ -253,7 +270,8 @@ mod tests {
             quick_process(
                 "text/html",
                 "<meta http-equiv=content-type content=\"text/html;charset=&quot;utf-8&quot;\">\
-                <script data-issxg-var></script>"
+                <script data-issxg-var></script>",
+                true,
             ),
             "<meta http-equiv=content-type content=\"text/html;charset=&quot;utf-8&quot;\">\
             <script data-issxg-var>window.isSXG=true</script>",
@@ -273,8 +291,7 @@ mod tests {
                     body: "<script data-issxg-var></script>".to_string().into_bytes(),
                 },
                 ProcessHtmlOption { is_sxg: true },
-            )
-            .unwrap(),
+            ),
             HttpResponse {
                 status: 200,
                 headers: vec![
