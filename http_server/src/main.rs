@@ -277,9 +277,8 @@ async fn handle(
                     }
                 })
         }
-        Err(_) =>
-        // TODO: Annotate response with error as header.
-        {
+        Err(_) => {
+            // TODO: Annotate response with error as header.
             proxy_unsigned(client_ip, req, &backend).await.or_else(|e| {
                 Response::builder()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)

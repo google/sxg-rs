@@ -149,10 +149,7 @@ impl WasmWorker {
         future_to_promise(async move {
             let input: HttpResponse = input.into_serde().map_err(to_js_error)?;
             let option: ProcessHtmlOption = option.into_serde().map_err(to_js_error)?;
-            let output = worker
-                .read()
-                .await
-                .process_html(input, option);
+            let output = worker.read().await.process_html(input, option);
             JsValue::from_serde(&output).map_err(to_js_error)
         })
     }
