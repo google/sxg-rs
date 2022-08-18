@@ -59,7 +59,6 @@ pub(crate) async fn process_link_header(
                     None => {
                         // Fetch and compute header-integrity only for same-origin preloads.
                         // Cross-origin preloads are assumed unlikely to be SXG.
-                        println!("uri: {}", link.uri);
                         if origin_is(&fallback_origin, &url) {
                             if let Ok(integrity) = header_integrity_fetcher.fetch(&url).await {
                                 allow_directives.push(Link {
