@@ -103,8 +103,8 @@ impl Fetcher for HttpsFetcher<'_> {
 }
 
 struct SelfFetcher {
-  client_ip: IpAddr,
-  backend: String,
+    client_ip: IpAddr,
+    backend: String,
 }
 
 // Fetches without `Accept: application/signed-exchange;v=b3`, because the
@@ -125,13 +125,16 @@ async fn generate_sxg_response(
     payload: HttpResponse,
 ) -> Result<Response<Body>> {
     // TODO: Also transform with is_sxg=false on fallback.
-    let payload = WORKER.process_html(payload, ProcessHtmlOption{is_sxg: true});
+    let payload = WORKER.process_html(payload, ProcessHtmlOption { is_sxg: true });
 
     let cert_origin = Url::parse(fallback_url)?.origin().ascii_serialization();
     // TODO: Instead of SelfFetcher, make the HeaderIntegrityFetcher a param of
     // create_signed_exchange, then make an impl that fetches SXGs (from any
     // domain) and computes their header-integrity.
-    let subresource_fetcher = SelfFetcher{client_ip, backend: backend.into()};
+    let subresource_fetcher = SelfFetcher {
+        client_ip,
+        backend: backend.into(),
+    };
     let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
         sxg_signer: Box::new(WORKER.create_rust_signer()?),
@@ -175,10 +178,7 @@ async fn serve_preset_content(url: &str) -> Option<PresetContent> {
 // TODO: Dedupe with PresetContent.
 enum HandleAction {
     Respond(Response<Body>),
-    Sign {
-        url: String,
-        payload: HttpResponse,
-    },
+    Sign { url: String, payload: HttpResponse },
 }
 
 // TODO: Figure out how to enable http2 client support.  It's disabled
@@ -196,8 +196,8 @@ async fn handle_impl(client_ip: IpAddr, req: HttpRequest, backend: &str) -> Resu
     // TODO: Additional work necessary for ACME support?
     let fallback_url: String;
     let sxg_payload;
-    let req_url = url::Url::parse(&format!("https://{}/", WORKER.config().html_host))?
-        .join(&req.url)?;
+    let req_url =
+        url::Url::parse(&format!("https://{}/", WORKER.config().html_host))?.join(&req.url)?;
     match serve_preset_content(&format!("{}", req_url)).await {
         Some(PresetContent::Direct(response)) => {
             let response: Response<Vec<u8>> = response.try_into()?;
@@ -213,8 +213,8 @@ async fn handle_impl(client_ip: IpAddr, req: HttpRequest, backend: &str) -> Resu
             // TODO: Reduce the amount of conversion needed between request/response/header types.
             let backend_url = url::Url::parse(backend)?.join(&req.url)?;
             fallback_url = WORKER.get_fallback_url(&backend_url)?.into();
-            let req_headers = WORKER
-                .transform_request_headers(req.headers.clone(), AcceptFilter::PrefersSxg)?;
+            let req_headers =
+                WORKER.transform_request_headers(req.headers.clone(), AcceptFilter::PrefersSxg)?;
             let mut request = Request::builder()
                 .method(match req.method {
                     Method::Get => "GET",
@@ -233,10 +233,17 @@ async fn handle_impl(client_ip: IpAddr, req: HttpRequest, backend: &str) -> Resu
     }
     // TODO: Change body to a Cow so cloning is cheap?
     let sxg_payload: HttpResponse = resp_to_vec_body(sxg_payload).await?.try_into()?;
-    Ok(HandleAction::Sign{url: fallback_url, payload: sxg_payload})
+    Ok(HandleAction::Sign {
+        url: fallback_url,
+        payload: sxg_payload,
+    })
 }
 
-async fn proxy_unsigned(client_ip: IpAddr, req: HttpRequest, backend: &str) -> Result<Response<Body>> {
+async fn proxy_unsigned(
+    client_ip: IpAddr,
+    req: HttpRequest,
+    backend: &str,
+) -> Result<Response<Body>> {
     let req: Request<Vec<u8>> = req.try_into()?;
     let req = req.map(Body::from);
     let payload = PROXY_CLIENT
@@ -244,34 +251,41 @@ async fn proxy_unsigned(client_ip: IpAddr, req: HttpRequest, backend: &str) -> R
         .await
         .map_err(|e| anyhow!("{:?}", e))?;
     let payload: HttpResponse = resp_to_vec_body(payload).await?.try_into()?;
-    let payload = WORKER.process_html(payload, ProcessHtmlOption{is_sxg: false});
+    let payload = WORKER.process_html(payload, ProcessHtmlOption { is_sxg: false });
     let payload: Response<Vec<u8>> = payload.try_into()?;
     Ok(payload.map(Body::from))
 }
 
-async fn handle(client_ip: IpAddr, req: HttpRequest, backend: &str) -> Result<Response<Body>, http::Error> {
+async fn handle(
+    client_ip: IpAddr,
+    req: HttpRequest,
+    backend: &str,
+) -> Result<Response<Body>, http::Error> {
     match handle_impl(client_ip, req.clone(), &backend).await {
         Ok(HandleAction::Respond(resp)) => Ok(resp),
-        Ok(HandleAction::Sign{url, payload}) =>
-            generate_sxg_response(client_ip, &backend, &url, payload.clone()).await.or_else(|_| {
-                // TODO: Annotate response with error as header.
-                let sxg: Result<Response<Vec<u8>>> = payload.try_into();
-                match sxg {
-                    Ok(sxg) => Ok(sxg.map(Body::from)),
-                    Err(e) => Response::builder()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(Body::from(format!("{:?}", e))),
-                }
-            }),
-        Err(_) =>
-            // TODO: Annotate response with error as header.
-            proxy_unsigned(client_ip, req, &backend)
+        Ok(HandleAction::Sign { url, payload }) => {
+            generate_sxg_response(client_ip, &backend, &url, payload.clone())
                 .await
-                .or_else(|e|
-                    Response::builder()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(Body::from(format!("{:?}", e)))
-                ),
+                .or_else(|_| {
+                    // TODO: Annotate response with error as header.
+                    let sxg: Result<Response<Vec<u8>>> = payload.try_into();
+                    match sxg {
+                        Ok(sxg) => Ok(sxg.map(Body::from)),
+                        Err(e) => Response::builder()
+                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .body(Body::from(format!("{:?}", e))),
+                    }
+                })
+        }
+        Err(_) =>
+        // TODO: Annotate response with error as header.
+        {
+            proxy_unsigned(client_ip, req, &backend).await.or_else(|e| {
+                Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .body(Body::from(format!("{:?}", e)))
+            })
+        }
     }
 }
 
@@ -286,9 +300,9 @@ async fn handle_or_error(
         Ok(req) => req,
         Err(e) => {
             return Response::builder()
-                       .status(StatusCode::INTERNAL_SERVER_ERROR)
-                       .body(Body::from(format!("{:?}", e)));
-        },
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::from(format!("{:?}", e)));
+        }
     };
     handle(client_ip, req.clone(), &backend).await
 }
