@@ -247,7 +247,7 @@ async fn proxy_unsigned(
     let req: Request<Vec<u8>> = req.try_into()?;
     let req = req.map(Body::from);
     let payload = PROXY_CLIENT
-        .call(client_ip, &backend, req)
+        .call(client_ip, backend, req)
         .await
         .map_err(|e| anyhow!("{:?}", e))?;
     let payload: HttpResponse = resp_to_vec_body(payload).await?.try_into()?;
@@ -261,10 +261,10 @@ async fn handle(
     req: HttpRequest,
     backend: &str,
 ) -> Result<Response<Body>, http::Error> {
-    match handle_impl(client_ip, req.clone(), &backend).await {
+    match handle_impl(client_ip, req.clone(), backend).await {
         Ok(HandleAction::Respond(resp)) => Ok(resp),
         Ok(HandleAction::Sign { url, payload }) => {
-            generate_sxg_response(client_ip, &backend, &url, payload.clone())
+            generate_sxg_response(client_ip, backend, &url, payload.clone())
                 .await
                 .or_else(|_| {
                     // TODO: Annotate response with error as header.
@@ -279,7 +279,7 @@ async fn handle(
         }
         Err(_) => {
             // TODO: Annotate response with error as header.
-            proxy_unsigned(client_ip, req, &backend).await.or_else(|e| {
+            proxy_unsigned(client_ip, req, backend).await.or_else(|e| {
                 Response::builder()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .body(Body::from(format!("{:?}", e)))
