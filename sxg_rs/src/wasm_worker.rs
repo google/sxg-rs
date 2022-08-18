@@ -152,8 +152,7 @@ impl WasmWorker {
             let output = worker
                 .read()
                 .await
-                .process_html(input, option)
-                .map_err(to_js_error)?;
+                .process_html(input, option);
             JsValue::from_serde(&output).map_err(to_js_error)
         })
     }
