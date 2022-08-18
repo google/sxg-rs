@@ -120,7 +120,7 @@ impl SxgWorker {
         &self,
         input: HttpResponse,
         option: process_html::ProcessHtmlOption,
-    ) -> Result<HttpResponse> {
+    ) -> HttpResponse {
         process_html::process_html(input, option)
     }
     pub async fn create_signed_exchange<C: HttpCache>(
@@ -388,6 +388,9 @@ impl SxgWorker {
         let mut fallback = original_url.clone();
         let html_host = &self.config.html_host;
         if !html_host.is_empty() {
+            fallback
+                .set_scheme("https")
+                .map_err(|_| anyhow!("invalid scheme https"))?;
             fallback.set_host(Some(html_host)).map_err(Error::new)?;
         }
         Ok(fallback)

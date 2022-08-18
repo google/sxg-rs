@@ -18,7 +18,7 @@ use clap::Parser;
 use hyper::{
     server::{conn::AddrStream, Server},
     service::{make_service_fn, service_fn},
-    Body, Request, Response, StatusCode, Uri,
+    Body, Request, Response, StatusCode,
 };
 use hyper_reverse_proxy::ReverseProxy;
 use hyper_trust_dns::{RustlsHttpsConnector, TrustDnsResolver};
@@ -31,8 +31,10 @@ use sxg_rs::{
     fetcher::Fetcher,
     headers::AcceptFilter,
     http::{HttpRequest, HttpResponse, Method},
+    process_html::ProcessHtmlOption,
     PresetContent,
 };
+use url::Url;
 
 // TODO: Add readme, explaining how to create credentials & config.yaml and how to run.
 
@@ -100,21 +102,39 @@ impl Fetcher for HttpsFetcher<'_> {
     }
 }
 
+struct SelfFetcher {
+    client_ip: IpAddr,
+    backend: String,
+}
+
+// Fetches without `Accept: application/signed-exchange;v=b3`, because the
+// HeaderIntegrityFetcher expects unsigned responses.
+#[async_trait]
+impl Fetcher for SelfFetcher {
+    async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse> {
+        let response: Response<Body> = handle(self.client_ip, request, &self.backend).await?;
+        // TODO: Do something streaming.
+        resp_to_vec_body(response).await?.try_into()
+    }
+}
+
 async fn generate_sxg_response(
-    fallback_url: &Uri,
-    payload: Response<Body>,
+    client_ip: IpAddr,
+    backend: &str,
+    fallback_url: &str,
+    payload: HttpResponse,
 ) -> Result<Response<Body>> {
-    let payload: HttpResponse = resp_to_vec_body(payload).await?.try_into()?;
-    let cert_origin = format!(
-        "{}://{}",
-        fallback_url
-            .scheme()
-            .ok_or_else(|| anyhow!("fallback url missing scheme"))?,
-        fallback_url
-            .authority()
-            .ok_or_else(|| anyhow!("fallback url missing authority"))?
-    );
-    let subresource_fetcher = HttpsFetcher(&HTTPS_CLIENT);
+    // TODO: Also transform with is_sxg=false on fallback.
+    let payload = WORKER.process_html(payload, ProcessHtmlOption { is_sxg: true });
+
+    let cert_origin = Url::parse(fallback_url)?.origin().ascii_serialization();
+    // TODO: Instead of SelfFetcher, make the HeaderIntegrityFetcher a param of
+    // create_signed_exchange, then make an impl that fetches SXGs (from any
+    // domain) and computes their header-integrity.
+    let subresource_fetcher = SelfFetcher {
+        client_ip,
+        backend: backend.into(),
+    };
     let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
         sxg_signer: Box::new(WORKER.create_rust_signer()?),
@@ -129,7 +149,7 @@ async fn generate_sxg_response(
                 payload_headers: WORKER.transform_payload_headers(payload.headers)?,
                 skip_process_link: false,
                 status_code: 200,
-                fallback_url: &format!("{}", fallback_url),
+                fallback_url,
                 cert_origin: &cert_origin,
                 // TODO: Specify a non-null header_integrity_cache.
                 header_integrity_cache: sxg_rs::http_cache::NullCache {},
@@ -155,6 +175,12 @@ async fn serve_preset_content(url: &str) -> Option<PresetContent> {
     WORKER.serve_preset_content(&runtime, url).await
 }
 
+// TODO: Dedupe with PresetContent.
+enum HandleAction {
+    Respond(Response<Body>),
+    Sign { url: String, payload: HttpResponse },
+}
+
 // TODO: Figure out how to enable http2 client support.  It's disabled
 // currently, because when testing on https://www.google.com with http2
 // enabled, I got a 400. My guess why:
@@ -163,64 +189,121 @@ async fn serve_preset_content(url: &str) -> Option<PresetContent> {
 // I guess hyper::Client doesn't synthesize :authority from the Host header.
 // We can't work around this because http::header::HeaderMap panics with
 // InvalidHeaderName when given ":authority" as a key.
-async fn handle(client_ip: IpAddr, req: Request<Body>, backend: String) -> Result<Response<Body>> {
+async fn handle_impl(client_ip: IpAddr, req: HttpRequest, backend: &str) -> Result<HandleAction> {
     // TODO: Proxy unsigned if SXG fails.
     // TODO: If over 8MB or MICE fails midstream, send the consumed portion and stream the rest.
     // TODO: Wrap errors with additional context before returning.
     // TODO: Additional work necessary for ACME support?
-    let fallback_url: Uri;
+    let fallback_url: String;
     let sxg_payload;
-    let req_url = url::Url::parse(&format!("https://{}/", WORKER.config().html_host))?
-        .join(&format!("{}", req.uri()))?;
+    let req_url =
+        url::Url::parse(&format!("https://{}/", WORKER.config().html_host))?.join(&req.url)?;
     match serve_preset_content(&format!("{}", req_url)).await {
         Some(PresetContent::Direct(response)) => {
             let response: Response<Vec<u8>> = response.try_into()?;
-            return Ok(response.map(Body::from));
+            return Ok(HandleAction::Respond(response.map(Body::from)));
         }
         Some(PresetContent::ToBeSigned { url, payload, .. }) => {
-            fallback_url = url.parse()?;
+            fallback_url = url;
             let payload: Response<Vec<u8>> = payload.try_into()?;
             sxg_payload = payload.map(Body::from);
-            let req: HttpRequest = req_to_vec_body(req).await?.try_into()?;
             WORKER.transform_request_headers(req.headers, AcceptFilter::AcceptsSxg)?;
         }
         None => {
             // TODO: Reduce the amount of conversion needed between request/response/header types.
-            let backend_url = url::Url::parse(&backend)?.join(&format!("{}", req.uri()))?;
-            fallback_url = WORKER.get_fallback_url(&backend_url)?.as_str().parse()?;
-            let request: HttpRequest = req_to_vec_body(req).await?.try_into()?;
-            let req_headers = WORKER
-                .transform_request_headers(request.headers.clone(), AcceptFilter::PrefersSxg)?;
-            let mut req = Request::builder()
-                .method(match request.method {
+            let backend_url = url::Url::parse(backend)?.join(&req.url)?;
+            fallback_url = WORKER.get_fallback_url(&backend_url)?.into();
+            let req_headers =
+                WORKER.transform_request_headers(req.headers.clone(), AcceptFilter::PrefersSxg)?;
+            let mut request = Request::builder()
+                .method(match req.method {
                     Method::Get => "GET",
                     Method::Post => "POST",
                 })
-                .uri(request.url);
+                .uri(req.url);
             for (key, value) in req_headers {
-                req = req.header(key, value);
+                request = request.header(key, value);
             }
-            let req = req.body(request.body.into())?;
+            let request = request.body(req.body.into())?;
             sxg_payload = PROXY_CLIENT
-                .call(client_ip, &backend, req)
+                .call(client_ip, backend, request)
                 .await
                 .map_err(|e| anyhow!("{:?}", e))?;
         }
     }
-    generate_sxg_response(&fallback_url, sxg_payload).await
+    // TODO: Change body to a Cow so cloning is cheap?
+    let sxg_payload: HttpResponse = resp_to_vec_body(sxg_payload).await?.try_into()?;
+    Ok(HandleAction::Sign {
+        url: fallback_url,
+        payload: sxg_payload,
+    })
 }
 
-// TODO: Put error in header instead.
+async fn proxy_unsigned(
+    client_ip: IpAddr,
+    req: HttpRequest,
+    backend: &str,
+) -> Result<Response<Body>> {
+    let req: Request<Vec<u8>> = req.try_into()?;
+    let req = req.map(Body::from);
+    let payload = PROXY_CLIENT
+        .call(client_ip, backend, req)
+        .await
+        .map_err(|e| anyhow!("{:?}", e))?;
+    let payload: HttpResponse = resp_to_vec_body(payload).await?.try_into()?;
+    let payload = WORKER.process_html(payload, ProcessHtmlOption { is_sxg: false });
+    let payload: Response<Vec<u8>> = payload.try_into()?;
+    Ok(payload.map(Body::from))
+}
+
+async fn handle(
+    client_ip: IpAddr,
+    req: HttpRequest,
+    backend: &str,
+) -> Result<Response<Body>, http::Error> {
+    match handle_impl(client_ip, req.clone(), backend).await {
+        Ok(HandleAction::Respond(resp)) => Ok(resp),
+        Ok(HandleAction::Sign { url, payload }) => {
+            generate_sxg_response(client_ip, backend, &url, payload.clone())
+                .await
+                .or_else(|_| {
+                    // TODO: Annotate response with error as header.
+                    let sxg: Result<Response<Vec<u8>>> = payload.try_into();
+                    match sxg {
+                        Ok(sxg) => Ok(sxg.map(Body::from)),
+                        Err(e) => Response::builder()
+                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .body(Body::from(format!("{:?}", e))),
+                    }
+                })
+        }
+        Err(_) => {
+            // TODO: Annotate response with error as header.
+            proxy_unsigned(client_ip, req, backend).await.or_else(|e| {
+                Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .body(Body::from(format!("{:?}", e)))
+            })
+        }
+    }
+}
+
 async fn handle_or_error(
     client_ip: IpAddr,
     req: Request<Body>,
     backend: String,
 ) -> Result<Response<Body>, http::Error> {
-    handle(client_ip, req, backend).await.or_else(|e| {
-        Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(Body::from(format!("{:?}", e)))
-    })
+    let req: Result<Request<Vec<u8>>> = req_to_vec_body(req).await;
+    let req: Result<HttpRequest> = req.and_then(|r| r.try_into());
+    let req: HttpRequest = match req {
+        Ok(req) => req,
+        Err(e) => {
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::from(format!("{:?}", e)));
+        }
+    };
+    handle(client_ip, req.clone(), &backend).await
 }
 
 #[tokio::main]
