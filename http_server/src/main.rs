@@ -183,16 +183,16 @@ impl Storage for FileStorage {
         // file be open in the first place. However, this seems OK. OCSP/ACME
         // storage don't require perfect synchronization.
         if path.exists() {
-          let mut f = File::open(path)?;
-          // Don't do any early returns (e.g. `?`) between lock and unlock.
-          f.lock_shared()?;
-          let mut v = String::new();
-          let ok = f.read_to_string(&mut v);
-          let _ = f.unlock();
-          match ok {
-              Ok(_) => Ok(Some(v)),
-              Err(e) => Err(anyhow!("error reading file {k}: {e}")),
-          }
+            let mut f = File::open(path)?;
+            // Don't do any early returns (e.g. `?`) between lock and unlock.
+            f.lock_shared()?;
+            let mut v = String::new();
+            let ok = f.read_to_string(&mut v);
+            let _ = f.unlock();
+            match ok {
+                Ok(_) => Ok(Some(v)),
+                Err(e) => Err(anyhow!("error reading file {k}: {e}")),
+            }
         } else {
             Ok(None)
         }
@@ -238,7 +238,12 @@ enum HandleAction {
 // I guess hyper::Client doesn't synthesize :authority from the Host header.
 // We can't work around this because http::header::HeaderMap panics with
 // InvalidHeaderName when given ":authority" as a key.
-async fn handle_impl(client_ip: IpAddr, req: HttpRequest, backend: &str, directory: &str) -> Result<HandleAction> {
+async fn handle_impl(
+    client_ip: IpAddr,
+    req: HttpRequest,
+    backend: &str,
+    directory: &str,
+) -> Result<HandleAction> {
     // TODO: If over 8MB or MICE fails midstream, send the consumed portion and stream the rest.
     // TODO: Additional work necessary for ACME support?
     let fallback_url: String;
@@ -331,15 +336,14 @@ async fn handle(
                     }
                 })
         }
-        Err(e) => {
-            proxy_unsigned(client_ip, req, backend).await
+        Err(e) => proxy_unsigned(client_ip, req, backend)
+            .await
             .map(|r| set_error_header(e, r))
             .or_else(|e| {
                 Response::builder()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .body(Body::from(format!("{:?}", e)))
-            })
-        }
+            }),
     }
 }
 
