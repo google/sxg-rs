@@ -25,7 +25,7 @@ use hyper_reverse_proxy::ReverseProxy;
 use hyper_trust_dns::{RustlsHttpsConnector, TrustDnsResolver};
 use std::boxed::Box;
 use std::convert::TryInto;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::net::IpAddr;
 use std::net::SocketAddr;
@@ -49,7 +49,7 @@ use url::Url;
 struct Args {
     /// The origin (scheme://host[:port]) of the backend to fetch from, such as
     /// 'https://backend'. To configure the signed domain that appears in the
-    /// resultant SXGs, set html_host in http_server/config.yaml.
+    /// resultant SXGs, set html_host in config.yaml.
     #[clap(short, long)]
     backend: String,
 
@@ -57,10 +57,23 @@ struct Args {
     #[clap(short = 'a', long, default_value = "127.0.0.1:8080")]
     bind_addr: String,
 
-    /// Path to the directory (must exist) where ACME and OCSP files will be
-    /// created to manage state.
-    #[clap(short, long)]
-    directory: String,
+    /// Path to the directory where ACME and OCSP files will be / created to
+    /// manage state. Will create the directory (but not its parents) if
+    /// needed.
+    #[clap(short, long, default_value = "/tmp/sxg-rs")]
+    directory: PathBuf,
+
+    /// Path to config.yaml.
+    #[clap(short, long, default_value = "http_server/config.yaml")]
+    config: PathBuf,
+
+    /// Path to the cert PEM for the html_host specified in config.yaml.
+    #[clap(short = 'e', long, default_value = "credentials/cert.pem")]
+    cert: PathBuf,
+
+    /// Path to the cert PEM for the CA that issued the html_host cert.
+    #[clap(short, long, default_value = "credentials/issuer.pem")]
+    issuer: PathBuf,
 }
 
 type HttpsClient = hyper::Client<
@@ -78,11 +91,10 @@ lazy_static::lazy_static! {
             hyper::Client::builder().build::<_, hyper::Body>(TrustDnsResolver::default().into_rustls_webpki_https_connector()));
 
     static ref WORKER: sxg_rs::SxgWorker = {
-        // TODO: Make flags for the locations of these files.
-        let mut worker = sxg_rs::SxgWorker::new(include_str!("../config.yaml")).unwrap();
+        let mut worker = sxg_rs::SxgWorker::new(&fs::read_to_string(&ARGS.config).unwrap()).unwrap();
         worker.add_certificate(CertificateChain::from_pem_files(&[
-              include_str!("../../credentials/cert.pem"),
-              include_str!("../../credentials/issuer.pem"),
+              &fs::read_to_string(&ARGS.cert).unwrap(),
+              &fs::read_to_string(&ARGS.issuer).unwrap(),
         ]).unwrap());
         worker
     };
@@ -217,7 +229,7 @@ async fn serve_preset_content(url: &str) -> Option<PresetContent> {
     let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
         fetcher: Box::new(ocsp_fetcher),
-        storage: Box::new(FileStorage(ARGS.directory.clone().into())),
+        storage: Box::new(FileStorage(ARGS.directory.clone())),
         sxg_signer: Box::new(WORKER.create_rust_signer().ok()?),
         ..Default::default()
     };
@@ -264,7 +276,7 @@ async fn handle_impl(
             let backend_url = url::Url::parse(&ARGS.backend)?.join(&req.url)?;
             fallback_url = WORKER.get_fallback_url(&backend_url)?.into();
             let req_headers =
-                WORKER.transform_request_headers(req.headers.clone(), AcceptFilter::PrefersSxg)?;
+                WORKER.transform_request_headers(req.headers, AcceptFilter::PrefersSxg)?;
             let mut request = Request::builder()
                 .method(match req.method {
                     Method::Get => "GET",
@@ -356,11 +368,12 @@ async fn handle_or_error(
                 .body(Body::from(format!("{:?}", e)));
         }
     };
-    handle(client_ip, req.clone()).await
+    handle(client_ip, req).await
 }
 
 #[tokio::main]
 async fn main() {
+    let _ = fs::create_dir(&ARGS.directory);
     let addr: SocketAddr = ARGS.bind_addr.parse().expect("Could not parse ip:port.");
 
     let make_svc = make_service_fn(|conn: &AddrStream| {
