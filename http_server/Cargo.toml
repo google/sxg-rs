@@ -24,6 +24,7 @@ edition = "2018"
 anyhow = "1.0.62"
 async-trait = "0.1.57"
 clap = { version = "3.2.17", features = ["derive"] }
+fs2 = "0.4.3"
 http = "0.2.8"
 hyper-reverse-proxy = { git = "https://github.com/felipenoris/hyper-reverse-proxy", rev = "96a398de8522fac07a5e15bd0699f6cd7fa84bce" }
 hyper-rustls = "0.23.0"

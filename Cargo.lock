@@ -1650,6 +1650,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap 3.2.17",
+ "fs2",
  "http",
  "hyper",
  "hyper-reverse-proxy",
