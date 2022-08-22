@@ -73,7 +73,7 @@ pub enum PresetContent {
 // <1h, an SXG would be instantly invalid; this would be confusing.)
 const BACKDATING: Duration = Duration::from_secs(60 * 60);
 
-pub(crate) const MAX_PAYLOAD_SIZE: usize = 8_000_000;
+pub const MAX_PAYLOAD_SIZE: usize = 8_000_000;
 
 impl SxgWorker {
     pub fn new(config_yaml: &str) -> Result<Self> {

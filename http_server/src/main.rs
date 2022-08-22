@@ -16,7 +16,9 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use clap::Parser;
 use fs2::FileExt;
+use futures::{stream, StreamExt};
 use hyper::{
+    body::{Bytes, HttpBody},
     server::{conn::AddrStream, Server},
     service::{make_service_fn, service_fn},
     Body, Request, Response, StatusCode,
@@ -31,6 +33,7 @@ use std::net::IpAddr;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use sxg_rs::{
+    MAX_PAYLOAD_SIZE,
     crypto::CertificateChain,
     fetcher::Fetcher,
     headers::AcceptFilter,
@@ -106,10 +109,46 @@ async fn req_to_vec_body(request: Request<Body>) -> Result<Request<Vec<u8>>> {
     Ok(Request::from_parts(parts, body))
 }
 
-async fn resp_to_vec_body(response: Response<Body>) -> Result<Response<Vec<u8>>> {
-    let (parts, body) = response.into_parts();
-    let body = hyper::body::to_bytes(body).await?.to_vec();
-    Ok(Response::from_parts(parts, body))
+#[derive(Debug)]
+enum Payload {
+    InMemory(Response<Vec<u8>>),
+    Streamed(Response<Body>),
+}
+
+// If body length is <= MAX_PAYLOAD_SIZE, returns it buffered in memory. Else,
+// returns a Body that streams the full response.
+async fn resp_to_vec_body(response: Response<Body>) -> Result<Payload> {
+    let (parts, mut body) = response.into_parts();
+    if matches!(body.size_hint().upper(), Some(size) if size <= MAX_PAYLOAD_SIZE.try_into().unwrap_or(u64::MAX)) {
+        Ok(Payload::InMemory(Response::from_parts(parts, hyper::body::to_bytes(body).await?.to_vec())))
+    } else {
+        let mut buf = Vec::with_capacity(body.size_hint().lower().try_into().unwrap_or(MAX_PAYLOAD_SIZE));
+        let mut extra = vec![];
+        while buf.len() <= MAX_PAYLOAD_SIZE {
+            if let Some(data) = body.data().await {
+                // Not yet MAX_PAYLOAD_SIZE and more data available.
+                let data = data?;
+                let needed = std::cmp::min(data.len(), MAX_PAYLOAD_SIZE - buf.len());
+                buf.extend_from_slice(&data[..needed]);
+                extra.extend_from_slice(&data[needed..]);
+            } else if !extra.is_empty() {
+                // No more data, but the final chunk pushed us over MAX_PAYLOAD_SIZE.
+                break;
+            } else {
+                // No more data and we're within MAX_PAYLOAD_SIZE.
+                return Ok(Payload::InMemory(Response::from_parts(parts, buf)));
+            }
+        }
+        // We're over MAX_PAYLOAD_SIZE. Additional data may be available in
+        // body, depending on how the while loop exited.
+        Ok(Payload::Streamed(
+            Response::from_parts(
+               parts,
+               Body::wrap_stream(
+                   stream::once(async move { Ok(Bytes::copy_from_slice(&buf)) })
+                   .chain(stream::once(async move { Ok(Bytes::copy_from_slice(&extra)) }))
+                   .chain(body)))))
+    }
 }
 
 struct HttpsFetcher<'a>(&'a HttpsClient);
@@ -121,8 +160,10 @@ impl Fetcher for HttpsFetcher<'_> {
         let request: Request<Body> = request.map(|b| b.into());
 
         let response: Response<Body> = self.0.request(request).await?;
-        // TODO: Do something streaming.
-        resp_to_vec_body(response).await?.try_into()
+        match resp_to_vec_body(response).await? {
+            Payload::InMemory(payload) => payload.try_into(),
+            _ => Err(anyhow!("Response too large")),
+        }
     }
 }
 
@@ -138,8 +179,10 @@ impl Fetcher for SelfFetcher {
         // TODO: Don't compute header-integrity for resources that are too
         // large (see https://twifkak.com/link_tag.large.html).
         let response: Response<Body> = handle(self.client_ip, request).await?;
-        // TODO: Do something streaming.
-        resp_to_vec_body(response).await?.try_into()
+        match resp_to_vec_body(response).await? {
+            Payload::InMemory(payload) => payload.try_into(),
+            _ => Err(anyhow!("Response too large")),
+        }
     }
 }
 
@@ -293,11 +336,14 @@ async fn handle_impl(
                 .map_err(|e| anyhow!("{:?}", e))?;
         }
     }
-    // TODO: Change body to a Cow so cloning is cheap?
-    let sxg_payload: HttpResponse = resp_to_vec_body(sxg_payload).await?.try_into()?;
-    Ok(HandleAction::Sign {
-        url: fallback_url,
-        payload: sxg_payload,
+    let sxg_payload = resp_to_vec_body(sxg_payload).await?;
+    Ok(match sxg_payload {
+        Payload::InMemory(payload) =>
+            HandleAction::Sign {
+                url: fallback_url,
+                payload: payload.try_into()?,
+            },
+        Payload::Streamed(payload) => HandleAction::Respond(payload),
     })
 }
 
@@ -311,10 +357,14 @@ async fn proxy_unsigned(
         .call(client_ip, &ARGS.backend, req)
         .await
         .map_err(|e| anyhow!("{:?}", e))?;
-    let payload: HttpResponse = resp_to_vec_body(payload).await?.try_into()?;
-    let payload = WORKER.process_html(payload, ProcessHtmlOption { is_sxg: false });
-    let payload: Response<Vec<u8>> = payload.try_into()?;
-    Ok(payload.map(Body::from))
+    Ok(match resp_to_vec_body(payload).await? {
+        Payload::InMemory(payload) => {
+            let payload = WORKER.process_html(payload.try_into()?, ProcessHtmlOption { is_sxg: false });
+            let payload: Response<Vec<u8>> = payload.try_into()?;
+            payload.map(Body::from)
+        },
+        Payload::Streamed(payload) => payload,
+    })
 }
 
 fn set_error_header(err: impl core::fmt::Display, mut resp: Response<Body>) -> Response<Body> {
@@ -331,6 +381,7 @@ async fn handle(
     match handle_impl(client_ip, req.clone()).await {
         Ok(HandleAction::Respond(resp)) => Ok(resp),
         Ok(HandleAction::Sign { url, payload }) => {
+            // TODO: Eliminate this clone or change body to a Cow so cloning is cheap.
             generate_sxg_response(client_ip, &url, payload.clone())
                 .await
                 .or_else(|e| {
@@ -391,5 +442,75 @@ async fn main() {
 
     if let Err(e) = server.await {
         eprintln!("server error: {}", e);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use assert_matches::assert_matches;
+    use hyper::{Body, body::Bytes, Response};
+
+    #[tokio::test]
+    async fn resp_to_vec_body_one_chunk() {
+        let (sender, body) = Body::channel();
+        let handler = tokio::spawn(async {
+            let mut sender = sender;
+            let _ = sender.send_data(Bytes::from_static(b"hello")).await;
+        });
+
+        let resp = Response::new(body);
+        assert_matches!(
+            resp_to_vec_body(resp).await,
+            Ok(Payload::InMemory(r)) if r.body() == b"hello");
+        handler.await.unwrap();
+    }
+    #[tokio::test]
+    async fn resp_to_vec_body_two_chunks() {
+        let (sender, body) = Body::channel();
+        let handler = tokio::spawn(async {
+            let mut sender = sender;
+            let _ = sender.send_data(Bytes::from_static(b"hello")).await;
+            let _ = sender.send_data(Bytes::from_static(b"bye")).await;
+        });
+
+        let resp = Response::new(body);
+        assert_matches!(
+            resp_to_vec_body(resp).await,
+            Ok(Payload::InMemory(r)) if r.body() == b"hellobye");
+        handler.await.unwrap();
+    }
+    #[tokio::test]
+    async fn resp_to_vec_body_exactly_max() {
+        let (sender, body) = Body::channel();
+        let handler = tokio::spawn(async {
+            let mut sender = sender;
+            let _ = sender.send_data(Bytes::from_static(b"hello")).await;
+            let _ = sender.send_data(Bytes::copy_from_slice(vec![0; MAX_PAYLOAD_SIZE - 5].as_slice())).await;
+        });
+
+        let resp = Response::new(body);
+        assert_matches!(
+            resp_to_vec_body(resp).await,
+            Ok(Payload::InMemory(r)) if r.body().len() == MAX_PAYLOAD_SIZE);
+        handler.await.unwrap();
+    }
+    #[tokio::test]
+    async fn resp_to_vec_body_over_max() {
+        let (sender, body) = Body::channel();
+        let handler = tokio::spawn(async {
+            let mut sender = sender;
+            let _ = sender.send_data(Bytes::from_static(b"hello")).await;
+            let _ = sender.send_data(Bytes::copy_from_slice(vec![0; MAX_PAYLOAD_SIZE].as_slice())).await;
+        });
+
+        let resp = Response::new(body);
+        match resp_to_vec_body(resp).await {
+            Ok(Payload::Streamed(mut r)) => {
+                assert_eq!(hyper::body::to_bytes(r.body_mut()).await.unwrap().len(), MAX_PAYLOAD_SIZE + 5);
+            },
+            _ => panic!("resp does not match Payload::Streamed"),
+        }
+        handler.await.unwrap();
     }
 }
