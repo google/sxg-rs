@@ -86,7 +86,7 @@ pub fn process_html(input: Arc<HttpResponse>, option: ProcessHtmlOption) -> Arc<
         Err(_) => {
             // Doesn't process HTML because input body bytes can't be parsed at UTF-8 string, for
             // example, a UTF-16 BOM exsists.
-            return input.into();
+            return Arc::new(input);
         }
     };
     let mut link_headers: Vec<String> = vec![];
@@ -163,21 +163,19 @@ pub fn process_html(input: Arc<HttpResponse>, option: ProcessHtmlOption) -> Arc<
         Ok(output) => output,
         // Return the default input on error
         Err(_) => {
-            return HttpResponse {
+            return Arc::new(HttpResponse {
                 headers: input.headers,
                 status: input.status,
                 body: input_body.into(),
-            }
-            .into();
+            });
         }
     };
     if !known_utf8 {
-        return HttpResponse {
+        return Arc::new(HttpResponse {
             headers: input.headers,
             status: input.status,
             body: input_body.into(),
-        }
-        .into();
+        });
     }
     let mut output_headers = input.headers;
     if !link_headers.is_empty() {
@@ -189,12 +187,11 @@ pub fn process_html(input: Arc<HttpResponse>, option: ProcessHtmlOption) -> Arc<
             *value = format!("{}", output_body.len());
         }
     }
-    HttpResponse {
+    Arc::new(HttpResponse {
         body: output_body,
         headers: output_headers,
         status: input.status,
-    }
-    .into()
+    })
 }
 
 #[cfg(test)]
@@ -219,12 +216,11 @@ mod tests {
     }
     fn quick_process(content_type: &str, input_body: &str, is_sxg: bool) -> String {
         let output = process_html(
-            HttpResponse {
+            Arc::new(HttpResponse {
                 status: 200,
                 headers: vec![("content-type".to_string(), content_type.to_string())],
                 body: input_body.to_string().into_bytes(),
-            }
-            .into(),
+            }),
             ProcessHtmlOption { is_sxg },
         );
         let output = Arc::try_unwrap(output).unwrap_or_else(|o| (*o).clone());
@@ -285,7 +281,7 @@ mod tests {
         );
         // HTTP content-length header is updated
         let output = process_html(
-            HttpResponse {
+            Arc::new(HttpResponse {
                 status: 200,
                 headers: vec![
                     (
@@ -295,8 +291,7 @@ mod tests {
                     ("content-length".to_string(), "32".to_string()),
                 ],
                 body: "<script data-issxg-var></script>".to_string().into_bytes(),
-            }
-            .into(),
+            }),
             ProcessHtmlOption { is_sxg: true },
         );
         let output = Arc::try_unwrap(output).unwrap_or_else(|o| (*o).clone());

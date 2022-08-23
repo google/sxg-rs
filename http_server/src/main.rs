@@ -386,7 +386,8 @@ async fn proxy_unsigned(client_ip: IpAddr, req: HttpRequest) -> Result<Response<
     Ok(match resp_to_vec_body(payload).await? {
         Payload::InMemory(payload) => {
             let payload: HttpResponse = payload.try_into()?;
-            let payload = WORKER.process_html(payload.into(), ProcessHtmlOption { is_sxg: false });
+            let payload =
+                WORKER.process_html(Arc::new(payload), ProcessHtmlOption { is_sxg: false });
             let payload = Arc::try_unwrap(payload).unwrap_or_else(|p| (*p).clone());
             let payload: Response<Vec<u8>> = payload.try_into()?;
             payload.map(Body::from)
@@ -406,7 +407,7 @@ async fn handle(client_ip: IpAddr, req: HttpRequest) -> Result<Response<Body>, h
     match handle_impl(client_ip, req.clone()).await {
         Ok(HandleAction::Respond(resp)) => Ok(resp),
         Ok(HandleAction::Sign { url, payload }) => {
-            let payload: Arc<HttpResponse> = payload.into();
+            let payload = Arc::new(payload);
             generate_sxg_response(client_ip, &url, payload.clone())
                 .await
                 .or_else(|e| {
