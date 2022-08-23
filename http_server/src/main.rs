@@ -25,6 +25,7 @@ use hyper::{
 };
 use hyper_reverse_proxy::ReverseProxy;
 use hyper_trust_dns::{RustlsHttpsConnector, TrustDnsResolver};
+use lru::LruCache;
 use std::boxed::Box;
 use std::convert::TryInto;
 use std::fs::{self, File};
@@ -37,10 +38,12 @@ use sxg_rs::{
     fetcher::Fetcher,
     headers::AcceptFilter,
     http::{HttpRequest, HttpResponse, Method},
+    http_cache::HttpCache,
     process_html::ProcessHtmlOption,
     storage::Storage,
     PresetContent, MAX_PAYLOAD_SIZE,
 };
+use tokio::sync::Mutex;
 use url::Url;
 
 // TODO: Add readme, explaining how to create credentials & config.yaml and how to run.
@@ -76,6 +79,10 @@ struct Args {
     /// Path to the cert PEM for the CA that issued the html_host cert.
     #[clap(short, long, default_value = "credentials/issuer.pem")]
     issuer: PathBuf,
+
+    /// Maximum number of entries in the header integrity cache. Each entry will be about 1KB.
+    #[clap(long, default_value = "2000")]
+    header_integrity_cache_size: usize,
 }
 
 type HttpsClient = hyper::Client<
@@ -100,6 +107,8 @@ lazy_static::lazy_static! {
         ]).unwrap());
         worker
     };
+
+    static ref HEADER_INTEGRITY: LruHttpCache = LruHttpCache(Mutex::new(LruCache::new(ARGS.header_integrity_cache_size)));
 }
 
 async fn req_to_vec_body(request: Request<Body>) -> Result<Request<Vec<u8>>> {
@@ -195,6 +204,24 @@ impl Fetcher for SelfFetcher {
     }
 }
 
+struct LruHttpCache(Mutex<LruCache<String, HttpResponse>>);
+
+#[async_trait]
+impl HttpCache for &LruHttpCache {
+    async fn get(&self, url: &str) -> Result<HttpResponse> {
+        match self.0.lock().await.get(url) {
+            Some(resp) => Ok(resp.clone()),
+            None => Err(anyhow!("No cache entry found for {}", url)),
+        }
+    }
+    async fn put(&self, url: &str, response: &HttpResponse) -> Result<()> {
+        match self.0.lock().await.put(url.into(), response.clone()) {
+            Some(_) => Ok(()),
+            None => Err(anyhow!("Error storing cache entry for {}", url)),
+        }
+    }
+}
+
 async fn generate_sxg_response(
     client_ip: IpAddr,
     fallback_url: &str,
@@ -220,8 +247,7 @@ async fn generate_sxg_response(
                 status_code: 200,
                 fallback_url,
                 cert_origin: &cert_origin,
-                // TODO: Specify a non-null header_integrity_cache.
-                header_integrity_cache: sxg_rs::http_cache::NullCache {},
+                header_integrity_cache: &*HEADER_INTEGRITY,
             },
         )
         .await?;
