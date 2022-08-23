@@ -21,6 +21,7 @@ use crate::http_parser::link::Link;
 use crate::link::ALLOWED_PARAM_NAMES;
 use serde::Deserialize;
 use std::borrow::Cow;
+use std::sync::Arc;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,7 +57,11 @@ fn parse_content_type(content_type_header_value: &str) -> ContentType {
 ///   `<script>window.isSXG=...</script>`, where `...` is true or false.
 /// - The `content-length` header is updated to the new value.
 /// If input charset is not UTF8, the input will be returned back without any modification.
-pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> HttpResponse {
+pub fn process_html(input: Arc<HttpResponse>, option: ProcessHtmlOption) -> Arc<HttpResponse> {
+    // TODO: Change types from Arc<HttpResponse> to HttpResponse, and change
+    // the is_sxg=true mode to leave sufficient information so that the
+    // is_sxg=false mode can run on top of the processed payload instead of the
+    // original.
     let content_type_header = input.headers.iter().find_map(|(name, value)| {
         if name.eq_ignore_ascii_case("content-type") {
             Some(value)
@@ -75,16 +80,13 @@ pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> HttpRespo
         // Doesn't process HTML because content-type header does not exist.
         return input;
     }
-    let input_body = match String::from_utf8(input.body) {
+    let input = Arc::try_unwrap(input).unwrap_or_else(|i| (*i).clone());
+    let input_body = match std::str::from_utf8(&input.body) {
         Ok(input_body) => input_body,
-        Err(e) => {
+        Err(_) => {
             // Doesn't process HTML because input body bytes can't be parsed at UTF-8 string, for
             // example, a UTF-16 BOM exsists.
-            return HttpResponse {
-                body: e.into_bytes(),
-                headers: input.headers,
-                status: input.status,
-            };
+            return input.into();
         }
     };
     let mut link_headers: Vec<String> = vec![];
@@ -164,16 +166,16 @@ pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> HttpRespo
             return HttpResponse {
                 headers: input.headers,
                 status: input.status,
-                body: input_body.into_bytes(),
-            };
+                body: input_body.into(),
+            }.into();
         }
     };
     if !known_utf8 {
         return HttpResponse {
             headers: input.headers,
             status: input.status,
-            body: input_body.into_bytes(),
-        };
+            body: input_body.into(),
+        }.into();
     }
     let mut output_headers = input.headers;
     if !link_headers.is_empty() {
@@ -189,7 +191,7 @@ pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> HttpRespo
         body: output_body,
         headers: output_headers,
         status: input.status,
-    }
+    }.into()
 }
 
 #[cfg(test)]

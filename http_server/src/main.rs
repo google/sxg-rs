@@ -33,6 +33,7 @@ use std::io::{Read, Write};
 use std::net::IpAddr;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
 use sxg_rs::{
     crypto::CertificateChain,
     fetcher::Fetcher,
@@ -225,7 +226,7 @@ impl HttpCache for &LruHttpCache {
 async fn generate_sxg_response(
     client_ip: IpAddr,
     fallback_url: &str,
-    payload: HttpResponse,
+    payload: Arc<HttpResponse>,
 ) -> Result<Response<Body>> {
     let payload = WORKER.process_html(payload, ProcessHtmlOption { is_sxg: true });
 
@@ -242,7 +243,7 @@ async fn generate_sxg_response(
             &runtime,
             sxg_rs::CreateSignedExchangeParams {
                 payload_body: &payload.body,
-                payload_headers: WORKER.transform_payload_headers(payload.headers)?,
+                payload_headers: WORKER.transform_payload_headers(payload.headers.clone())?,
                 skip_process_link: false,
                 status_code: 200,
                 fallback_url,
@@ -384,8 +385,10 @@ async fn proxy_unsigned(client_ip: IpAddr, req: HttpRequest) -> Result<Response<
         .map_err(|e| anyhow!("{:?}", e))?;
     Ok(match resp_to_vec_body(payload).await? {
         Payload::InMemory(payload) => {
+            let payload: HttpResponse = payload.try_into()?;
             let payload =
-                WORKER.process_html(payload.try_into()?, ProcessHtmlOption { is_sxg: false });
+                WORKER.process_html(payload.into(), ProcessHtmlOption { is_sxg: false });
+            let payload = Arc::try_unwrap(payload).unwrap_or_else(|p| (*p).clone());
             let payload: Response<Vec<u8>> = payload.try_into()?;
             payload.map(Body::from)
         }
@@ -404,10 +407,11 @@ async fn handle(client_ip: IpAddr, req: HttpRequest) -> Result<Response<Body>, h
     match handle_impl(client_ip, req.clone()).await {
         Ok(HandleAction::Respond(resp)) => Ok(resp),
         Ok(HandleAction::Sign { url, payload }) => {
-            // TODO: Eliminate this clone or change body to a Cow so cloning is cheap.
+            let payload: Arc<HttpResponse> = payload.into();
             generate_sxg_response(client_ip, &url, payload.clone())
                 .await
                 .or_else(|e| {
+                    let payload = Arc::try_unwrap(payload).unwrap_or_else(|p| (*p).clone());
                     let sxg: Result<Response<Vec<u8>>> = payload.try_into();
                     match sxg {
                         Ok(sxg) => Ok(set_error_header(e, sxg.map(Body::from))),
