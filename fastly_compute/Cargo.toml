@@ -26,14 +26,14 @@ debug = false
 anyhow = "1.0.62"
 async-trait = "0.1.57"
 base64 = "0.13.0"
-fastly = "^0.8.6"
+fastly = "^0.8.7"
 http = "0.2.8"
 log = "0.4.17"
-log-fastly = "0.8.6"
+log-fastly = "0.8.7"
 once_cell = "1.13.1"
 pem = "1.1.0"
-serde = { version = "1.0.143", features = ["derive"] }
-serde_yaml = "0.9.9"
+serde = { version = "1.0.144", features = ["derive"] }
+serde_yaml = "0.9.10"
 sxg_rs = { path = "../sxg_rs", features = ["rust_signer"] }
 tokio = { version = "1.20.1", features = ["rt"] }
 
