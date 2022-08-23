@@ -167,7 +167,8 @@ pub fn process_html(input: Arc<HttpResponse>, option: ProcessHtmlOption) -> Arc<
                 headers: input.headers,
                 status: input.status,
                 body: input_body.into(),
-            }.into();
+            }
+            .into();
         }
     };
     if !known_utf8 {
@@ -175,7 +176,8 @@ pub fn process_html(input: Arc<HttpResponse>, option: ProcessHtmlOption) -> Arc<
             headers: input.headers,
             status: input.status,
             body: input_body.into(),
-        }.into();
+        }
+        .into();
     }
     let mut output_headers = input.headers;
     if !link_headers.is_empty() {
@@ -191,7 +193,8 @@ pub fn process_html(input: Arc<HttpResponse>, option: ProcessHtmlOption) -> Arc<
         body: output_body,
         headers: output_headers,
         status: input.status,
-    }.into()
+    }
+    .into()
 }
 
 #[cfg(test)]

@@ -386,8 +386,7 @@ async fn proxy_unsigned(client_ip: IpAddr, req: HttpRequest) -> Result<Response<
     Ok(match resp_to_vec_body(payload).await? {
         Payload::InMemory(payload) => {
             let payload: HttpResponse = payload.try_into()?;
-            let payload =
-                WORKER.process_html(payload.into(), ProcessHtmlOption { is_sxg: false });
+            let payload = WORKER.process_html(payload.into(), ProcessHtmlOption { is_sxg: false });
             let payload = Arc::try_unwrap(payload).unwrap_or_else(|p| (*p).clone());
             let payload: Response<Vec<u8>> = payload.try_into()?;
             payload.map(Body::from)
