@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "commander": "9.4.0",
-    "dompurify": "2.3.10",
+    "dompurify": "2.3.11",
     "fastify": "3.29.1",
     "jsdom": "19.0.0",
     "node-fetch": "3.2.10",
