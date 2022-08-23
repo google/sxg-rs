@@ -16,7 +16,9 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use clap::Parser;
 use fs2::FileExt;
+use futures::{stream, StreamExt};
 use hyper::{
+    body::{Bytes, HttpBody},
     server::{conn::AddrStream, Server},
     service::{make_service_fn, service_fn},
     Body, Request, Response, StatusCode,
@@ -25,7 +27,7 @@ use hyper_reverse_proxy::ReverseProxy;
 use hyper_trust_dns::{RustlsHttpsConnector, TrustDnsResolver};
 use std::boxed::Box;
 use std::convert::TryInto;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::net::IpAddr;
 use std::net::SocketAddr;
@@ -37,7 +39,7 @@ use sxg_rs::{
     http::{HttpRequest, HttpResponse, Method},
     process_html::ProcessHtmlOption,
     storage::Storage,
-    PresetContent,
+    PresetContent, MAX_PAYLOAD_SIZE,
 };
 use url::Url;
 
@@ -49,7 +51,7 @@ use url::Url;
 struct Args {
     /// The origin (scheme://host[:port]) of the backend to fetch from, such as
     /// 'https://backend'. To configure the signed domain that appears in the
-    /// resultant SXGs, set html_host in http_server/config.yaml.
+    /// resultant SXGs, set html_host in config.yaml.
     #[clap(short, long)]
     backend: String,
 
@@ -57,10 +59,23 @@ struct Args {
     #[clap(short = 'a', long, default_value = "127.0.0.1:8080")]
     bind_addr: String,
 
-    /// Path to the directory (must exist) where ACME and OCSP files will be
-    /// created to manage state.
-    #[clap(short, long)]
-    directory: String,
+    /// Path to the directory where ACME and OCSP files will be / created to
+    /// manage state. Will create the directory (but not its parents) if
+    /// needed.
+    #[clap(short, long, default_value = "/tmp/sxg-rs")]
+    directory: PathBuf,
+
+    /// Path to config.yaml.
+    #[clap(short, long, default_value = "http_server/config.yaml")]
+    config: PathBuf,
+
+    /// Path to the cert PEM for the html_host specified in config.yaml.
+    #[clap(short = 'e', long, default_value = "credentials/cert.pem")]
+    cert: PathBuf,
+
+    /// Path to the cert PEM for the CA that issued the html_host cert.
+    #[clap(short, long, default_value = "credentials/issuer.pem")]
+    issuer: PathBuf,
 }
 
 type HttpsClient = hyper::Client<
@@ -68,6 +83,8 @@ type HttpsClient = hyper::Client<
 >;
 
 lazy_static::lazy_static! {
+    static ref ARGS: Args = Args::parse();
+
     static ref HTTPS_CLIENT: HttpsClient =
         hyper::Client::builder().build::<_, hyper::Body>(TrustDnsResolver::default().into_rustls_webpki_https_connector());
 
@@ -76,11 +93,10 @@ lazy_static::lazy_static! {
             hyper::Client::builder().build::<_, hyper::Body>(TrustDnsResolver::default().into_rustls_webpki_https_connector()));
 
     static ref WORKER: sxg_rs::SxgWorker = {
-        // TODO: Make flags for the locations of these files.
-        let mut worker = sxg_rs::SxgWorker::new(include_str!("../config.yaml")).unwrap();
+        let mut worker = sxg_rs::SxgWorker::new(&fs::read_to_string(&ARGS.config).unwrap()).unwrap();
         worker.add_certificate(CertificateChain::from_pem_files(&[
-              include_str!("../../credentials/cert.pem"),
-              include_str!("../../credentials/issuer.pem"),
+              &fs::read_to_string(&ARGS.cert).unwrap(),
+              &fs::read_to_string(&ARGS.issuer).unwrap(),
         ]).unwrap());
         worker
     };
@@ -92,10 +108,58 @@ async fn req_to_vec_body(request: Request<Body>) -> Result<Request<Vec<u8>>> {
     Ok(Request::from_parts(parts, body))
 }
 
-async fn resp_to_vec_body(response: Response<Body>) -> Result<Response<Vec<u8>>> {
-    let (parts, body) = response.into_parts();
-    let body = hyper::body::to_bytes(body).await?.to_vec();
-    Ok(Response::from_parts(parts, body))
+#[derive(Debug)]
+enum Payload {
+    InMemory(Response<Vec<u8>>),
+    Streamed(Response<Body>),
+}
+
+// If body length is <= MAX_PAYLOAD_SIZE, returns it buffered in memory. Else,
+// returns a Body that streams the full response.
+async fn resp_to_vec_body(response: Response<Body>) -> Result<Payload> {
+    let (parts, mut body) = response.into_parts();
+    if matches!(body.size_hint().upper(), Some(size) if size <= MAX_PAYLOAD_SIZE.try_into().unwrap_or(u64::MAX))
+    {
+        Ok(Payload::InMemory(Response::from_parts(
+            parts,
+            hyper::body::to_bytes(body).await?.to_vec(),
+        )))
+    } else {
+        let mut buf = Vec::with_capacity(
+            body.size_hint()
+                .lower()
+                .try_into()
+                .unwrap_or(MAX_PAYLOAD_SIZE),
+        );
+        let mut extra = vec![];
+        while buf.len() <= MAX_PAYLOAD_SIZE {
+            if let Some(data) = body.data().await {
+                // Not yet MAX_PAYLOAD_SIZE and more data available.
+                let data = data?;
+                let needed = std::cmp::min(data.len(), MAX_PAYLOAD_SIZE - buf.len());
+                buf.extend_from_slice(&data[..needed]);
+                extra.extend_from_slice(&data[needed..]);
+            } else if !extra.is_empty() {
+                // No more data, but the final chunk pushed us over MAX_PAYLOAD_SIZE.
+                break;
+            } else {
+                // No more data and we're within MAX_PAYLOAD_SIZE.
+                return Ok(Payload::InMemory(Response::from_parts(parts, buf)));
+            }
+        }
+        // We're over MAX_PAYLOAD_SIZE. Additional data may be available in
+        // body, depending on how the while loop exited.
+        Ok(Payload::Streamed(Response::from_parts(
+            parts,
+            Body::wrap_stream(
+                stream::once(async move { Ok(Bytes::copy_from_slice(&buf)) })
+                    .chain(stream::once(
+                        async move { Ok(Bytes::copy_from_slice(&extra)) },
+                    ))
+                    .chain(body),
+            ),
+        )))
+    }
 }
 
 struct HttpsFetcher<'a>(&'a HttpsClient);
@@ -107,14 +171,15 @@ impl Fetcher for HttpsFetcher<'_> {
         let request: Request<Body> = request.map(|b| b.into());
 
         let response: Response<Body> = self.0.request(request).await?;
-        // TODO: Do something streaming.
-        resp_to_vec_body(response).await?.try_into()
+        match resp_to_vec_body(response).await? {
+            Payload::InMemory(payload) => payload.try_into(),
+            _ => Err(anyhow!("Response too large")),
+        }
     }
 }
 
 struct SelfFetcher {
     client_ip: IpAddr,
-    backend: String,
 }
 
 // Fetches without `Accept: application/signed-exchange;v=b3`, because the
@@ -122,28 +187,23 @@ struct SelfFetcher {
 #[async_trait]
 impl Fetcher for SelfFetcher {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse> {
-        // TODO: Don't compute header-integrity for resources that are too
-        // large (see https://twifkak.com/link_tag.large.html).
-        // Passing "" as directory because links should not refer to preset content.
-        let response: Response<Body> = handle(self.client_ip, request, &self.backend, "").await?;
-        // TODO: Do something streaming.
-        resp_to_vec_body(response).await?.try_into()
+        let response: Response<Body> = handle(self.client_ip, request).await?;
+        match resp_to_vec_body(response).await? {
+            Payload::InMemory(payload) => payload.try_into(),
+            _ => Err(anyhow!("Response too large")),
+        }
     }
 }
 
 async fn generate_sxg_response(
     client_ip: IpAddr,
-    backend: &str,
     fallback_url: &str,
     payload: HttpResponse,
 ) -> Result<Response<Body>> {
     let payload = WORKER.process_html(payload, ProcessHtmlOption { is_sxg: true });
 
     let cert_origin = Url::parse(fallback_url)?.origin().ascii_serialization();
-    let subresource_fetcher = SelfFetcher {
-        client_ip,
-        backend: backend.into(),
-    };
+    let subresource_fetcher = SelfFetcher { client_ip };
     let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
         fetcher: Box::new(subresource_fetcher),
@@ -173,6 +233,9 @@ async fn generate_sxg_response(
 /// to a directory where it will create files for them.
 pub struct FileStorage(PathBuf);
 
+// TODO: Consider switching to a lightweight database so that we don't have to
+// deal with low-level filesystem quirks. e.g. https://crates.io/crates/sled is
+// lock-free, which could make this more portable.
 #[async_trait]
 impl Storage for FileStorage {
     async fn read(&self, k: &str) -> Result<Option<String>> {
@@ -208,7 +271,7 @@ impl Storage for FileStorage {
     }
 }
 
-async fn serve_preset_content(url: &str, directory: &str) -> Option<PresetContent> {
+async fn serve_preset_content(url: &str) -> Option<PresetContent> {
     let ocsp_fetcher = HttpsFetcher(&HTTPS_CLIENT);
     // Using a Storage impl that persists across restarts (and between
     // replicas, if using a networked filesystem), per
@@ -216,8 +279,7 @@ async fn serve_preset_content(url: &str, directory: &str) -> Option<PresetConten
     let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
         fetcher: Box::new(ocsp_fetcher),
-        // TODO: Parameterize path.
-        storage: Box::new(FileStorage(directory.into())),
+        storage: Box::new(FileStorage(ARGS.directory.clone())),
         sxg_signer: Box::new(WORKER.create_rust_signer().ok()?),
         ..Default::default()
     };
@@ -238,19 +300,13 @@ enum HandleAction {
 // I guess hyper::Client doesn't synthesize :authority from the Host header.
 // We can't work around this because http::header::HeaderMap panics with
 // InvalidHeaderName when given ":authority" as a key.
-async fn handle_impl(
-    client_ip: IpAddr,
-    req: HttpRequest,
-    backend: &str,
-    directory: &str,
-) -> Result<HandleAction> {
-    // TODO: If over 8MB or MICE fails midstream, send the consumed portion and stream the rest.
+async fn handle_impl(client_ip: IpAddr, req: HttpRequest) -> Result<HandleAction> {
     // TODO: Additional work necessary for ACME support?
     let fallback_url: String;
     let sxg_payload;
     let req_url =
         url::Url::parse(&format!("https://{}/", WORKER.config().html_host))?.join(&req.url)?;
-    match serve_preset_content(&format!("{}", req_url), directory).await {
+    match serve_preset_content(&format!("{}", req_url)).await {
         Some(PresetContent::Direct(response)) => {
             let response: Response<Vec<u8>> = response.try_into()?;
             return Ok(HandleAction::Respond(response.map(Body::from)));
@@ -263,10 +319,10 @@ async fn handle_impl(
         }
         None => {
             // TODO: Reduce the amount of conversion needed between request/response/header types.
-            let backend_url = url::Url::parse(backend)?.join(&req.url)?;
+            let backend_url = url::Url::parse(&ARGS.backend)?.join(&req.url)?;
             fallback_url = WORKER.get_fallback_url(&backend_url)?.into();
             let req_headers =
-                WORKER.transform_request_headers(req.headers.clone(), AcceptFilter::PrefersSxg)?;
+                WORKER.transform_request_headers(req.headers, AcceptFilter::PrefersSxg)?;
             let mut request = Request::builder()
                 .method(match req.method {
                     Method::Get => "GET",
@@ -278,34 +334,37 @@ async fn handle_impl(
             }
             let request = request.body(req.body.into())?;
             sxg_payload = PROXY_CLIENT
-                .call(client_ip, backend, request)
+                .call(client_ip, &ARGS.backend, request)
                 .await
                 .map_err(|e| anyhow!("{:?}", e))?;
         }
     }
-    // TODO: Change body to a Cow so cloning is cheap?
-    let sxg_payload: HttpResponse = resp_to_vec_body(sxg_payload).await?.try_into()?;
-    Ok(HandleAction::Sign {
-        url: fallback_url,
-        payload: sxg_payload,
+    let sxg_payload = resp_to_vec_body(sxg_payload).await?;
+    Ok(match sxg_payload {
+        Payload::InMemory(payload) => HandleAction::Sign {
+            url: fallback_url,
+            payload: payload.try_into()?,
+        },
+        Payload::Streamed(payload) => HandleAction::Respond(payload),
     })
 }
 
-async fn proxy_unsigned(
-    client_ip: IpAddr,
-    req: HttpRequest,
-    backend: &str,
-) -> Result<Response<Body>> {
+async fn proxy_unsigned(client_ip: IpAddr, req: HttpRequest) -> Result<Response<Body>> {
     let req: Request<Vec<u8>> = req.try_into()?;
     let req = req.map(Body::from);
     let payload = PROXY_CLIENT
-        .call(client_ip, backend, req)
+        .call(client_ip, &ARGS.backend, req)
         .await
         .map_err(|e| anyhow!("{:?}", e))?;
-    let payload: HttpResponse = resp_to_vec_body(payload).await?.try_into()?;
-    let payload = WORKER.process_html(payload, ProcessHtmlOption { is_sxg: false });
-    let payload: Response<Vec<u8>> = payload.try_into()?;
-    Ok(payload.map(Body::from))
+    Ok(match resp_to_vec_body(payload).await? {
+        Payload::InMemory(payload) => {
+            let payload =
+                WORKER.process_html(payload.try_into()?, ProcessHtmlOption { is_sxg: false });
+            let payload: Response<Vec<u8>> = payload.try_into()?;
+            payload.map(Body::from)
+        }
+        Payload::Streamed(payload) => payload,
+    })
 }
 
 fn set_error_header(err: impl core::fmt::Display, mut resp: Response<Body>) -> Response<Body> {
@@ -315,16 +374,12 @@ fn set_error_header(err: impl core::fmt::Display, mut resp: Response<Body>) -> R
     resp
 }
 
-async fn handle(
-    client_ip: IpAddr,
-    req: HttpRequest,
-    backend: &str,
-    directory: &str,
-) -> Result<Response<Body>, http::Error> {
-    match handle_impl(client_ip, req.clone(), backend, directory).await {
+async fn handle(client_ip: IpAddr, req: HttpRequest) -> Result<Response<Body>, http::Error> {
+    match handle_impl(client_ip, req.clone()).await {
         Ok(HandleAction::Respond(resp)) => Ok(resp),
         Ok(HandleAction::Sign { url, payload }) => {
-            generate_sxg_response(client_ip, backend, &url, payload.clone())
+            // TODO: Eliminate this clone or change body to a Cow so cloning is cheap.
+            generate_sxg_response(client_ip, &url, payload.clone())
                 .await
                 .or_else(|e| {
                     let sxg: Result<Response<Vec<u8>>> = payload.try_into();
@@ -336,7 +391,7 @@ async fn handle(
                     }
                 })
         }
-        Err(e) => proxy_unsigned(client_ip, req, backend)
+        Err(e) => proxy_unsigned(client_ip, req)
             .await
             .map(|r| set_error_header(e, r))
             .or_else(|e| {
@@ -350,8 +405,6 @@ async fn handle(
 async fn handle_or_error(
     client_ip: IpAddr,
     req: Request<Body>,
-    backend: String,
-    directory: String,
 ) -> Result<Response<Body>, http::Error> {
     let req: Result<Request<Vec<u8>>> = req_to_vec_body(req).await;
     let req: Result<HttpRequest> = req.and_then(|r| r.try_into());
@@ -363,23 +416,17 @@ async fn handle_or_error(
                 .body(Body::from(format!("{:?}", e)));
         }
     };
-    handle(client_ip, req.clone(), &backend, &directory).await
+    handle(client_ip, req).await
 }
 
 #[tokio::main]
 async fn main() {
-    let args = Args::parse();
-    let addr: SocketAddr = args.bind_addr.parse().expect("Could not parse ip:port.");
+    let _ = fs::create_dir(&ARGS.directory);
+    let addr: SocketAddr = ARGS.bind_addr.parse().expect("Could not parse ip:port.");
 
     let make_svc = make_service_fn(|conn: &AddrStream| {
         let remote_addr = conn.remote_addr().ip();
-        let backend = args.backend.clone();
-        let directory = args.directory.clone();
-        async move {
-            Ok::<_, http::Error>(service_fn(move |req| {
-                handle_or_error(remote_addr, req, backend.to_owned(), directory.to_owned())
-            }))
-        }
+        async move { Ok::<_, http::Error>(service_fn(move |req| handle_or_error(remote_addr, req))) }
     });
 
     let server = Server::bind(&addr).serve(make_svc);
@@ -388,5 +435,84 @@ async fn main() {
 
     if let Err(e) = server.await {
         eprintln!("server error: {}", e);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use assert_matches::assert_matches;
+    use hyper::{body::Bytes, Body, Response};
+
+    #[tokio::test]
+    async fn resp_to_vec_body_one_chunk() {
+        let (sender, body) = Body::channel();
+        let handler = tokio::spawn(async {
+            let mut sender = sender;
+            let _ = sender.send_data(Bytes::from_static(b"hello")).await;
+        });
+
+        let resp = Response::new(body);
+        assert_matches!(
+            resp_to_vec_body(resp).await,
+            Ok(Payload::InMemory(r)) if r.body() == b"hello");
+        handler.await.unwrap();
+    }
+    #[tokio::test]
+    async fn resp_to_vec_body_two_chunks() {
+        let (sender, body) = Body::channel();
+        let handler = tokio::spawn(async {
+            let mut sender = sender;
+            let _ = sender.send_data(Bytes::from_static(b"hello")).await;
+            let _ = sender.send_data(Bytes::from_static(b"bye")).await;
+        });
+
+        let resp = Response::new(body);
+        assert_matches!(
+            resp_to_vec_body(resp).await,
+            Ok(Payload::InMemory(r)) if r.body() == b"hellobye");
+        handler.await.unwrap();
+    }
+    #[tokio::test]
+    async fn resp_to_vec_body_exactly_max() {
+        let (sender, body) = Body::channel();
+        let handler = tokio::spawn(async {
+            let mut sender = sender;
+            let _ = sender.send_data(Bytes::from_static(b"hello")).await;
+            let _ = sender
+                .send_data(Bytes::copy_from_slice(
+                    vec![0; MAX_PAYLOAD_SIZE - 5].as_slice(),
+                ))
+                .await;
+        });
+
+        let resp = Response::new(body);
+        assert_matches!(
+            resp_to_vec_body(resp).await,
+            Ok(Payload::InMemory(r)) if r.body().len() == MAX_PAYLOAD_SIZE);
+        handler.await.unwrap();
+    }
+    #[tokio::test]
+    async fn resp_to_vec_body_over_max() {
+        let (sender, body) = Body::channel();
+        let handler = tokio::spawn(async {
+            let mut sender = sender;
+            let _ = sender.send_data(Bytes::from_static(b"hello")).await;
+            let _ = sender
+                .send_data(Bytes::copy_from_slice(vec![0; MAX_PAYLOAD_SIZE].as_slice()))
+                .await;
+        });
+
+        let resp = Response::new(body);
+        match resp_to_vec_body(resp).await {
+            Ok(Payload::Streamed(mut r)) => {
+                assert_eq!(
+                    hyper::body::to_bytes(r.body_mut()).await.unwrap().len(),
+                    MAX_PAYLOAD_SIZE + 5
+                );
+            }
+            _ => panic!("resp does not match Payload::Streamed"),
+        }
+        handler.await.unwrap();
     }
 }

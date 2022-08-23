@@ -72,7 +72,7 @@ pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> HttpRespo
             ContentType::Other => return input,
         };
     } else {
-        // Doesn't process HTML because content-type header does not exsist.
+        // Doesn't process HTML because content-type header does not exist.
         return input;
     }
     let input_body = match String::from_utf8(input.body) {

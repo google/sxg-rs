@@ -25,14 +25,18 @@ anyhow = "1.0.62"
 async-trait = "0.1.57"
 clap = { version = "3.2.17", features = ["derive"] }
 fs2 = "0.4.3"
+futures = "0.3.23"
 http = "0.2.8"
 hyper-reverse-proxy = { git = "https://github.com/felipenoris/hyper-reverse-proxy", rev = "96a398de8522fac07a5e15bd0699f6cd7fa84bce" }
 hyper-rustls = "0.23.0"
 hyper-tls = "0.5.0"
 hyper-trust-dns = { version = "0.4.2", default-features = false, features = ["rustls-webpki", "rustls-http1", "rustls-tls-12"] }
-hyper = { version = "0.14.20", features = ["http1", "http2", "server", "tcp"] }
+hyper = { version = "0.14.20", features = ["http1", "http2", "server", "stream", "tcp"] }
 lazy_static = "1.4.0"
 # TODO: Determine if I can remove strip_id_headers because it's default.
 sxg_rs = { path = "../sxg_rs", features = ["strip_id_headers", "rust_signer"] }
 tokio = { version = "1.20.1", features = ["rt-multi-thread", "macros"] }
 url = "2.2.2"
+
+[dev-dependencies]
+assert_matches = "1.5.0"
