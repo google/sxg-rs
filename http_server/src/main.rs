@@ -187,8 +187,6 @@ struct SelfFetcher {
 #[async_trait]
 impl Fetcher for SelfFetcher {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse> {
-        // TODO: Don't compute header-integrity for resources that are too
-        // large (see https://twifkak.com/link_tag.large.html).
         let response: Response<Body> = handle(self.client_ip, request).await?;
         match resp_to_vec_body(response).await? {
             Payload::InMemory(payload) => payload.try_into(),
@@ -303,7 +301,6 @@ enum HandleAction {
 // We can't work around this because http::header::HeaderMap panics with
 // InvalidHeaderName when given ":authority" as a key.
 async fn handle_impl(client_ip: IpAddr, req: HttpRequest) -> Result<HandleAction> {
-    // TODO: If over 8MB or MICE fails midstream, send the consumed portion and stream the rest.
     // TODO: Additional work necessary for ACME support?
     let fallback_url: String;
     let sxg_payload;
