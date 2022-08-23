@@ -154,7 +154,7 @@ pub fn process_html(input: Arc<HttpResponse>, option: ProcessHtmlOption) -> Arc<
         }),
     ];
     let output = match lol_html::rewrite_str(
-        &input_body,
+        input_body,
         lol_html::Settings {
             element_content_handlers,
             ..lol_html::Settings::default()
