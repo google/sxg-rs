@@ -223,9 +223,11 @@ mod tests {
                 status: 200,
                 headers: vec![("content-type".to_string(), content_type.to_string())],
                 body: input_body.to_string().into_bytes(),
-            },
+            }
+            .into(),
             ProcessHtmlOption { is_sxg },
         );
+        let output = Arc::try_unwrap(output).unwrap_or_else(|o| (*o).clone());
         String::from_utf8(output.body).unwrap()
     }
     #[test]
@@ -282,21 +284,24 @@ mod tests {
             <script data-issxg-var>window.isSXG=true</script>",
         );
         // HTTP content-length header is updated
+        let output = process_html(
+            HttpResponse {
+                status: 200,
+                headers: vec![
+                    (
+                        "content-type".to_string(),
+                        "text/html;charset=utf-8".to_string(),
+                    ),
+                    ("content-length".to_string(), "32".to_string()),
+                ],
+                body: "<script data-issxg-var></script>".to_string().into_bytes(),
+            }
+            .into(),
+            ProcessHtmlOption { is_sxg: true },
+        );
+        let output = Arc::try_unwrap(output).unwrap_or_else(|o| (*o).clone());
         assert_eq!(
-            process_html(
-                HttpResponse {
-                    status: 200,
-                    headers: vec![
-                        (
-                            "content-type".to_string(),
-                            "text/html;charset=utf-8".to_string()
-                        ),
-                        ("content-length".to_string(), "32".to_string()),
-                    ],
-                    body: "<script data-issxg-var></script>".to_string().into_bytes(),
-                },
-                ProcessHtmlOption { is_sxg: true },
-            ),
+            output,
             HttpResponse {
                 status: 200,
                 headers: vec![
