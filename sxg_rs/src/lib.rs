@@ -46,6 +46,7 @@ use http_cache::HttpCache;
 use runtime::Runtime;
 use serde::Serialize;
 use std::collections::VecDeque;
+use std::sync::Arc;
 use std::time::Duration;
 use url::Url;
 
@@ -118,9 +119,9 @@ impl SxgWorker {
     }
     pub fn process_html(
         &self,
-        input: HttpResponse,
+        input: Arc<HttpResponse>,
         option: process_html::ProcessHtmlOption,
-    ) -> HttpResponse {
+    ) -> Arc<HttpResponse> {
         process_html::process_html(input, option)
     }
     pub async fn create_signed_exchange<C: HttpCache>(

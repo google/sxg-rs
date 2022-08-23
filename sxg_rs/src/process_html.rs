@@ -21,6 +21,7 @@ use crate::http_parser::link::Link;
 use crate::link::ALLOWED_PARAM_NAMES;
 use serde::Deserialize;
 use std::borrow::Cow;
+use std::sync::Arc;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,7 +57,11 @@ fn parse_content_type(content_type_header_value: &str) -> ContentType {
 ///   `<script>window.isSXG=...</script>`, where `...` is true or false.
 /// - The `content-length` header is updated to the new value.
 /// If input charset is not UTF8, the input will be returned back without any modification.
-pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> HttpResponse {
+pub fn process_html(input: Arc<HttpResponse>, option: ProcessHtmlOption) -> Arc<HttpResponse> {
+    // TODO: Change types from Arc<HttpResponse> to HttpResponse, and change
+    // the is_sxg=true mode to leave sufficient information so that the
+    // is_sxg=false mode can run on top of the processed payload instead of the
+    // original.
     let content_type_header = input.headers.iter().find_map(|(name, value)| {
         if name.eq_ignore_ascii_case("content-type") {
             Some(value)
@@ -75,16 +80,13 @@ pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> HttpRespo
         // Doesn't process HTML because content-type header does not exist.
         return input;
     }
-    let input_body = match String::from_utf8(input.body) {
+    let input = Arc::try_unwrap(input).unwrap_or_else(|i| (*i).clone());
+    let input_body = match std::str::from_utf8(&input.body) {
         Ok(input_body) => input_body,
-        Err(e) => {
+        Err(_) => {
             // Doesn't process HTML because input body bytes can't be parsed at UTF-8 string, for
             // example, a UTF-16 BOM exsists.
-            return HttpResponse {
-                body: e.into_bytes(),
-                headers: input.headers,
-                status: input.status,
-            };
+            return Arc::new(input);
         }
     };
     let mut link_headers: Vec<String> = vec![];
@@ -152,7 +154,7 @@ pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> HttpRespo
         }),
     ];
     let output = match lol_html::rewrite_str(
-        &input_body,
+        input_body,
         lol_html::Settings {
             element_content_handlers,
             ..lol_html::Settings::default()
@@ -161,19 +163,19 @@ pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> HttpRespo
         Ok(output) => output,
         // Return the default input on error
         Err(_) => {
-            return HttpResponse {
+            return Arc::new(HttpResponse {
                 headers: input.headers,
                 status: input.status,
-                body: input_body.into_bytes(),
-            };
+                body: input_body.into(),
+            });
         }
     };
     if !known_utf8 {
-        return HttpResponse {
+        return Arc::new(HttpResponse {
             headers: input.headers,
             status: input.status,
-            body: input_body.into_bytes(),
-        };
+            body: input_body.into(),
+        });
     }
     let mut output_headers = input.headers;
     if !link_headers.is_empty() {
@@ -185,11 +187,11 @@ pub fn process_html(input: HttpResponse, option: ProcessHtmlOption) -> HttpRespo
             *value = format!("{}", output_body.len());
         }
     }
-    HttpResponse {
+    Arc::new(HttpResponse {
         body: output_body,
         headers: output_headers,
         status: input.status,
-    }
+    })
 }
 
 #[cfg(test)]
@@ -214,13 +216,14 @@ mod tests {
     }
     fn quick_process(content_type: &str, input_body: &str, is_sxg: bool) -> String {
         let output = process_html(
-            HttpResponse {
+            Arc::new(HttpResponse {
                 status: 200,
                 headers: vec![("content-type".to_string(), content_type.to_string())],
                 body: input_body.to_string().into_bytes(),
-            },
+            }),
             ProcessHtmlOption { is_sxg },
         );
+        let output = Arc::try_unwrap(output).unwrap_or_else(|o| (*o).clone());
         String::from_utf8(output.body).unwrap()
     }
     #[test]
@@ -277,21 +280,23 @@ mod tests {
             <script data-issxg-var>window.isSXG=true</script>",
         );
         // HTTP content-length header is updated
+        let output = process_html(
+            Arc::new(HttpResponse {
+                status: 200,
+                headers: vec![
+                    (
+                        "content-type".to_string(),
+                        "text/html;charset=utf-8".to_string(),
+                    ),
+                    ("content-length".to_string(), "32".to_string()),
+                ],
+                body: "<script data-issxg-var></script>".to_string().into_bytes(),
+            }),
+            ProcessHtmlOption { is_sxg: true },
+        );
+        let output = Arc::try_unwrap(output).unwrap_or_else(|o| (*o).clone());
         assert_eq!(
-            process_html(
-                HttpResponse {
-                    status: 200,
-                    headers: vec![
-                        (
-                            "content-type".to_string(),
-                            "text/html;charset=utf-8".to_string()
-                        ),
-                        ("content-length".to_string(), "32".to_string()),
-                    ],
-                    body: "<script data-issxg-var></script>".to_string().into_bytes(),
-                },
-                ProcessHtmlOption { is_sxg: true },
-            ),
+            output,
             HttpResponse {
                 status: 200,
                 headers: vec![
