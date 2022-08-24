@@ -197,7 +197,7 @@ struct SelfFetcher {
 #[async_trait]
 impl Fetcher for SelfFetcher {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse> {
-        let response: Response<Body> = handle(self.client_ip, request).await?;
+        let (response, _) = handle(self.client_ip, request).await;
         match resp_to_vec_body(response).await? {
             Payload::InMemory(payload) => payload.try_into(),
             _ => Err(anyhow!("Response too large")),
@@ -403,32 +403,36 @@ fn set_error_header(err: impl core::fmt::Display, mut resp: Response<Body>) -> R
     resp
 }
 
-async fn handle(client_ip: IpAddr, req: HttpRequest) -> Result<Response<Body>, http::Error> {
+fn error_body(err: impl core::fmt::Display) -> Response<Body> {
+    let mut resp = Response::new(Body::from(format!("{err}")));
+    *resp.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+    resp
+}
+
+// Returns the maybe-signed response, plus an optional string containing an
+// error message for why it wasn't signed.
+async fn handle(client_ip: IpAddr, req: HttpRequest) -> (Response<Body>, Option<String>) {
     match handle_impl(client_ip, req.clone()).await {
-        Ok(HandleAction::Respond(resp)) => Ok(resp),
+        Ok(HandleAction::Respond(resp)) => (resp, None),
         Ok(HandleAction::Sign { url, payload }) => {
             let payload = Arc::new(payload);
-            generate_sxg_response(client_ip, &url, payload.clone())
-                .await
-                .or_else(|e| {
+            match generate_sxg_response(client_ip, &url, payload.clone()).await {
+                Ok(resp) => (resp, None),
+                Err(e) => {
                     let payload = Arc::try_unwrap(payload).unwrap_or_else(|p| (*p).clone());
-                    let sxg: Result<Response<Vec<u8>>> = payload.try_into();
-                    match sxg {
-                        Ok(sxg) => Ok(set_error_header(e, sxg.map(Body::from))),
-                        Err(e) => Response::builder()
-                            .status(StatusCode::INTERNAL_SERVER_ERROR)
-                            .body(Body::from(format!("{:?}", e))),
+                    // TODO: Run process_html(is_sxg=false).
+                    let payload: Result<Response<Vec<u8>>> = payload.try_into();
+                    match payload {
+                        Ok(payload) => (payload.map(Body::from), Some(format!("{e}"))),
+                        Err(e) => (error_body(e), None),
                     }
-                })
+                }
+            }
         }
-        Err(e) => proxy_unsigned(client_ip, req)
-            .await
-            .map(|r| set_error_header(e, r))
-            .or_else(|e| {
-                Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(Body::from(format!("{:?}", e)))
-            }),
+        Err(e) => match proxy_unsigned(client_ip, req).await {
+            Ok(resp) => (resp, Some(format!("{e}"))),
+            Err(e) => (error_body(e), None),
+        },
     }
 }
 
@@ -446,7 +450,11 @@ async fn handle_or_error(
                 .body(Body::from(format!("{:?}", e)));
         }
     };
-    handle(client_ip, req).await
+    let (resp, e) = handle(client_ip, req).await;
+    Ok(match e {
+        Some(e) => set_error_header(e, resp),
+        None => resp,
+    })
 }
 
 #[tokio::main]
