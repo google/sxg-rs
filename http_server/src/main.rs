@@ -419,8 +419,8 @@ async fn handle(client_ip: IpAddr, req: HttpRequest) -> (Response<Body>, Option<
             match generate_sxg_response(client_ip, &url, payload.clone()).await {
                 Ok(resp) => (resp, None),
                 Err(e) => {
+                    let payload = WORKER.process_html(payload, ProcessHtmlOption { is_sxg: false });
                     let payload = Arc::try_unwrap(payload).unwrap_or_else(|p| (*p).clone());
-                    // TODO: Run process_html(is_sxg=false).
                     let payload: Result<Response<Vec<u8>>> = payload.try_into();
                     match payload {
                         Ok(payload) => (payload.map(Body::from), Some(format!("{e}"))),
