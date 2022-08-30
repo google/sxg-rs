@@ -45,13 +45,10 @@ which provide ACME service.
 
 1. Using Google as the Certificate Authority
    1. Read and agree to the [terms of service](https://pki.goog/GTS-SA.pdf).
-   1. Sign up for the preview
-      [here](https://cloud.google.com/blog/products/identity-security/automate-public-certificate-lifecycle-management-via--acme-client-api#:~:text=How%20can%20I%20get%20access).
-      It may take a few days for the signup to be processed.
-   1. Once you have access, follow the
-      [instructions](https://cloud.google.com/public-certificate-authority/docs/quickstart),
+   1. Follow the
+      [instructions](https://cloud.google.com/certificate-manager/docs/public-ca-tutorial),
       and get your
-      [key ID and HMAC](https://cloud.google.com/public-certificate-authority/docs/quickstart#request-key-hmac).
+      [key ID and HMAC](https://cloud.google.com/certificate-manager/docs/public-ca-tutorial#request-key-hmac).
 
       Some steps in Google Cloud's instruction need to be skipped.
       * Skip the *Install a client* step,
@@ -59,8 +56,9 @@ which provide ACME service.
       * Skip all steps after the step *Request an EAB key ID and HMAC*,
         because `sxg-rs` will do them.
 
-   1. For the [certificates section](../input.example.yaml#L28-L43) in `input.yaml`,
-      comment `pre_issued` section and uncomment `create_acme_account` section.
+   1. Copy `input.example.yaml` to `input.yaml`. For the [certificates
+      section](../input.example.yaml#L28-L43), comment `pre_issued` section and
+      uncomment `create_acme_account` section.
       ```diff
        # the last few lines in input.yaml
        certificates:

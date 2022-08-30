@@ -21,9 +21,10 @@ use anyhow::{Error, Result};
 use clap::{ArgEnum, Parser};
 use cloudflare::CloudlareSpecificInput;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use sxg_rs::acme::{directory::Directory as AcmeDirectory, Account as AcmeAccount};
 use sxg_rs::crypto::EcPrivateKey;
+use tools::Artifact;
 
 #[derive(ArgEnum, Clone, Debug, Eq, PartialEq)]
 enum Platform {
@@ -35,11 +36,11 @@ pub struct Opts {
     /// A YAML file containing all config values.
     /// You can use the template
     /// 'tools/src/commands/gen_config/input.example.yaml'.
-    #[clap(long, value_name = "FILE_NAME")]
-    input: String,
+    #[clap(long, value_name = "FILE_NAME", default_value = "input.yaml")]
+    input: PathBuf,
     /// A YAML file containing the generated values.
-    #[clap(long, value_name = "FILE_NAME")]
-    artifact: String,
+    #[clap(long, value_name = "FILE_NAME", default_value = "artifact.yaml")]
+    artifact: PathBuf,
     /// If set `true`, no longer log in to worker service providers.
     #[clap(long)]
     use_ci_mode: bool,
@@ -77,29 +78,6 @@ pub struct AcmeConfig {
 pub struct EabConfig {
     base64_mac_key: String,
     key_id: String,
-}
-
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub struct Artifact {
-    pub acme_account: Option<AcmeAccount>,
-    pub acme_private_key: Option<EcPrivateKey>,
-    pub acme_private_key_instructions: BTreeMap<String, String>,
-    pub cloudflare_kv_namespace_id: Option<String>,
-}
-
-// Set working directory to the root folder of the "sxg-rs" repository.
-fn goto_repository_root() -> Result<(), std::io::Error> {
-    let exe_path = std::env::current_exe()?;
-    assert!(exe_path.ends_with("target/debug/tools"));
-    let repo_root = exe_path
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap();
-    std::env::set_current_dir(repo_root)?;
-    Ok(())
 }
 
 fn read_certificate_pem_file(path: &str) -> Result<String> {
@@ -175,7 +153,7 @@ async fn create_acme_key_and_account(
     Ok((acme_private_key, account))
 }
 
-pub fn read_artifact(file_name: &str) -> Result<Artifact> {
+pub fn read_artifact(file_name: impl AsRef<Path>) -> Result<Artifact> {
     let file_content = std::fs::read_to_string(file_name)?;
     let artifact = serde_yaml::from_str(&file_content)?;
     Ok(artifact)
@@ -185,7 +163,6 @@ pub fn main(opts: Opts) -> Result<()> {
     if std::env::var("CI").is_ok() && !opts.use_ci_mode {
         println!("The environment variable $CI is set, but --use-ci-mode is not set.");
     }
-    goto_repository_root()?;
     let input: Config = serde_yaml::from_str(&std::fs::read_to_string(&opts.input)?)?;
     let mut artifact: Artifact = read_artifact(&opts.artifact).unwrap_or_else(|_| {
         println!("Creating a new artifact");

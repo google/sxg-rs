@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::{read_certificate_pem_file, Artifact, SxgCertConfig};
+use super::{read_certificate_pem_file, SxgCertConfig};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sxg_rs::config::Config as SxgConfig;
+use tools::Artifact;
 use wrangler::settings::global_user::GlobalUser;
 use wrangler::settings::toml::ConfigKvNamespace;
 

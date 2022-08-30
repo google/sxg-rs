@@ -34,9 +34,12 @@ hyper-trust-dns = { version = "0.4.2", default-features = false, features = ["ru
 hyper = { version = "0.14.20", features = ["http1", "http2", "server", "stream", "tcp"] }
 lazy_static = "1.4.0"
 lru = "0.7.8"
+rand = "0.8.5"
+serde_yaml = "0.9.10"
 # TODO: Determine if I can remove strip_id_headers because it's default.
 sxg_rs = { path = "../sxg_rs", features = ["strip_id_headers", "rust_signer"] }
-tokio = { version = "1.20.1", features = ["rt-multi-thread", "macros", "sync"] }
+tokio = { version = "1.20.1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tools = { path = "../tools" }
 url = "2.2.2"
 
 [dev-dependencies]
