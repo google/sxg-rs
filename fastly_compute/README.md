@@ -55,20 +55,31 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    ```
    All following steps in this `README.md` should be done in this folder.
 
-1. Create a `config.yaml` from the template `config.example.yaml`.
+1. Create your config input file from the template
+   [input.example.yaml](../input.example.yaml).
+   ```bash
+   cp input.example.yaml input.yaml
+   ```
 
    1. For private key
       1. Parse your private key to base64 format.
          ```bash
          go run ../credentials/parse_private_key.go <../credentials/privkey.pem
          ```
-      1. Put the base64 string to `config.yaml` as `private_key_base64`.
+      1. Put the base64 string to `input.yaml` as
+         [sxg_private_key_base64](../input.example.yaml#L55).
 
-1. Create a `fastly.toml` from the template `fastly.example.toml`.
+1. Run following command.
+   ```bash
+   cargo run -p tools -- gen-config --input input.yaml --artifact artifact.yaml --platform fastly
+   ```
+   This command will create a new Fastly compute service and create a `fastly_compute/fastly.toml` that
+   is used by the `fastly` command.
 
-1. Create a WASM service in [Fastly](https://manage.fastly.com/).
+   - It is not recommended to directly modify the generated `fastly.toml`, because your changes will be
+     overwriten when you run `cargo run -p tools -- gen-config` again.
 
-   1. Copy service ID to `fastly.toml`.
+1. Modify the WASM service in [Fastly](https://manage.fastly.com/).
 
    <!--TODO: Use CLI to add domains and backends-->
    1. Add a domain to the service.
@@ -82,8 +93,6 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    1. Add `ocsp.digicert.com` as a backend to the service.
       Edit the backend and change its name from `Host 1` to `OCSP server`,
       and change the port from `TLS 443` to `Non-TLS 80`.
-
-1. Run `cargo test` to check errors in `config.yml`.
 
 1. Run `fastly compute publish`.
 

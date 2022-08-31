@@ -13,6 +13,7 @@
 // limitations under the License.
 
 mod cloudflare;
+mod fastly;
 mod http_server;
 
 use crate::linux_commands::generate_private_key_pem;
@@ -21,6 +22,7 @@ use crate::tokio_block_on;
 use anyhow::{Error, Result};
 use clap::{ArgEnum, Parser};
 use cloudflare::CloudlareSpecificInput;
+use fastly::FastlySpecificInput;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use sxg_rs::acme::{directory::Directory as AcmeDirectory, Account as AcmeAccount};
@@ -30,6 +32,7 @@ use tools::Artifact;
 #[derive(ArgEnum, Clone, Debug, Eq, PartialEq)]
 enum Platform {
     Cloudflare,
+    Fastly,
     HttpServer,
 }
 
@@ -55,6 +58,7 @@ pub struct Config {
     sxg_worker: sxg_rs::config::Config,
     certificates: SxgCertConfig,
     cloudflare: Option<CloudlareSpecificInput>,
+    fastly: Option<FastlySpecificInput>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -195,6 +199,17 @@ pub fn main(opts: Opts) -> Result<()> {
         }
         Some(Platform::HttpServer) => {
             http_server::main(input.sxg_worker)?;
+        }
+        Some(Platform::Fastly) => {
+            fastly::main(
+                opts.use_ci_mode,
+                &input.sxg_worker,
+                &input.certificates,
+                &input
+                    .fastly
+                    .expect(r#"Input file does not contain "fastly" section."#),
+                &mut artifact,
+            )?;
         }
         None => (),
     };
