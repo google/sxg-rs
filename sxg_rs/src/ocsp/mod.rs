@@ -159,31 +159,39 @@ pub enum OcspUpdateStrategy {
 /// If OCSP in storage needs update, fetches it from the server and writes it
 /// into storage. The outging traffic to the server is throttled to be a
 /// single task.
+/// If there is any error when reading from and writing to storage, the error
+/// will be ignored but an error message will be printed to output/log.
 pub async fn read_and_update_ocsp_in_storage(
     certificate_chain: &CertificateChain,
     runtime: &Runtime,
     strategy: OcspUpdateStrategy,
 ) -> Result<Vec<u8>> {
     // Checks whether we can directly return the existing OCSP in storage.
-    if let Some(old_ocsp) = runtime.storage.read(OCSP_KEY).await? {
-        if let Ok(old_ocsp) = serde_json::from_str::<OcspData>(&old_ocsp) {
-            match strategy {
-                OcspUpdateStrategy::EarlyAsRecommended => {
-                    if old_ocsp.recommended_update_time > runtime.now {
-                        return Ok(old_ocsp.value);
+    match runtime.storage.read(OCSP_KEY).await {
+        Ok(Some(old_ocsp)) => {
+            if let Ok(old_ocsp) = serde_json::from_str::<OcspData>(&old_ocsp) {
+                match strategy {
+                    OcspUpdateStrategy::EarlyAsRecommended => {
+                        if old_ocsp.recommended_update_time > runtime.now {
+                            return Ok(old_ocsp.value);
+                        }
+                    }
+                    OcspUpdateStrategy::LazyIfUnexpired => {
+                        if old_ocsp.expiration_time > runtime.now {
+                            return Ok(old_ocsp.value);
+                        }
                     }
                 }
-                OcspUpdateStrategy::LazyIfUnexpired => {
-                    if old_ocsp.expiration_time > runtime.now {
-                        return Ok(old_ocsp.value);
-                    }
-                }
+            } else {
+                // The existing OCSP in storage can't be parsed as `OcspData`.
             }
-        } else {
-            // The existing OCSP in storage can't be parsed as `OcspData`.
         }
-    } else {
-        // There is no OCSP in storage.
+        Ok(None) => {
+            // There is no OCSP in storage.
+        }
+        Err(e) => {
+            println!("Failed to read OCSP from storage. {}", e);
+        }
     }
     if certificate_chain.issuers.is_empty() {
         return Err(Error::msg("Certiciate chain contains no issuer."));
@@ -204,9 +212,12 @@ pub async fn read_and_update_ocsp_in_storage(
         recommended_update_time: runtime.now + ONE_DAY,
         value: new_ocsp_value,
     };
-    runtime
+    let write_result = runtime
         .storage
         .write(OCSP_KEY, &serde_json::to_string(&new_ocsp)?)
-        .await?;
+        .await;
+    if let Err(e) = write_result {
+        println!("Failed to write OCSP to storage. {}", e);
+    }
     Ok(new_ocsp.value)
 }
