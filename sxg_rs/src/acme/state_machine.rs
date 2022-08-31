@@ -22,7 +22,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, SystemTime};
 
-const ACME_STORAGE_KEY: &str = "ACME";
+pub const ACME_STORAGE_KEY: &str = "ACME";
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AcmeStorageData {
@@ -237,6 +237,38 @@ pub async fn get_challenge_token_and_answer(runtime: &Runtime) -> Result<Option<
         )))
     } else {
         Ok(None)
+    }
+}
+
+pub fn create_from_challenge(
+    challenge_token: impl ToString,
+    challenge_answer: impl ToString,
+) -> AcmeStorageData {
+    AcmeStorageData {
+        certificates: vec![],
+        task: Some(Task {
+            order: OngoingOrder {
+                challenge_token: challenge_token.to_string(),
+                challenge_answer: challenge_answer.to_string(),
+                authorization_url: String::new(),
+                certificate_url: None,
+                challenge_url: String::new(),
+                finalize_url: String::new(),
+                order_url: String::new(),
+            },
+            schedule: Schedule {
+                updated_at: SystemTime::UNIX_EPOCH,
+                wait_time: Duration::ZERO,
+                next_step: TaskStep::RequestChallengeValidation,
+            },
+        }),
+    }
+}
+
+pub fn create_from_certificate(certificate_pem: impl ToString) -> AcmeStorageData {
+    AcmeStorageData {
+        certificates: vec![certificate_pem.to_string()],
+        task: None,
     }
 }
 

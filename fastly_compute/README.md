@@ -40,9 +40,6 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 
 ## Install
 
-1. Get an SXG-compatible certificate
-   using [these steps](../credentials/README.md#get-an-sxg_compatible-certificate).
-
 1. Install [Rust](https://www.rust-lang.org/tools/install) using
    [rustup](https://rustup.rs/)
 
@@ -55,13 +52,19 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    ```
    All following steps in this `README.md` should be done in this folder.
 
+1. Get an SXG-compatible certificate
+   using [these steps](../credentials/README.md#get-an-sxg_compatible-certificate).
+
 1. Create your config input file from the template
    [input.example.yaml](../input.example.yaml).
    ```bash
    cp input.example.yaml input.yaml
    ```
 
-   1. For private key
+   - Replace every instance of `YOUR_DOMAIN` with your domain name,
+     for example, in [`html_host`](../input.example.yaml#L18).
+
+   - For private key
       1. Parse your private key to base64 format.
          ```bash
          go run ../credentials/parse_private_key.go <../credentials/privkey.pem
@@ -79,7 +82,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    - It is not recommended to directly modify the generated `fastly.toml`, because your changes will be
      overwriten when you run `cargo run -p tools -- gen-config` again.
 
-1. Modify the WASM service in [Fastly](https://manage.fastly.com/).
+   1. Modify the WASM service in [Fastly](https://manage.fastly.com/).
 
    <!--TODO: Use CLI to add domains and backends-->
    1. Add a domain to the service.
@@ -96,6 +99,18 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 
 1. Run `fastly compute publish`.
 
+   - During this step, `fastly` command will generate a random domain name (for example `random-funky-words.edgecompute.app`),
+     which is the domain your Fastly worker is deployed on.
+     We refer this domain as `WORKER_HOST`.
+
+1. If you are using certificates through ACME
+
+   1. Set the config of your original HTTP server (of `YOUR_DOMAIN`),
+      and make sure `http://YOUR_DOMAIN/.well-known/acme-challenge/*` is redirected to
+      `https://WORKER_HOST/.well-known/acme-challenge/$1`.
+
+   1. Run `cargo run -p tools -- apply-acme-cert --artifact .data.local/fastly-dev/artifact.yaml --use-fastly-dictionary`.
+
 1. To check whether the worker generates a valid SXG,
    use Chrome browser to open `https://${WORKER_HOST}/.sxg/test.html`.
 
@@ -105,6 +120,10 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 
 The certificates need to be renewed every 90 days.
 
-1. Follow [these steps](../credentials/README.md#renew-certificate) to renew
-   the certificate.
-1. Run `fastly compute publish` to restart the worker.
+1. If you are using ACME, run
+   `cargo run -p tools -- apply-acme-cert --artifact .data.local/fastly-dev/artifact.yaml --use-fastly-dictionary`.
+
+1. If you are not using ACME,
+   1. Follow [these steps](../credentials/README.md#renew-certificate) to renew
+      the certificate.
+   1. Run `fastly compute publish` to restart the worker.

@@ -136,6 +136,28 @@ pub fn create_dictionary_item(
     Ok(())
 }
 
+pub fn update_dictionary_item(
+    service_id: &str,
+    dictionary_id: &str,
+    key: &str,
+    value: &str,
+) -> Result<()> {
+    execute_and_parse_stdout(
+        Command::new("fastly")
+            .arg("dictionary-item")
+            .arg("update")
+            .arg("--service-id")
+            .arg(service_id)
+            .arg("--dictionary-id")
+            .arg(dictionary_id)
+            .arg("--key")
+            .arg(key)
+            .arg("--value")
+            .arg(value),
+    )?;
+    Ok(())
+}
+
 pub fn main(
     use_ci_mode: bool,
     sxg_input: &SxgConfig,
