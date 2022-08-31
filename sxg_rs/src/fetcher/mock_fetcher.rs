@@ -101,6 +101,7 @@ impl MockServer {
 
 #[cfg(test)]
 mod tests {
+    use super::super::get;
     use super::*;
     // The server side calls `handle_next_request` for each `fetch` at client
     // side.
@@ -142,11 +143,11 @@ mod tests {
         };
         let client_thread = async {
             assert_eq!(
-                fetcher.get("https://foo.com/1").await.unwrap(),
+                get(&fetcher, "https://foo.com/1").await.unwrap(),
                 vec![1, 2, 3]
             );
             assert_eq!(
-                fetcher.get("https://foo.com/2").await.unwrap(),
+                get(&fetcher, "https://foo.com/2").await.unwrap(),
                 vec![7, 8, 9]
             );
         };
@@ -174,7 +175,7 @@ mod tests {
                 .await
                 .is_err());
         };
-        let client_thread = async { assert!(fetcher.get("https://bar.com").await.is_err()) };
+        let client_thread = async { assert!(get(&fetcher, "https://bar.com").await.is_err()) };
         tokio::join!(server_thread, client_thread);
     }
 }
