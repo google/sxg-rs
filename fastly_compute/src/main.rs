@@ -13,6 +13,7 @@
 // limitations under the License.
 
 mod fetcher;
+mod storage;
 
 use anyhow::{Error, Result};
 use fastly::{
@@ -110,6 +111,7 @@ async fn generate_sxg_response(
     let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
         fetcher: Box::new(FastlyFetcher::new("subresources")),
+        storage: Box::new(storage::FastlyStorage::new("config")),
         ..Default::default()
     };
     let sxg = worker.create_signed_exchange(
@@ -135,6 +137,7 @@ async fn handle_request(worker: &SxgWorker, req: Request) -> Result<Response> {
     let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
         fetcher: Box::new(FastlyFetcher::new("OCSP server")),
+        storage: Box::new(storage::FastlyStorage::new("config")),
         ..Default::default()
     };
     let fallback_url: Url;
