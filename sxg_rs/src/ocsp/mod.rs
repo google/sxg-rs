@@ -160,7 +160,7 @@ pub enum OcspUpdateStrategy {
 /// into storage. The outging traffic to the server is throttled to be a
 /// single task.
 /// If there is any error when reading from and writing to storage, the error
-/// will be ignored.
+/// will be ignored but an error message will be printed to output/log.
 pub async fn read_and_update_ocsp_in_storage(
     certificate_chain: &CertificateChain,
     runtime: &Runtime,
