@@ -1237,7 +1237,6 @@ dependencies = [
  "http",
  "log",
  "log-fastly",
- "once_cell",
  "pem",
  "serde",
  "serde_yaml",
