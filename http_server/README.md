@@ -8,8 +8,9 @@ This server is meant to sit behind a frontend server like Envoy, haproxy,
 nginx, or Apache, and receive only eligible traffic. The frontend server should
 forward the following requests to `http_server`:
 
- - Requests from SXG crawlers (per [this
+ - Requests for SXGs from crawlers (per [this
    recommendation](https://github.com/google/webpackager/tree/main/cmd/webpkgserver#content-negotiation))
+ - Requests for SXG certs (path prefix of `/.well-known/sxg-certs/`)
  - Requests from ACME providers (path prefix of `/.well-known/acme-challenge/`)
 
 By default, `http_server` serves requests from localhost on port 8080, but this
@@ -82,22 +83,25 @@ server {
     if ($https) {
       set $PROXY "1";
     }
-    set $SXG_OR_ACME "";
+    set $PROXY_ELIGIBLE "";
     if ($http_accept ~* "(^|,)\s*application/signed-exchange\s*;\s*v=[[:alnum:]_-]+\s*(,|$)") {
-      set $SXG_OR_ACME "1";
+      set $PROXY_ELIGIBLE  "1";
     }
     if ($request_uri ~ "/.well-known/acme-challenge/") {
-      set $SXG_OR_ACME "1";
+      set $PROXY_ELIGIBLE "1";
     }
-    if ($SXG_OR_ACME) {
+    if ($request_uri ~ "/.well-known/sxg-certs/") {
+      set $PROXY_ELIGIBLE "1";
+    }
+    if ($PROXY_ELIGIBLE) {
       set $PROXY "${PROXY}1";
     }
     if ($PROXY = "11") {
       proxy_pass http://127.0.0.1:8080;
     }
 
-    # This helps break infinite loops; eventually hyper will fail to parse the
-    # request with a TooLarge error.
+    # This helps break infinite loops in case of a bug in the above; eventually
+    # hyper will fail to parse the request with a TooLarge error.
     add_header Vary Accept always;
   }
 }
