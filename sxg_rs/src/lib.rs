@@ -38,6 +38,7 @@ pub mod utils;
 mod wasm_worker;
 
 use crate::http::{HeaderFields, HttpResponse};
+use crate::utils::console_log;
 use anyhow::{anyhow, Error, Result};
 use config::Config;
 use crypto::CertificateChain;
@@ -346,10 +347,20 @@ impl SxgWorker {
                             body: answer.into_bytes(),
                         }))
                     } else {
+                        console_log(&format!(
+                            "Received ACME challenge {actual_token}, expected {expected_token}."
+                        ));
                         None
                     }
                 }
-                _ => None,
+                Ok(None) => {
+                    console_log("Unexpected ACME challenge; no ACME state in storage.");
+                    None
+                }
+                Err(e) => {
+                    console_log(&format!("ACME challenge error: {e}"));
+                    None
+                }
             }
         } else {
             None

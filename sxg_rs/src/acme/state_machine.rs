@@ -27,19 +27,19 @@ const ACME_STORAGE_KEY: &str = "ACME";
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AcmeStorageData {
     pub certificates: Vec<String>,
-    task: Option<Task>,
+    pub task: Option<Task>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Task {
     order: OngoingOrder,
-    schedule: Schedule,
+    pub schedule: Schedule,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-struct Schedule {
-    updated_at: SystemTime,
-    wait_time: Duration,
+pub struct Schedule {
+    pub updated_at: SystemTime,
+    pub wait_time: Duration,
     next_step: TaskStep,
 }
 
