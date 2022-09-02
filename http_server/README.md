@@ -97,10 +97,20 @@ ACME](https://github.com/https-dev/docs/blob/master/acme-ops.md).
 ## (Optional) Reusing the frontend server as the backend
 
 It is possible to configure the frontend server to act also as the backend
-server, but care should be taken to avoid infinite network loops. Here's an
-example in nginx that appears to work. It proxies to `http_server` only when
-the request is HTTPS and either an SXG crawler or an ACME provider. When
-running `http_server --backend http://localhost`, the inner request is not
+server, but care should be taken to avoid infinite network loops.
+
+
+```mermaid
+graph LR
+    A[Browser] --> B[Frontend]
+    A'[Crawler or CA] --> B
+    B -->|from crawler or CA| C[sxg-rs]
+    C --> B
+```
+
+Here's an example in nginx that appears to work. It proxies to `http_server`
+only when the request is HTTPS and either an SXG crawler or an ACME provider.
+When running `http_server --backend http://localhost`, the inner request is not
 HTTPS, so the loop is broken.
 
 ```
