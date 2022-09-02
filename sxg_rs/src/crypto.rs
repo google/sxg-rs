@@ -46,7 +46,7 @@ pub struct EcPublicKey {
 #[derive(Debug, Deserialize)]
 pub struct EcPrivateKey {
     #[serde(with = "crate::serde_helpers::base64")]
-    d: Vec<u8>,
+    pub d: Vec<u8>,
     #[serde(flatten)]
     pub public_key: EcPublicKey,
 }

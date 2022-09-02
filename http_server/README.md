@@ -23,6 +23,9 @@ workers.
 
 # Installation
 
+1. Copy `input.example.yaml` to `input.yaml`. Edit the `sxg_worker.html_host`
+   field to reflect the public domain name being served.
+
 1. Get an SXG-compatible certificate
    using [these steps](../credentials/README.md#get-an-sxg_compatible-certificate).
 
@@ -34,29 +37,42 @@ workers.
    [section](../input.example.yaml#L32-L43)
    in `input.yaml`.
 
-1. If you are using ACME, run following command.
+1. Run following command.
    ```bash
-   cargo run -p tools -- gen-config
+   cargo run -p tools -- gen-config --platform http-server
    ```
-   This command will create an `artifact.yaml` that is used by `http_server`
-   and by future calls to `gen-config`.
-
-1. Copy `http_server/config.example.yaml` to `http_server/config.yaml`. Edit
-   the `html_host` field to reflect the public domain name being served. Edit the `private_key_base64` field to reflect the "Private key in base64 format" output by this command:
-   ```bash
-   go run credentials/parse_private_key.go <credentials/privkey.pem
-   ```
+   This command will read `input.yaml` and create `artifact.yaml` and
+   `http_server/config.yaml`. If re-running `gen-config`, it will maintain some
+   values in the existing `artifact.yaml`.
 
 1. Build the server:
    ```bash
    cargo build -p http_server -r
    ```
+   (Or use [`cross`](https://github.com/cross-rs/cross) to cross-compile for
+   the production architecture.)
 
 1. Run the server. The `--backend` flag is required; it specifies the location
    of the HTTP server whose HTML/images/etc. will be fetched and signed.
    ```
    target/release/http_server --backend http://some-backend
    ```
+
+# Persist configuration
+
+When running in production, the server needs read access to `artifact.yaml`
+(`--artifact`) and `http_server/config.yaml` (`--config`).
+
+The following files do not contain sensitive key material, and are safe to
+store in version control: `input.yaml`, `credentials/cert.pem`,
+`credentials/issuer.pem`
+
+The following files should be stored somewhere private (only accessible to prod
+servers and relevant ops teams): `artifact.yaml`, `http_server/config.yaml`,
+`credentials/privkey.pem`
+
+If using the Google CA and you lose `artifact.yaml`, you must request a new key
+ID and HMAC; each EAB is valid for one use only.
 
 # (Optional) Configure storage
 

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 mod cloudflare;
+mod http_server;
 
 use crate::linux_commands::generate_private_key_pem;
 use crate::runtime::openssl_signer::OpensslSigner;
@@ -29,6 +30,7 @@ use tools::Artifact;
 #[derive(ArgEnum, Clone, Debug, Eq, PartialEq)]
 enum Platform {
     Cloudflare,
+    HttpServer,
 }
 
 #[derive(Debug, Parser)]
@@ -190,6 +192,9 @@ pub fn main(opts: Opts) -> Result<()> {
                     .expect(r#"Input file does not contain "cloudflare" section."#),
                 &mut artifact,
             )?;
+        }
+        Some(Platform::HttpServer) => {
+            http_server::main(input.sxg_worker)?;
         }
         None => (),
     };

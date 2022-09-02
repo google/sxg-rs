@@ -21,7 +21,9 @@ exchanges](https://web.dev/signed-exchanges/) at serve time:
 
   * [`cloudflare_worker`](cloudflare_worker) runs on [Cloudflare Workers](https://workers.cloudflare.com/).
   * [`fastly_compute`](fastly_compute) runs on [Fastly Compute@Edge](https://www.fastly.com/products/edge-compute/serverless).
-  * [`sxg_rs`](sxg_rs) is the Rust library that drives both, and could be used as a basis for other serverless platforms.
+  * [`http_server`](http_server) runs as an HTTP reverse-proxy on Linux.
+  * [`playground`](playground) is a CLI for previewing LCP impact of SXG on any site.
+  * [`sxg_rs`](sxg_rs) is the Rust library that can be used as a basis for other serverless platforms.
 
 These tools enable sites to be [prefetched from Google
 Search](https://developers.google.com/search/docs/advanced/experience/signed-exchange)
