@@ -490,7 +490,9 @@ async fn initialize_acme() -> Result<bool> {
     let artifact: Artifact = serde_yaml::from_str(&artifact_str)?;
     let acme_account = match &artifact.acme_account {
         Some(acme_account) => acme_account,
-        None => { return Ok(false); },
+        None => {
+            return Ok(false);
+        }
     };
     let acme_signer = artifact
         .acme_private_key
