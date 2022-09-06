@@ -146,7 +146,7 @@ impl EcPrivateKey {
 // If we use the macro `#[derive(Serialize)] and #[serde(flatten)]`,
 // we can't insert `d` between the other three fields of `public_key`;
 // we can only get `[crv, x, y, d]` or `[d, crv, x, y]`.
-// Hence we have to implement serialization by ourself.t stgu
+// Hence we have to implement serialization by ourself.
 impl Serialize for EcPrivateKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
