@@ -88,10 +88,9 @@ jobs:
           target: wasm32-wasi
       - name: Generate and validate
         run: |
-          sed "s|private_key_base64: .*|private_key_base64: '$(go run ./credentials/parse_private_key.go <credentials/privkey.pem | tail -1)'|" \
-            http_server/config.example.yaml >config.yaml
+          cargo run -p tools -- gen-config --use-ci-mode --input input.example.yaml --artifact artifact.yaml --platform http-server
           cargo run -p tools -- gen-sxg -- \
-            config.yaml credentials/cert.pem credentials/issuer.pem \
+            http_server/config.yaml credentials/cert.pem credentials/issuer.pem \
             test.cert test.sxg
           dump-signedexchange -i test.sxg -cert test.cert -verify
   playground:
