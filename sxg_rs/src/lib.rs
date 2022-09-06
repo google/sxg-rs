@@ -277,6 +277,7 @@ impl SxgWorker {
                     let mut fallback_url = req_url;
                     fallback_url
                         .set_path(&fallback_url.path().replace("test.sxg", "fallback.html"));
+                    let fallback_url = self.get_fallback_url(&fallback_url).ok()?;
                     Some(PresetContent::ToBeSigned {
                         url: fallback_url.to_string(),
                         payload: HttpResponse {
