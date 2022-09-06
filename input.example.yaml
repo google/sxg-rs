@@ -50,3 +50,6 @@ cloudflare:
     - https://YOUR_DOMAIN/*
   worker_name: sxg
   deploy_on_workers_dev_only: false
+fastly:
+  service_name: sxg
+  sxg_private_key_base64: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=

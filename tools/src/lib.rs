@@ -9,4 +9,6 @@ pub struct Artifact {
     pub acme_private_key: Option<EcPrivateKey>,
     pub acme_private_key_instructions: BTreeMap<String, String>,
     pub cloudflare_kv_namespace_id: Option<String>,
+    pub fastly_service_id: Option<String>,
+    pub fastly_dictionary_id: Option<String>,
 }

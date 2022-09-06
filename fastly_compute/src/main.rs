@@ -30,14 +30,25 @@ use sxg_rs::{
     PresetContent, SxgWorker,
 };
 
-fn create_worker() -> SxgWorker {
-    let mut worker = ::sxg_rs::SxgWorker::new(include_str!("../config.yaml")).unwrap();
-    let certificate = CertificateChain::from_pem_files(&[
-        include_str!("../../credentials/cert.pem"),
-        include_str!("../../credentials/issuer.pem"),
-    ])
-    .unwrap();
-    worker.add_certificate(certificate);
+/// The name of Fastly dictionary to be used as worker's runtime storage.
+const DICTIONARY_NAME: &str = "config";
+
+async fn create_worker() -> SxgWorker {
+    let dict = fastly::ConfigStore::open(DICTIONARY_NAME);
+    let mut worker = ::sxg_rs::SxgWorker::new(&dict.get("sxg-config-input").unwrap()).unwrap();
+    let preissued = (dict.get("cert-pem"), dict.get("issuer-pem"));
+    if let (Some(cert_pem), Some(issuer_pem)) = preissued {
+        let certificate = CertificateChain::from_pem_files(&[&cert_pem, &issuer_pem]).unwrap();
+        worker.add_certificate(certificate);
+    }
+    let runtime = sxg_rs::runtime::Runtime {
+        storage: Box::new(storage::FastlyStorage::new("config")),
+        ..Default::default()
+    };
+    worker
+        .add_acme_certificates_from_storage(&runtime)
+        .await
+        .unwrap();
     worker
 }
 
@@ -112,6 +123,7 @@ async fn generate_sxg_response(
         now: std::time::SystemTime::now(),
         fetcher: Box::new(FastlyFetcher::new("subresources")),
         storage: Box::new(storage::FastlyStorage::new("config")),
+        sxg_signer: Box::new(worker.create_rust_signer().unwrap()),
         ..Default::default()
     };
     let sxg = worker.create_signed_exchange(
@@ -169,19 +181,10 @@ fn main(req: Request) -> Result<Response, std::convert::Infallible> {
         .build()
         .unwrap()
         .block_on(async {
-            let worker = create_worker();
+            let worker = create_worker().await;
             let response = handle_request(&worker, req).await.unwrap_or_else(|msg| {
                 text_response(&format!("A message is gracefully thrown.\n{:?}", msg))
             });
             Ok(response)
         })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn it_works() {
-        create_worker().create_rust_signer().unwrap();
-    }
 }
