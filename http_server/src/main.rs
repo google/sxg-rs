@@ -485,13 +485,15 @@ async fn handle_or_error(
 // - Err() if ACME failed; the caller should print a message and add backup certs
 async fn initialize_acme() -> Result<bool> {
     let ocsp_fetcher = HttpsFetcher(&HTTPS_CLIENT);
-    let artifact_str = std::fs::read_to_string(&ARGS.artifact);
-    if matches!(artifact_str, Err(ref e) if e.kind() == std::io::ErrorKind::NotFound) {
-        return Ok(false);
-    }
+    let artifact_str = std::fs::read_to_string(&ARGS.artifact)?;
 
-    let artifact: Artifact = serde_yaml::from_str(&artifact_str?)?;
-    let acme_account = &artifact.acme_account.ok_or_else(|| anyhow!("Missing ACME account; please ensure !create_acme_account is specified before running gen-config."))?;
+    let artifact: Artifact = serde_yaml::from_str(&artifact_str)?;
+    let acme_account = match &artifact.acme_account {
+        Some(acme_account) => acme_account,
+        None => {
+            return Ok(false);
+        }
+    };
     let acme_signer = artifact
         .acme_private_key
         .ok_or_else(|| anyhow!("Couldn't parse ACME private key from artifact.yaml."))?
