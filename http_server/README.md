@@ -122,7 +122,7 @@ server {
     }
     set $PROXY_ELIGIBLE "";
     if ($http_accept ~* "(^|,)\s*application/signed-exchange\s*;\s*v=[[:alnum:]_-]+\s*(,|$)") {
-      set $PROXY_ELIGIBLE  "1";
+      set $PROXY_ELIGIBLE "1";
     }
     if ($request_uri ~ "/.well-known/acme-challenge/") {
       set $PROXY_ELIGIBLE "1";
