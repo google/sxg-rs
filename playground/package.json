@@ -10,7 +10,7 @@
   "author": "",
   "devDependencies": {
     "@types/dompurify": "2.3.4",
-    "@types/jsdom": "16.2.15",
+    "@types/jsdom": "20.0.0",
     "@types/node": "17.0.18",
     "@types/node-fetch": "2.6.2",
     "esbuild": "0.15.6",
@@ -21,8 +21,8 @@
   "dependencies": {
     "commander": "9.4.0",
     "dompurify": "2.4.0",
-    "fastify": "3.29.2",
-    "jsdom": "19.0.0",
+    "fastify": "4.5.3",
+    "jsdom": "20.0.0",
     "node-fetch": "3.2.10",
     "puppeteer": "17.1.2"
   },
