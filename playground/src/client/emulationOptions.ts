@@ -18,5 +18,5 @@ export const NOT_EMULATED = 'none';
 
 export interface EmulationOptions {
   device: string;
-  networkCondition: string;
+  networkCondition: 'Fast 3G' | 'Slow 3G' | typeof NOT_EMULATED;
 }
