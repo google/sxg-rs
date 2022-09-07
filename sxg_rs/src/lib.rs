@@ -49,7 +49,7 @@ use serde::Serialize;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
-use url::Url;
+use url::{Origin, Url};
 
 #[derive(Debug)]
 pub struct SxgWorker {
@@ -277,7 +277,8 @@ impl SxgWorker {
                     let mut fallback_url = req_url;
                     fallback_url
                         .set_path(&fallback_url.path().replace("test.sxg", "fallback.html"));
-                    let fallback_url = self.get_fallback_url(&fallback_url).ok()?;
+                    let (fallback_url, _) =
+                        self.get_fallback_url_and_cert_origin(&fallback_url).ok()?;
                     Some(PresetContent::ToBeSigned {
                         url: fallback_url.to_string(),
                         payload: HttpResponse {
@@ -395,9 +396,12 @@ impl SxgWorker {
         signature::rust_signer::RustSigner::new(&private_key_der)
             .map_err(|e| e.context("Failed to call RustSigner::new()."))
     }
-    /// Replaces the host name to be the html_host in the config.
-    // TODO: implement get_fallback_url_and_cert_origin, so that Cloudflare Worker can use it.
-    pub fn get_fallback_url(&self, original_url: &Url) -> Result<Url> {
+    /// Given an original SXG URL (SXG outer URL),
+    /// returns the fallback URL (SXG inner URL) and certificate origin.
+    /// The certificate origin is the worker origin, which is taken from outer URL.
+    /// The inner URL is created by
+    /// replacing the host name to be the `html_host` in the config.
+    pub fn get_fallback_url_and_cert_origin(&self, original_url: &Url) -> Result<(Url, Origin)> {
         let mut fallback = original_url.clone();
         let html_host = &self.config.html_host;
         if !html_host.is_empty() {
@@ -406,7 +410,8 @@ impl SxgWorker {
                 .map_err(|_| anyhow!("invalid scheme https"))?;
             fallback.set_host(Some(html_host)).map_err(Error::new)?;
         }
-        Ok(fallback)
+        let cert_origin = original_url.origin();
+        Ok((fallback, cert_origin))
     }
 }
 

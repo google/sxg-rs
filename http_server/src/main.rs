@@ -366,7 +366,10 @@ async fn handle_impl(client_ip: IpAddr, req: HttpRequest) -> Result<HandleAction
         None => {
             // TODO: Reduce the amount of conversion needed between request/response/header types.
             let backend_url = url::Url::parse(&ARGS.backend)?.join(&req.url)?;
-            fallback_url = worker.get_fallback_url(&backend_url)?.into();
+            fallback_url = worker
+                .get_fallback_url_and_cert_origin(&backend_url)?
+                .0
+                .to_string();
             let req_headers =
                 worker.transform_request_headers(req.headers, AcceptFilter::PrefersSxg)?;
             let mut request = Request::builder()
