@@ -29,6 +29,7 @@ use sxg_rs::{
     http::HeaderFields,
     PresetContent, SxgWorker,
 };
+use url::Origin;
 
 /// The name of Fastly dictionary to be used as worker's runtime storage.
 const DICTIONARY_NAME: &str = "config";
@@ -114,11 +115,12 @@ fn fetch_from_html_server(url: &Url, req_headers: Vec<(String, String)>) -> Resu
 async fn generate_sxg_response(
     worker: &SxgWorker,
     fallback_url: &Url,
+    cert_origin: Origin,
     payload: Response,
 ) -> Result<Response> {
     let payload_headers = get_rsp_header_fields(worker, &payload).await?;
     let payload_body = payload.into_body_bytes();
-    let cert_origin = fallback_url.origin().ascii_serialization();
+    let cert_origin = cert_origin.ascii_serialization();
     let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
         fetcher: Box::new(FastlyFetcher::new("subresources")),
@@ -153,6 +155,7 @@ async fn handle_request(worker: &SxgWorker, req: Request) -> Result<Response> {
         ..Default::default()
     };
     let fallback_url: Url;
+    let cert_origin: Origin;
     let sxg_payload;
     let preset_content = worker
         .serve_preset_content(&runtime, req.get_url_str())
@@ -163,16 +166,17 @@ async fn handle_request(worker: &SxgWorker, req: Request) -> Result<Response> {
         }
         Some(PresetContent::ToBeSigned { url, payload, .. }) => {
             fallback_url = Url::parse(&url).map_err(Error::new)?;
+            (_, cert_origin) = worker.get_fallback_url_and_cert_origin(req.get_url())?;
             sxg_payload = sxg_rs_response_to_fastly_response(payload)?;
             get_req_header_fields(worker, &req, AcceptFilter::AcceptsSxg).await?;
         }
         None => {
-            fallback_url = worker.get_fallback_url(req.get_url())?;
+            (fallback_url, cert_origin) = worker.get_fallback_url_and_cert_origin(req.get_url())?;
             let req_headers = get_req_header_fields(worker, &req, AcceptFilter::PrefersSxg).await?;
             sxg_payload = fetch_from_html_server(&fallback_url, req_headers)?;
         }
     };
-    generate_sxg_response(worker, &fallback_url, sxg_payload).await
+    generate_sxg_response(worker, &fallback_url, cert_origin, sxg_payload).await
 }
 
 #[fastly::main]
