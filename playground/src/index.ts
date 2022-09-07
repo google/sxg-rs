@@ -90,7 +90,7 @@ async function main() {
   const opts = program.opts() as {
     crawlerUserAgent: string;
     emulateDevice: string;
-    emulateNetwork: string;
+    emulateNetwork: 'Fast 3G' | 'Slow 3G' | typeof NOT_EMULATED;
     inspect: boolean;
     isolateBrowserContext: boolean;
     repeatTime: number;
