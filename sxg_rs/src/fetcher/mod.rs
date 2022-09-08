@@ -28,7 +28,8 @@ pub trait Fetcher: MaybeSend + MaybeSync {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse>;
 }
 
-/// Uses `Get` method and returns response body.
+/// Uses `Get` method and returns response body,
+/// iteratively following 301, 302, 303 redirection.
 /// - Why this function is not put inside [`Fetcher`] trait?
 ///   If we declare `Fetcher::get` function with a default implementation,
 ///   we have to also add a constraint `where Self: Sized` to `Fetcher::get`,
@@ -37,14 +38,30 @@ pub trait Fetcher: MaybeSend + MaybeSync {
 ///   However, having such constraint `Self: Sized` prevent using `Fetcher::get` method on a
 ///   `dyn Fetcher` variable, because `dyn Fetcher` is not `Sized`.
 pub async fn get(fetcher: &dyn Fetcher, url: impl ToString) -> Result<Vec<u8>> {
-    let request = HttpRequest {
-        body: vec![],
-        headers: vec![],
-        method: crate::http::Method::Get,
-        url: url.to_string(),
-    };
-    let response = fetcher.fetch(request).await?;
-    Ok(response.body)
+    let mut url = url.to_string();
+    loop {
+        let request = HttpRequest {
+            body: vec![],
+            headers: vec![],
+            method: crate::http::Method::Get,
+            url: url.to_string(),
+        };
+        let response = fetcher.fetch(request).await?;
+        if response.status == 301 || response.status == 302 || response.status == 303 {
+            let location = response.headers.into_iter().find_map(|(name, value)| {
+                if name.eq_ignore_ascii_case(http::header::LOCATION.as_str()) {
+                    Some(value)
+                } else {
+                    None
+                }
+            });
+            if let Some(location) = location {
+                url = location;
+                continue;
+            }
+        }
+        return Ok(response.body);
+    }
 }
 
 pub const NULL_FETCHER: NullFetcher = NullFetcher {};
