@@ -29,7 +29,7 @@ pub trait Fetcher: MaybeSend + MaybeSync {
 }
 
 /// Uses `Get` method and returns response body,
-/// iteratively following 301, 302, 303 redirection.
+/// iteratively following 301, 302, 303, 307, 308 redirection.
 /// - Why this function is not put inside [`Fetcher`] trait?
 ///   If we declare `Fetcher::get` function with a default implementation,
 ///   we have to also add a constraint `where Self: Sized` to `Fetcher::get`,
@@ -47,7 +47,11 @@ pub async fn get(fetcher: &dyn Fetcher, url: impl ToString) -> Result<Vec<u8>> {
             url: url.to_string(),
         };
         let response = fetcher.fetch(request).await?;
-        if response.status == 301 || response.status == 302 || response.status == 303 {
+        let should_redirect = match response.status {
+            301 | 302 | 303 | 307 | 308 => true,
+            _ => false,
+        };
+        if should_redirect {
             let location = response.headers.into_iter().find_map(|(name, value)| {
                 if name.eq_ignore_ascii_case(http::header::LOCATION.as_str()) {
                     Some(value)
