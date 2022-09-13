@@ -47,11 +47,7 @@ pub async fn get(fetcher: &dyn Fetcher, url: impl ToString) -> Result<Vec<u8>> {
             url: url.to_string(),
         };
         let response = fetcher.fetch(request).await?;
-        let should_redirect = match response.status {
-            301 | 302 | 303 | 307 | 308 => true,
-            _ => false,
-        };
-        if should_redirect {
+        if matches!(response.status, 301 | 302 | 303 | 307 | 308) {
             let location = response.headers.into_iter().find_map(|(name, value)| {
                 if name.eq_ignore_ascii_case(http::header::LOCATION.as_str()) {
                     Some(value)
