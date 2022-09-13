@@ -107,7 +107,7 @@ pub async fn main(opts: Opts) -> Result<()> {
         );
         let actual_response = sxg_rs::fetcher::get(runtime.fetcher.as_ref(), &url).await?;
         if let Ok(actual_response) = String::from_utf8(actual_response) {
-            if actual_response.trim() == &challenge_answer {
+            if actual_response.trim() == challenge_answer {
                 println!("ACME challenge answer succesfully detected.");
                 break;
             }

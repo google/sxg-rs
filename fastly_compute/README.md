@@ -82,7 +82,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
    - It is not recommended to directly modify the generated `fastly.toml`, because your changes will be
      overwriten when you run `cargo run -p tools -- gen-config` again.
 
-   1. Modify the WASM service in [Fastly](https://manage.fastly.com/).
+1. Modify the WASM service in [Fastly](https://manage.fastly.com/).
 
    <!--TODO: Use CLI to add domains and backends-->
    1. Add a domain to the service.
