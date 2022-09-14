@@ -52,7 +52,7 @@ sha1 = "0.10.1"
 sha2 = "0.10.2"
 tokio = { version = "1.20.1", features = ["macros", "parking_lot", "sync", "time"] }
 url = "2.2.2"
-wasm-bindgen = { version = "0.2.82", features = ["serde-serialize"] }
+wasm-bindgen = { version = "0.2.83", features = ["serde-serialize"] }
 wasm-bindgen-futures = "0.4.32"
 web-sys = { version = "0.3.59", features = ["console"] }
 x509-parser = "0.14.0"
