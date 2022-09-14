@@ -107,7 +107,7 @@ impl WasmWorker {
                 .serve_preset_content(&runtime, &req_url)
                 .await
                 .map_or(JsValue::UNDEFINED, |preset_content| {
-                    JsValue::from_serde(&preset_content).unwrap()
+                    serde_wasm_bindgen::to_value(&preset_content).unwrap()
                 }))
         })
     }
@@ -120,21 +120,21 @@ impl WasmWorker {
     ) -> JsPromise {
         let worker = self.0.clone();
         future_to_promise(async move {
-            let fields = requestor_headers.into_serde().map_err(to_js_error)?;
-            let accept_filter: AcceptFilter = accept_filter.into_serde().map_err(to_js_error)?;
+            let fields = serde_wasm_bindgen::from_value(requestor_headers).map_err(to_js_error)?;
+            let accept_filter: AcceptFilter = serde_wasm_bindgen::from_value(accept_filter).map_err(to_js_error)?;
             let fields = worker
                 .read()
                 .await
                 .transform_request_headers(fields, accept_filter)
                 .map_err(to_js_error)?;
-            Ok(JsValue::from_serde(&fields).unwrap())
+            Ok(serde_wasm_bindgen::to_value(&fields).unwrap())
         })
     }
     #[wasm_bindgen(js_name=validatePayloadHeaders)]
     pub fn validate_payload_headers(&self, fields: JsValue) -> JsPromise {
         let worker = self.0.clone();
         future_to_promise(async move {
-            let fields: Vec<(String, String)> = fields.into_serde().map_err(to_js_error)?;
+            let fields: Vec<(String, String)> = serde_wasm_bindgen::from_value(fields).map_err(to_js_error)?;
             worker
                 .read()
                 .await
@@ -147,11 +147,11 @@ impl WasmWorker {
     pub fn process_html(&self, input: JsValue, option: JsValue) -> JsPromise {
         let worker = self.0.clone();
         future_to_promise(async move {
-            let input: HttpResponse = input.into_serde().map_err(to_js_error)?;
-            let option: ProcessHtmlOption = option.into_serde().map_err(to_js_error)?;
+            let input: HttpResponse = serde_wasm_bindgen::from_value(input).map_err(to_js_error)?;
+            let option: ProcessHtmlOption = serde_wasm_bindgen::from_value(option).map_err(to_js_error)?;
             let output = worker.read().await.process_html(input.into(), option);
             let output = Arc::try_unwrap(output).unwrap_or_else(|o| (*o).clone());
-            JsValue::from_serde(&output).map_err(to_js_error)
+            serde_wasm_bindgen::to_value(&output).map_err(to_js_error)
         })
     }
     #[wasm_bindgen(js_name=createSignedExchange)]
@@ -163,9 +163,8 @@ impl WasmWorker {
         let worker = self.0.clone();
         future_to_promise(async move {
             let runtime = Runtime::try_from(js_runtime).map_err(to_js_error)?;
-            let payload_headers: Vec<(String, String)> = options
-                .payload_headers()
-                .into_serde()
+            let payload_headers: Vec<(String, String)> = serde_wasm_bindgen::from_value(options
+                .payload_headers())
                 .map_err(to_js_error)?;
             let worker = worker.read().await;
             let payload_headers = worker
@@ -190,7 +189,7 @@ impl WasmWorker {
                 )
                 .await
                 .map_err(to_js_error)?;
-            Ok(JsValue::from_serde(&sxg).unwrap())
+            Ok(serde_wasm_bindgen::to_value(&sxg).unwrap())
         })
     }
     #[wasm_bindgen(js_name=updateAcmeStateMachine)]
