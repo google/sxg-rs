@@ -41,12 +41,11 @@ impl JsFetcher {
 #[async_trait(?Send)]
 impl Fetcher for JsFetcher {
     async fn fetch(&self, request: HttpRequest) -> Result<HttpResponse> {
-        let request = JsValue::from_serde(&request)
-            .map_err(|e| Error::new(e).context("Failed to parse request."))?;
+        let request = serde_wasm_bindgen::to_value(&request)
+            .map_err(|e| Error::msg(e.to_string()).context("Failed to parse request."))?;
         let response = await_js_promise(self.0.call1(&JsValue::NULL, &request)).await?;
-        let response: HttpResponse = response
-            .into_serde()
-            .map_err(|e| Error::new(e).context("Failed to serialize response."))?;
+        let response: HttpResponse = serde_wasm_bindgen::from_value(response)
+            .map_err(|e| Error::msg(e.to_string()).context("Failed to serialize response."))?;
         Ok(response)
     }
 }

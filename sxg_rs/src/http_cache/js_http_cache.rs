@@ -27,8 +27,8 @@ pub struct JsHttpCache {
 #[async_trait(?Send)]
 impl HttpCache for JsHttpCache {
     async fn get(&self, url: &str) -> Result<HttpResponse> {
-        let url = JsValue::from_serde(&url)
-            .map_err(|e| Error::new(e).context("serializing url to JS"))?;
+        let url = serde_wasm_bindgen::to_value(&url)
+            .map_err(|e| Error::msg(e.to_string()).context("serializing url to JS"))?;
         let this = JsValue::null();
         let response = self
             .get
@@ -38,16 +38,15 @@ impl HttpCache for JsHttpCache {
         let response = response
             .await
             .map_err(|_| anyhow!("Error returned by JS get"))?;
-        let response = response
-            .into_serde()
-            .map_err(|e| Error::new(e).context("parsing response from JS"))?;
+        let response = serde_wasm_bindgen::from_value(response)
+            .map_err(|e| Error::msg(e.to_string()).context("parsing response from JS"))?;
         Ok(response)
     }
     async fn put(&self, url: &str, response: &HttpResponse) -> Result<()> {
-        let url = JsValue::from_serde(&url)
-            .map_err(|e| Error::new(e).context("serializing url to JS"))?;
-        let response = JsValue::from_serde(&response)
-            .map_err(|e| Error::new(e).context("serializing response to JS"))?;
+        let url = serde_wasm_bindgen::to_value(&url)
+            .map_err(|e| Error::msg(e.to_string()).context("serializing url to JS"))?;
+        let response = serde_wasm_bindgen::to_value(&response)
+            .map_err(|e| Error::msg(e.to_string()).context("serializing response to JS"))?;
         let this = JsValue::null();
         let ret = self
             .put
@@ -55,9 +54,8 @@ impl HttpCache for JsHttpCache {
             .map_err(|_| anyhow!("Error invoking JS put"))?;
         let ret = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(ret));
         let ret = ret.await.map_err(|_| anyhow!("Error returned by JS put"))?;
-        let _ret = ret
-            .into_serde()
-            .map_err(|e| Error::new(e).context("parsing ack from JS"))?;
+        let _ret = serde_wasm_bindgen::from_value(ret)
+            .map_err(|e| Error::msg(e.to_string()).context("parsing ack from JS"))?;
         Ok(())
     }
 }
