@@ -28,9 +28,13 @@ pub struct Opts {
     port: Option<u16>,
     #[clap(long)]
     artifact: String,
+    /// Puts challenge answer and certificate to Fastly edge dictionary.
+    #[clap(long)]
+    use_fastly_dictionary: bool,
 }
 
-fn start_warp_server(port: u16, answer: String) -> tokio::sync::oneshot::Sender<()> {
+fn start_warp_server(port: u16, answer: impl ToString) -> tokio::sync::oneshot::Sender<()> {
+    let answer = answer.to_string();
     let (tx, rx) = tokio::sync::oneshot::channel();
     let routes =
         warp::path!(".well-known" / "acme-challenge" / String).map(move |_name| answer.to_string());
@@ -40,10 +44,6 @@ fn start_warp_server(port: u16, answer: String) -> tokio::sync::oneshot::Sender<
         });
     tokio::spawn(server);
     tx
-}
-
-fn wait_enter_key() {
-    std::io::stdin().read_line(&mut String::new()).unwrap();
 }
 
 pub async fn main(opts: Opts) -> Result<()> {
@@ -63,23 +63,59 @@ pub async fn main(opts: Opts) -> Result<()> {
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     };
+
+    let challenge_url = format!(
+        "http://{}/.well-known/acme-challenge/{}",
+        acme_account.domain, challenge_token
+    );
     let graceful_shutdown = if let Some(port) = opts.port {
-        Some(start_warp_server(port, challenge_answer))
+        println!("Serving ACME challenge answer on local port {}, assuming that this port is binding to http://{}/", port, acme_account.domain);
+        Some(start_warp_server(port, &challenge_answer))
+    } else if opts.use_fastly_dictionary {
+        println!("Writing ACME challenge answer to Fastly edige dictionary.");
+        let acme_state =
+            sxg_rs::acme::state_machine::create_from_challenge(&challenge_token, &challenge_answer);
+        super::gen_config::fastly::update_dictionary_item(
+            artifact.fastly_service_id.as_ref().unwrap(),
+            artifact.fastly_dictionary_id.as_ref().unwrap(),
+            sxg_rs::acme::state_machine::ACME_STORAGE_KEY,
+            &serde_json::to_string(&acme_state)?,
+        )?;
+        None
     } else {
         println!(
             "\
             Please create a file in your HTTP server to serve the following URL.\n\
             URL:\n\
-            http://{}/.well-known/acme-challenge/{}\n\
+            {}\n\
             Plain-text content:\n\
             {}\n\
-            Press Enter key after your HTTP server is ready.\
             ",
-            acme_account.domain, challenge_token, challenge_answer
+            challenge_url, challenge_answer
         );
-        wait_enter_key();
         None
     };
+
+    println!(
+        "Waiting for the propagation of ACME challenge answer; checking every 10 seconds from {}.",
+        challenge_url
+    );
+    loop {
+        let url = format!(
+            "http://{}/.well-known/acme-challenge/{}",
+            acme_account.domain, challenge_token
+        );
+        let actual_response = sxg_rs::fetcher::get(runtime.fetcher.as_ref(), &url).await?;
+        if let Ok(actual_response) = String::from_utf8(actual_response) {
+            if actual_response.trim() == challenge_answer {
+                println!("ACME challenge answer succesfully detected.");
+                break;
+            }
+        }
+        print!(".");
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+    }
+
     let certificate_pem = loop {
         runtime.now = std::time::SystemTime::now();
         update_acme_state_machine(&runtime, &acme_account).await?;
@@ -89,9 +125,20 @@ pub async fn main(opts: Opts) -> Result<()> {
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     };
+    if opts.use_fastly_dictionary {
+        println!("Uploading certificates to Fastly edge dicionary.");
+        let acme_state = sxg_rs::acme::state_machine::create_from_certificate(certificate_pem);
+        super::gen_config::fastly::update_dictionary_item(
+            artifact.fastly_service_id.as_ref().unwrap(),
+            artifact.fastly_dictionary_id.as_ref().unwrap(),
+            sxg_rs::acme::state_machine::ACME_STORAGE_KEY,
+            &serde_json::to_string(&acme_state)?,
+        )?;
+    } else {
+        println!("{}", certificate_pem);
+    }
     if let Some(tx) = graceful_shutdown {
         let _ = tx.send(());
     }
-    println!("{}", certificate_pem);
     Ok(())
 }

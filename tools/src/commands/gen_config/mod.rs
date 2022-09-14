@@ -13,7 +13,7 @@
 // limitations under the License.
 
 mod cloudflare;
-mod fastly;
+pub mod fastly;
 mod http_server;
 
 use crate::linux_commands::generate_private_key_pem;
