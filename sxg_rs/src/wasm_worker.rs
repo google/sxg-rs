@@ -121,7 +121,8 @@ impl WasmWorker {
         let worker = self.0.clone();
         future_to_promise(async move {
             let fields = serde_wasm_bindgen::from_value(requestor_headers).map_err(to_js_error)?;
-            let accept_filter: AcceptFilter = serde_wasm_bindgen::from_value(accept_filter).map_err(to_js_error)?;
+            let accept_filter: AcceptFilter =
+                serde_wasm_bindgen::from_value(accept_filter).map_err(to_js_error)?;
             let fields = worker
                 .read()
                 .await
@@ -134,7 +135,8 @@ impl WasmWorker {
     pub fn validate_payload_headers(&self, fields: JsValue) -> JsPromise {
         let worker = self.0.clone();
         future_to_promise(async move {
-            let fields: Vec<(String, String)> = serde_wasm_bindgen::from_value(fields).map_err(to_js_error)?;
+            let fields: Vec<(String, String)> =
+                serde_wasm_bindgen::from_value(fields).map_err(to_js_error)?;
             worker
                 .read()
                 .await
@@ -148,7 +150,8 @@ impl WasmWorker {
         let worker = self.0.clone();
         future_to_promise(async move {
             let input: HttpResponse = serde_wasm_bindgen::from_value(input).map_err(to_js_error)?;
-            let option: ProcessHtmlOption = serde_wasm_bindgen::from_value(option).map_err(to_js_error)?;
+            let option: ProcessHtmlOption =
+                serde_wasm_bindgen::from_value(option).map_err(to_js_error)?;
             let output = worker.read().await.process_html(input.into(), option);
             let output = Arc::try_unwrap(output).unwrap_or_else(|o| (*o).clone());
             serde_wasm_bindgen::to_value(&output).map_err(to_js_error)
@@ -163,9 +166,8 @@ impl WasmWorker {
         let worker = self.0.clone();
         future_to_promise(async move {
             let runtime = Runtime::try_from(js_runtime).map_err(to_js_error)?;
-            let payload_headers: Vec<(String, String)> = serde_wasm_bindgen::from_value(options
-                .payload_headers())
-                .map_err(to_js_error)?;
+            let payload_headers: Vec<(String, String)> =
+                serde_wasm_bindgen::from_value(options.payload_headers()).map_err(to_js_error)?;
             let worker = worker.read().await;
             let payload_headers = worker
                 .transform_payload_headers(payload_headers)
