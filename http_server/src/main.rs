@@ -97,7 +97,7 @@ struct Args {
 
     /// Maximum number of entries in the header integrity cache. Each entry will be about 1KB.
     #[clap(long, default_value = "2000")]
-    header_integrity_cache_size: usize,
+    header_integrity_cache_size: std::num::NonZeroUsize,
 }
 
 type HttpsClient = hyper::Client<
