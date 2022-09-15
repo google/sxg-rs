@@ -194,7 +194,7 @@ pub async fn read_and_update_ocsp_in_storage(
         }
     }
     if certificate_chain.issuers.is_empty() {
-        return Err(Error::msg("Certiciate chain contains no issuer."));
+        return Err(Error::msg("Certificate chain contains no issuer."));
     }
     let cert_der = &certificate_chain.end_entity.der;
     let issuer_der = &certificate_chain.issuers[0].der;
