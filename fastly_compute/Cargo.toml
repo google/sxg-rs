@@ -31,7 +31,7 @@ http = "0.2.8"
 log = "0.4.17"
 log-fastly = "0.8.7"
 pem = "1.1.0"
-serde = { version = "1.0.144", features = ["derive"] }
+serde = { version = "1.0.145", features = ["derive"] }
 serde_yaml = "0.9.13"
 sxg_rs = { path = "../sxg_rs", features = ["rust_signer"] }
 tokio = { version = "1.21.1", features = ["rt"] }
