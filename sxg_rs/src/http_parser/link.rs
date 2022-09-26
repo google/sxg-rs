@@ -97,7 +97,7 @@ fn uri_ref(input: &str) -> IResult<&str, &str> {
     })(input)
 }
 
-fn link_param<'a>(input: &'a str) -> IResult<&str, (Cow<'a, str>, Option<String>)> {
+fn link_param(input: &str) -> IResult<&str, (Cow<'_, str>, Option<String>)> {
     pair(
         map(terminated(token, ows), Cow::Borrowed),
         opt(preceded(pair(char('='), ows), parameter_value)),
