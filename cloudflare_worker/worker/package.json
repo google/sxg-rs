@@ -9,7 +9,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "3.16.0",
-    "@types/node": "16.11.63",
+    "@types/node": "16.11.64",
     "esbuild": "0.15.10",
     "glob": "8.0.3",
     "gts": "3.1.1",
