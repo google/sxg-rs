@@ -109,7 +109,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
       and make sure `http://YOUR_DOMAIN/.well-known/acme-challenge/*` is redirected to
       `https://WORKER_HOST/.well-known/acme-challenge/$1`.
 
-   1. Run `cargo run -p tools -- apply-acme-cert --artifact .data.local/fastly-dev/artifact.yaml --use-fastly-dictionary`.
+   1. Run `cargo run -p tools -- apply-acme-cert --artifact artifact.yaml --use-fastly-dictionary`.
 
 1. To check whether the worker generates a valid SXG,
    use Chrome browser to open `https://${WORKER_HOST}/.sxg/test.html`.
@@ -121,7 +121,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 The certificates need to be renewed every 90 days.
 
 1. If you are using ACME, run
-   `cargo run -p tools -- apply-acme-cert --artifact .data.local/fastly-dev/artifact.yaml --use-fastly-dictionary`.
+   `cargo run -p tools -- apply-acme-cert --artifact artifact.yaml --use-fastly-dictionary`.
 
 1. If you are not using ACME,
    1. Follow [these steps](../credentials/README.md#renew-certificate) to renew
