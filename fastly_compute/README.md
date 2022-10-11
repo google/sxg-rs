@@ -41,9 +41,12 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 ## Install
 
 1. Install [Rust](https://www.rust-lang.org/tools/install) using
-   [rustup](https://rustup.rs/)
+   [rustup](https://rustup.rs/).
 
 1. Install [Fastly CLI](https://github.com/fastly/cli).
+
+1. Install Fastly CLI
+   [local dependencies](https://developer.fastly.com/learning/compute/#install-local-dependencies).
 
 1. Clone this repo and cd into the current folder.
    ```bash
