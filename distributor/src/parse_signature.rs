@@ -152,6 +152,7 @@ mod tests {
 
     #[test]
     fn parse_works() {
+        #[allow(clippy::transmute_ptr_to_ref)]
         const SIGNATURE: &[u8] = const_concat_bytes!(
             br#"label"#,
             br#";cert-sha256=*P+RLC1rhaO2foPJ39xkEbqkzFU8jW/YkeOmuvijMyts=*"#,

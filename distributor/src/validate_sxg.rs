@@ -23,10 +23,10 @@ use url::Url;
 pub enum ValidationErrorType {
     // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html#name-application-signed-exchange plus a little bit
     #[error("Unable to be parsed or not known to be representative of the expected URL.")]
-    MALFORMED,
+    Malformed,
     // https://github.com/google/webpackager/blob/main/docs/cache_requirements.md#google-sxg-cache
     #[error("Well-formed, but not valid for serving as of the validation time.")]
-    INVALID,
+    Invalid,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -78,7 +78,7 @@ fn unwrap(
         );
     }
     let headers: Value = ciborium::de::from_reader(signed_headers)
-        .with_context(|| format!("parsing signed headers"))?;
+        .with_context(|| "parsing signed headers")?;
     // TODO: Verify header names don't contain uppercase; no duplicates; etc. (canonical serialization)
     let headers: Vec<(Vec<u8>, Vec<u8>)> = match headers {
         Value::Map(pairs) => {
@@ -419,7 +419,7 @@ fn validate_and_rewrite(
     signature: &[u8],
     headers: &HeaderMap,
 ) -> Result<(Vec<u8>, Vec<Preload>)> {
-    let preloads = validate_headers(fallback_url, &headers).with_context(|| "validate_headers")?;
+    let preloads = validate_headers(fallback_url, headers).with_context(|| "validate_headers")?;
     let signature = validate_signature(expected_url, fetch_time, signature)
         .with_context(|| "validate_signature")?;
     Ok((
@@ -456,7 +456,7 @@ pub fn validate(
         signed_headers,
     )
     .map_err(|e| ValidationError {
-        error_type: ValidationErrorType::MALFORMED,
+        error_type: ValidationErrorType::Malformed,
         source: e,
     })?;
     validate_and_rewrite(
@@ -468,7 +468,7 @@ pub fn validate(
         &headers,
     )
     .map_err(|e| ValidationError {
-        error_type: ValidationErrorType::INVALID,
+        error_type: ValidationErrorType::Invalid,
         source: e,
     })
 }
@@ -481,6 +481,7 @@ mod tests {
     #[test]
     fn validate_signature_works() {
         const URL: &str = "https://signed-exchange-testing.dev/sxgs/valid.html";
+        #[allow(clippy::transmute_ptr_to_ref)]
         const SIGNATURE: &[u8] = const_concat_bytes!(
             br#"label"#,
             br#";cert-sha256=*P+RLC1rhaO2foPJ39xkEbqkzFU8jW/YkeOmuvijMyts=*"#,

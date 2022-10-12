@@ -88,18 +88,18 @@ lazy_static::lazy_static! {
 
 #[derive(PartialEq, Debug)]
 enum ResourceType {
-    DOC,
-    CERT,
-    SUB,
+    Doc,
+    Cert,
+    Sub,
 }
 
 impl std::str::FromStr for ResourceType {
     type Err = anyhow::Error;
     fn from_str(rtype: &str) -> Result<Self> {
         match rtype {
-            "doc" => Ok(ResourceType::DOC),
-            "crt" => Ok(ResourceType::CERT),
-            "sub" => Ok(ResourceType::SUB),
+            "doc" => Ok(ResourceType::Doc),
+            "crt" => Ok(ResourceType::Cert),
+            "sub" => Ok(ResourceType::Sub),
             _ => Err(anyhow!("Error parsing prefix: {rtype}")),
         }
     }
@@ -269,7 +269,7 @@ async fn handle(parsed: &ParsedRequest<'_>) -> Result<Response<Body>> {
         .body(Body::empty())?;
     // TODO: Add a timeout.
     match (&parsed.resource_type, CLIENT.request(backend_request).await) {
-        (ResourceType::CERT, Ok(resp)) => {
+        (ResourceType::Cert, Ok(resp)) => {
             let (parts, body) = resp.into_parts();
             ensure!(parts.status == StatusCode::OK && is_cert_chain(&parts.headers));
             let body = validate_cert::validate(&parsed.integrity, body).await?;
@@ -339,6 +339,7 @@ async fn handle(parsed: &ParsedRequest<'_>) -> Result<Response<Body>> {
 }
 
 // Well-formed signature for invalid SXG redirect.
+#[allow(clippy::transmute_ptr_to_ref)]
 const INVALID_SIGNATURE: &[u8] = const_concat_bytes!(
     b"sig;",
     b"cert-sha256=*AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=*;",
@@ -353,6 +354,7 @@ const INVALID_SIGNATURE: &[u8] = const_concat_bytes!(
 );
 
 // Well-formed signed headers for invalid SXG redirect.
+#[allow(clippy::transmute_ptr_to_ref)]
 const INVALID_SIGNED_HEADERS: &[u8] = const_concat_bytes!(
     b"\xa4",
     b"FdigestX9mi-sha256-03=hp8d+5maRS9Jekz39E2y1u5mH3Sp5+BSUbwUIOUGctQ=",
@@ -462,7 +464,7 @@ async fn main() {
 
     if let (Some(cert), Some(key)) = (&ARGS.cert, &ARGS.key) {
         let make_svc = make_service_fn(|_conn| async move {
-            Ok::<_, http::Error>(service_fn(move |req| handle_or_error(req)))
+            Ok::<_, http::Error>(service_fn(handle_or_error))
         });
 
         // Filter out TLS errors or the server may stop accepting connections, per
@@ -480,7 +482,7 @@ async fn main() {
     } else {
         // TODO: Deduplicate with TLS code, using some type-level chicanery.
         let make_svc = make_service_fn(|_conn| async move {
-            Ok::<_, http::Error>(service_fn(move |req| handle_or_error(req)))
+            Ok::<_, http::Error>(service_fn(handle_or_error))
         });
 
         let server = Server::bind(&addr).serve(make_svc);
@@ -507,7 +509,7 @@ mod tests {
             parse_request(&req).unwrap(),
             ParsedRequest {
                 cache_origin: "https://cache.example".into(),
-                resource_type: ResourceType::DOC,
+                resource_type: ResourceType::Doc,
                 integrity: None,
                 origin_url: "https://foo.com/bar".parse().unwrap(),
             }
