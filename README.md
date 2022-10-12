@@ -20,6 +20,7 @@ sxg-rs is a set of tools for generating [signed
 exchanges](https://web.dev/signed-exchanges/) at serve time:
 
   * [`cloudflare_worker`](cloudflare_worker) runs on [Cloudflare Workers](https://workers.cloudflare.com/).
+  * [`distributor`](distributor) is an example implementation of privacy-preserving SXG prefetch of outlinks.
   * [`fastly_compute`](fastly_compute) runs on [Fastly Compute@Edge](https://www.fastly.com/products/edge-compute/serverless).
   * [`http_server`](http_server) runs as an HTTP reverse-proxy on Linux.
   * [`playground`](playground) is a CLI for previewing LCP impact of SXG on any site.

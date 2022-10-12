@@ -1,0 +1,5 @@
+238a239,242
+>   if (typeof instantUrlModifier === 'function') {
+>     url = instantUrlModifier(url);
+>   }
+> 
