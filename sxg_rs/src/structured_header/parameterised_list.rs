@@ -42,6 +42,12 @@ impl<'a> ShParamList<'a> {
     }
 }
 
+impl<'a> Default for ShParamList<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a> Deref for ParamItem<'a> {
     type Target = Vec<(Cow<'a, str>, Option<ShItem<'a>>)>;
     fn deref(&self) -> &Self::Target {

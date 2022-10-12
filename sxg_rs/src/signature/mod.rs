@@ -141,8 +141,8 @@ impl<'a> Signature<'a> {
             "validity-url".into(),
             Some(ShItem::String(self.validity_url.into())),
         ));
-        param.push(("date".into(), Some(ShItem::Integer(self.date.into()))));
-        param.push(("expires".into(), Some(ShItem::Integer(self.expires.into()))));
+        param.push(("date".into(), Some(ShItem::Integer(self.date))));
+        param.push(("expires".into(), Some(ShItem::Integer(self.expires))));
         list.push(param);
         format!("{}", list).into_bytes()
     }
