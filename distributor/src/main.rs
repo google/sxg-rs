@@ -331,10 +331,7 @@ async fn handle(parsed: &ParsedRequest<'_>) -> Result<Response<Body>> {
             ))
             .map_err(|e| anyhow!(e))
         }
-        (_, Err(e)) => Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(Body::from(format!("{:?}", e)))
-            .map_err(|e| anyhow!(e)),
+        (_, Err(e)) => Err(anyhow!(e)),
     }
 }
 
@@ -405,7 +402,10 @@ async fn handle_or_error(req: Request<Body>) -> Result<Response<Body>, http::Err
                             .status(StatusCode::NOT_FOUND)
                             .header("content-type", "application/signed-exchange;v=b3")
                             .header("x-content-type-options", "nosniff")
-                            .header("invalid-sxg-error", format!("{e}"))
+                            .header(
+                                "invalid-sxg-error",
+                                format!("{e}").escape_default().to_string(),
+                            )
                             .body(Body::from(sxg))
                     } else {
                         meta_redirect(&origin_url, Some(format!("{e}")))
@@ -463,9 +463,10 @@ async fn main() {
     let addr: SocketAddr = ARGS.bind_addr.parse().expect("Could not parse ip:port.");
 
     if let (Some(cert), Some(key)) = (&ARGS.cert, &ARGS.key) {
-        let make_svc = make_service_fn(|_conn| async move {
-            Ok::<_, http::Error>(service_fn(handle_or_error))
-        });
+        let make_svc =
+            make_service_fn(
+                |_conn| async move { Ok::<_, http::Error>(service_fn(handle_or_error)) },
+            );
 
         // Filter out TLS errors or the server may stop accepting connections, per
         // https://docs.rs/tls-listener/latest/tls_listener/struct.TlsListener.html.
@@ -481,9 +482,10 @@ async fn main() {
         }
     } else {
         // TODO: Deduplicate with TLS code, using some type-level chicanery.
-        let make_svc = make_service_fn(|_conn| async move {
-            Ok::<_, http::Error>(service_fn(handle_or_error))
-        });
+        let make_svc =
+            make_service_fn(
+                |_conn| async move { Ok::<_, http::Error>(service_fn(handle_or_error)) },
+            );
 
         let server = Server::bind(&addr).serve(make_svc);
 

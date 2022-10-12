@@ -4317,7 +4317,7 @@ dependencies = [
  "multipart",
  "percent-encoding 2.2.0",
  "pin-project",
- "rustls-pemfile",
+ "rustls-pemfile 0.2.1",
  "scoped-tls",
  "serde",
  "serde_json",

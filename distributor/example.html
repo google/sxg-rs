@@ -1,6 +1,9 @@
 <body data-instant-allow-query-string data-instant-allow-external-links>
 <p><a href="https://signed-exchange-testing.dev/sxgs/valid.html">HTML</a>
+<!-- TODO: Figure out why the image is not prefetching here. -->
 <p><a href="https://signed-exchange-testing.dev/sxgs/valid-image-subresource.html">HTML + image</a>
+<!-- TODO: Figure out how to make this populate the prefetch cache. -->
+<p><a href="https://example.com/">non-SXG</a>
 <script type=module>
 function cacheUrl(url) {
   if (url && url.startsWith('https://')) {

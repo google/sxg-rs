@@ -77,8 +77,8 @@ fn unwrap(
                     .ok_or_else(|| anyhow!("invalid integrity"))?
         );
     }
-    let headers: Value = ciborium::de::from_reader(signed_headers)
-        .with_context(|| "parsing signed headers")?;
+    let headers: Value =
+        ciborium::de::from_reader(signed_headers).with_context(|| "parsing signed headers")?;
     // TODO: Verify header names don't contain uppercase; no duplicates; etc. (canonical serialization)
     let headers: Vec<(Vec<u8>, Vec<u8>)> = match headers {
         Value::Map(pairs) => {
