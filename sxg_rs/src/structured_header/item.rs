@@ -15,7 +15,7 @@
 use std::borrow::Cow;
 use std::fmt;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ShItem<'a> {
     ByteSequence(Cow<'a, [u8]>),
     Integer(i64),
