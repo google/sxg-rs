@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::base::{is_quoted_pair_payload, is_tchar, ows, parameter_value, token};
+use super::base::{is_quoted_pair_payload, is_tchar, ows, quoted_string};
 use nom::{
-    bytes::complete::take_while,
+    branch::alt,
+    bytes::complete::{take_while, take_while1},
     character::complete::char,
-    combinator::{map, opt},
+    combinator::{into, map, opt},
     multi::many0,
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
@@ -97,10 +98,43 @@ fn uri_ref(input: &str) -> IResult<&str, &str> {
     })(input)
 }
 
-fn link_param<'a>(input: &'a str) -> IResult<&str, (Cow<'a, str>, Option<String>)> {
+// https://www.rfc-editor.org/rfc/rfc5987#section-3.2.1
+fn parmname(input: &str) -> IResult<&str, &str> {
+    take_while1(is_attr_char)(input)
+}
+
+// https://www.rfc-editor.org/rfc/rfc5987#section-3.2.1
+pub fn is_attr_char(c: char) -> bool {
+    matches!(c,
+        'A'..='Z' | 'a'..='z' | '0'..='9' |
+        '!' | '#' | '$' | '&' | '+' | '-' | '.' |
+        '^' | '_' | '`' | '|' | '~'
+    )
+}
+
+// https://www.rfc-editor.org/rfc/rfc5988.html#section-5
+fn ptoken(input: &str) -> IResult<&str, &str> {
+    take_while1(is_ptokenchar)(input)
+}
+
+// https://www.rfc-editor.org/rfc/rfc5988.html#section-5
+pub fn is_ptokenchar(c: char) -> bool {
+    matches!(c,
+        '!' | '#' | '$' | '%' | '&' | '\'' | '(' |
+        ')' | '*' | '+' | '-' | '.' | '/' | '0'..='9' |
+        ':' | '<' | '=' | '>' | '?' | '@' | 'A'..='Z' | 'a'..='z' |
+        '[' | ']' | '^' | '_' | '`' | '{' | '|' |
+        '}' | '~'
+    )
+}
+
+fn link_param(input: &str) -> IResult<&str, (Cow<'_, str>, Option<String>)> {
     pair(
-        map(terminated(token, ows), Cow::Borrowed),
-        opt(preceded(pair(char('='), ows), parameter_value)),
+        map(terminated(parmname, ows), Cow::Borrowed),
+        opt(preceded(
+            pair(char('='), ows),
+            alt((into(ptoken), quoted_string)),
+        )),
     )(input)
 }
 
@@ -172,6 +206,19 @@ mod tests {
                 Link {
                     uri: "/foo".into(),
                     params: vec![(Cow::Borrowed("bar"), None)],
+                }
+            )
+        );
+        assert_eq!(
+            link(r#"<https://signed-exchange-testing.dev/sxgs/image.jpg>;rel=allowed-alt-sxg;header-integrity=sha256-ypu/jZuGukVK2EEGlEkiN92qQDg3Zw6Fb0kCtees1bo="#).unwrap(),
+            (
+                "",
+                Link {
+                    uri: "https://signed-exchange-testing.dev/sxgs/image.jpg".into(),
+                    params: vec![
+                        (Cow::Borrowed("rel"), Some("allowed-alt-sxg".into())),
+                        (Cow::Borrowed("header-integrity"), Some("sha256-ypu/jZuGukVK2EEGlEkiN92qQDg3Zw6Fb0kCtees1bo=".into())),
+                    ],
                 }
             )
         );

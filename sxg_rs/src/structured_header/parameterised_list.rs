@@ -12,22 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::borrow::Cow;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 
 use super::ShItem;
 
+#[derive(Debug)]
 pub struct ParamItem<'a> {
-    primary_id: &'a str,
-    parameters: Vec<(&'a str, Option<ShItem<'a>>)>,
+    pub primary_id: Cow<'a, str>,
+    pub parameters: Vec<(Cow<'a, str>, Option<ShItem<'a>>)>,
 }
 
-pub struct ShParamList<'a>(Vec<ParamItem<'a>>);
+#[derive(Debug)]
+pub struct ShParamList<'a>(pub Vec<ParamItem<'a>>);
 
 impl<'a> ParamItem<'a> {
     pub fn new(primary_id: &'a str) -> Self {
         ParamItem {
-            primary_id,
+            primary_id: primary_id.into(),
             parameters: Vec::new(),
         }
     }
@@ -39,8 +42,14 @@ impl<'a> ShParamList<'a> {
     }
 }
 
+impl<'a> Default for ShParamList<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a> Deref for ParamItem<'a> {
-    type Target = Vec<(&'a str, Option<ShItem<'a>>)>;
+    type Target = Vec<(Cow<'a, str>, Option<ShItem<'a>>)>;
     fn deref(&self) -> &Self::Target {
         &self.parameters
     }

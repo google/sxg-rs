@@ -14,7 +14,7 @@
 
 mod accept;
 mod base;
-mod cache_control;
+pub mod cache_control;
 pub mod link;
 pub mod media_type;
 pub mod srcset;
@@ -53,10 +53,13 @@ pub fn parse_accept_header(input: &str) -> Result<Vec<accept::Accept>> {
     parse_vec(input, accept::accept)
 }
 
+pub fn parse_cache_control_directives(input: &str) -> Result<Vec<cache_control::Directive>> {
+    parse_vec(input, cache_control::directive)
+}
+
 // Returns the freshness lifetime for a shared cache.
 pub fn parse_cache_control_header(input: &str) -> Result<Duration> {
-    let directives = parse_vec(input, cache_control::directive)?;
-    cache_control::freshness_lifetime(directives)
+    cache_control::freshness_lifetime(parse_cache_control_directives(input)?)
         .ok_or_else(|| Error::msg("Freshness lifetime is implicit"))
 }
 
@@ -68,6 +71,10 @@ pub fn parse_content_type_header(input: &str) -> Result<media_type::MediaType> {
 
 pub fn parse_link_header(input: &str) -> Result<Vec<link::Link>> {
     parse_vec(input, link::link)
+}
+
+pub fn parse_token_list(input: &str) -> Result<Vec<&str>> {
+    parse_vec(input, base::token)
 }
 
 // https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.4

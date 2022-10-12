@@ -30,7 +30,7 @@ pub enum Directive {
     SMaxAge(Duration),
     MaxAge(Duration),
     // Not relevant to the freshness lifetime computation.
-    Other,
+    Other(String, Option<String>),
 }
 
 pub fn directive(input: &str) -> IResult<&str, Directive> {
@@ -50,9 +50,10 @@ pub fn directive(input: &str) -> IResult<&str, Directive> {
                 Directive::MaxAge(Duration::from_secs(i.into()))
             }),
         ),
-        map(pair(token, opt(pair(char('='), parameter_value))), |_| {
-            Directive::Other
-        }),
+        map(
+            pair(token, opt(preceded(char('='), parameter_value))),
+            |(k, v)| Directive::Other(k.into(), v),
+        ),
     ))(input)
 }
 
@@ -76,7 +77,7 @@ pub fn freshness_lifetime(directives: Vec<Directive>) -> Option<Duration> {
             Directive::MaxAge(duration) => {
                 max_age.get_or_insert(duration);
             }
-            Directive::Other => (),
+            Directive::Other(_, _) => (),
         };
     }
     s_maxage.or(max_age)
@@ -95,11 +96,17 @@ mod tests {
             directive("s-maxage=\"3600\"").unwrap(),
             ("", Directive::SMaxAge(Duration::from_secs(3600)))
         );
-        assert_eq!(directive("s-maxage=-1").unwrap(), ("", Directive::Other));
-        assert_eq!(directive("s-maxage=1e6").unwrap(), ("", Directive::Other));
+        assert_eq!(
+            directive("s-maxage=-1").unwrap(),
+            ("", Directive::Other("s-maxage".into(), Some("-1".into())))
+        );
+        assert_eq!(
+            directive("s-maxage=1e6").unwrap(),
+            ("", Directive::Other("s-maxage".into(), Some("1e6".into())))
+        );
         assert_eq!(
             directive("s-maxage=\"3600").unwrap(),
-            ("=\"3600", Directive::Other)
+            ("=\"3600", Directive::Other("s-maxage".into(), None))
         );
     }
     #[test]
@@ -112,34 +119,52 @@ mod tests {
             directive("max-age=\"3600\"").unwrap(),
             ("", Directive::MaxAge(Duration::from_secs(3600)))
         );
-        assert_eq!(directive("max-age=-1").unwrap(), ("", Directive::Other));
-        assert_eq!(directive("max-age=1e6").unwrap(), ("", Directive::Other));
+        assert_eq!(
+            directive("max-age=-1").unwrap(),
+            ("", Directive::Other("max-age".into(), Some("-1".into())))
+        );
+        assert_eq!(
+            directive("max-age=1e6").unwrap(),
+            ("", Directive::Other("max-age".into(), Some("1e6".into())))
+        );
         assert_eq!(
             directive("max-age=\"3600").unwrap(),
-            ("=\"3600", Directive::Other)
+            ("=\"3600", Directive::Other("max-age".into(), None))
         );
     }
     #[test]
     fn directive_other() {
-        assert_eq!(directive("no-store").unwrap(), ("", Directive::Other));
+        assert_eq!(
+            directive("no-store").unwrap(),
+            ("", Directive::Other("no-store".into(), None))
+        );
         assert_eq!(
             directive("no-cache=set-cookie").unwrap(),
-            ("", Directive::Other)
+            (
+                "",
+                Directive::Other("no-cache".into(), Some("set-cookie".into()))
+            )
         );
         assert_eq!(
             directive("no-cache=\"set-cookie, set-cookie2\"").unwrap(),
-            ("", Directive::Other)
+            (
+                "",
+                Directive::Other("no-cache".into(), Some("set-cookie, set-cookie2".into()))
+            )
         );
         assert_eq!(
             directive("no-cache=\"set-cookie").unwrap(),
-            ("=\"set-cookie", Directive::Other)
+            ("=\"set-cookie", Directive::Other("no-cache".into(), None))
         );
     }
     #[test]
     fn directive_multiple() {
         assert_eq!(
             directive("no-cache=\"set-cookie, set-cookie2\", no-store").unwrap(),
-            (", no-store", Directive::Other)
+            (
+                ", no-store",
+                Directive::Other("no-cache".into(), Some("set-cookie, set-cookie2".into()))
+            )
         );
     }
     #[test]
