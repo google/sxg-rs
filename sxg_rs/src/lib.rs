@@ -21,7 +21,7 @@ pub mod header_integrity;
 pub mod headers;
 pub mod http;
 pub mod http_cache;
-mod http_parser;
+pub mod http_parser;
 mod id_headers;
 mod link;
 mod mice;
