@@ -128,7 +128,7 @@ pub fn is_ptokenchar(c: char) -> bool {
     )
 }
 
-fn link_param<'a>(input: &'a str) -> IResult<&str, (Cow<'a, str>, Option<String>)> {
+fn link_param(input: &str) -> IResult<&str, (Cow<'_, str>, Option<String>)> {
     pair(
         map(terminated(parmname, ows), Cow::Borrowed),
         opt(preceded(

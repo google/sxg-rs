@@ -33,12 +33,12 @@ hyper-tls = "0.5.0"
 hyper-trust-dns = { version = "0.5.0", default-features = false, features = ["rustls-webpki", "rustls-http1", "rustls-tls-12"] }
 hyper = { version = "0.14.20", features = ["http1", "http2", "server", "stream", "tcp"] }
 lazy_static = "1.4.0"
-lru = "0.8.0"
+lru = "0.8.1"
 rand = "0.8.5"
 serde_yaml = "0.9.13"
 # TODO: Determine if I can remove strip_id_headers because it's default.
 sxg_rs = { path = "../sxg_rs", features = ["strip_id_headers", "rust_signer"] }
-tokio = { version = "1.21.1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio = { version = "1.21.2", features = ["rt-multi-thread", "macros", "sync", "time"] }
 tools = { path = "../tools" }
 url = "2.3.1"
 

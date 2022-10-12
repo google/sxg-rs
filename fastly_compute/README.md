@@ -41,9 +41,12 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 ## Install
 
 1. Install [Rust](https://www.rust-lang.org/tools/install) using
-   [rustup](https://rustup.rs/)
+   [rustup](https://rustup.rs/).
 
 1. Install [Fastly CLI](https://github.com/fastly/cli).
+
+1. Install Fastly CLI
+   [local dependencies](https://developer.fastly.com/learning/compute/#install-local-dependencies).
 
 1. Clone this repo and cd into the current folder.
    ```bash
@@ -93,7 +96,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
       Put it to `config.yaml` as `html_host` (see `config.example.yaml`).
       Edit the backend and change its name from `Host 1` to `Origin HTML server`.
 
-   1. Add `ocsp.digicert.com` as a backend to the service.
+   1. Add the OCSP server (such as `ocsp.pki.goog` or `ocsp.digicert.com`) as a backend to the service.
       Edit the backend and change its name from `Host 1` to `OCSP server`,
       and change the port from `TLS 443` to `Non-TLS 80`.
 
@@ -109,7 +112,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
       and make sure `http://YOUR_DOMAIN/.well-known/acme-challenge/*` is redirected to
       `https://WORKER_HOST/.well-known/acme-challenge/$1`.
 
-   1. Run `cargo run -p tools -- apply-acme-cert --artifact .data.local/fastly-dev/artifact.yaml --use-fastly-dictionary`.
+   1. Run `cargo run -p tools -- apply-acme-cert --artifact artifact.yaml --use-fastly-dictionary`.
 
 1. To check whether the worker generates a valid SXG,
    use Chrome browser to open `https://${WORKER_HOST}/.sxg/test.html`.
@@ -121,7 +124,7 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 The certificates need to be renewed every 90 days.
 
 1. If you are using ACME, run
-   `cargo run -p tools -- apply-acme-cert --artifact .data.local/fastly-dev/artifact.yaml --use-fastly-dictionary`.
+   `cargo run -p tools -- apply-acme-cert --artifact artifact.yaml --use-fastly-dictionary`.
 
 1. If you are not using ACME,
    1. Follow [these steps](../credentials/README.md#renew-certificate) to renew

@@ -154,8 +154,6 @@ impl SxgWorker {
 
         let fallback_base = Url::parse(fallback_url)
             .map_err(|e| Error::new(e).context("Failed to parse fallback URL"))?;
-        let cert_base = Url::parse(cert_origin)
-            .map_err(|e| Error::new(e).context("Failed to parse cert origin"))?;
         let mut header_integrity_fetcher = header_integrity::new_fetcher(
             runtime.fetcher.as_ref(),
             header_integrity_cache,
@@ -170,12 +168,26 @@ impl SxgWorker {
             skip_process_link,
         )
         .await?;
-        let cert_url = cert_base
-            .join(&format!(
-                "{}{}",
-                &self.config.cert_url_dirname, &latest_certificate.basename
-            ))
-            .map_err(|e| Error::new(e).context("Failed to parse cert_url_dirname"))?;
+        let cert_url = match Url::parse(cert_origin) {
+            Ok(cert_base) => {
+                let cert_url = cert_base
+                    .join(&format!(
+                        "{}{}",
+                        &self.config.cert_url_dirname, &latest_certificate.basename
+                    ))
+                    .map_err(|e| Error::new(e).context("Failed to parse cert_url_dirname"))?;
+                cert_url.into()
+            }
+            // In the case that `cert_origin` is invalid, it fallbacks to use data-url.
+            Err(_) => {
+                let ocsp_der = self.get_unexpired_ocsp(runtime, latest_certificate).await?;
+                let cert_body = latest_certificate.create_cert_cbor(&ocsp_der);
+                format!(
+                    "data:application/cert-chain+cbor;base64,{}",
+                    base64::encode(&cert_body)
+                )
+            }
+        };
         let validity_url = fallback_base
             .join(&format!(
                 "{}{}",
@@ -226,17 +238,17 @@ impl SxgWorker {
         let validity = cbor::DataItem::Map(vec![]);
         validity.serialize()
     }
-    pub async fn get_unexpired_ocsp(&self, runtime: &Runtime) -> Result<Vec<u8>> {
-        if let Some(certificate) = &self.certificates.back() {
-            ocsp::read_and_update_ocsp_in_storage(
-                certificate,
-                runtime,
-                ocsp::OcspUpdateStrategy::LazyIfUnexpired,
-            )
-            .await
-        } else {
-            Err(Error::msg("OCSP requires certificate chain"))
-        }
+    pub async fn get_unexpired_ocsp(
+        &self,
+        runtime: &Runtime,
+        certificate: &CertificateChain,
+    ) -> Result<Vec<u8>> {
+        ocsp::read_and_update_ocsp_in_storage(
+            certificate,
+            runtime,
+            ocsp::OcspUpdateStrategy::LazyIfUnexpired,
+        )
+        .await
     }
     pub async fn update_oscp_in_storage(&self, runtime: &Runtime) -> Result<()> {
         if let Some(certificate) = &self.certificates.back() {
@@ -303,7 +315,7 @@ impl SxgWorker {
             }
         } else if let Some(cert_name) = path.strip_prefix(&self.config.cert_url_dirname) {
             if let Some(certificate) = self.find_certificate_by_basename(cert_name) {
-                let ocsp_der = self.get_unexpired_ocsp(runtime).await.ok()?;
+                let ocsp_der = self.get_unexpired_ocsp(runtime, certificate).await.ok()?;
                 Some(PresetContent::Direct(HttpResponse {
                     body: certificate.create_cert_cbor(&ocsp_der),
                     headers: vec![(
