@@ -24,6 +24,7 @@ use anyhow::{anyhow, Error, Result};
 use async_trait::async_trait;
 use der_parser::ber::{BerObject, BerObjectContent};
 use std::cmp::min;
+use std::convert::TryInto;
 use std::time::Duration;
 
 #[derive(Clone, Copy)]
@@ -55,8 +56,8 @@ pub struct SignatureParams<'a> {
 pub struct Signature<'a> {
     cert_url: &'a str,
     cert_sha256: &'a [u8],
-    date: u64,
-    expires: u64,
+    date: i64,
+    expires: i64,
     id: &'a str,
     sig: Vec<u8>,
     validity_url: &'a str,
@@ -113,8 +114,8 @@ impl<'a> Signature<'a> {
         Ok(Signature {
             cert_url,
             cert_sha256,
-            date,
-            expires,
+            date: date.try_into()?,
+            expires: expires.try_into()?,
             id,
             sig,
             validity_url,
@@ -123,13 +124,25 @@ impl<'a> Signature<'a> {
     pub fn serialize(&self) -> Vec<u8> {
         let mut list = ShParamList::new();
         let mut param = ParamItem::new(self.id);
-        param.push(("sig", Some(ShItem::ByteSequence(&self.sig))));
-        param.push(("integrity", Some(ShItem::String("digest/mi-sha256-03"))));
-        param.push(("cert-url", Some(ShItem::String(self.cert_url))));
-        param.push(("cert-sha256", Some(ShItem::ByteSequence(self.cert_sha256))));
-        param.push(("validity-url", Some(ShItem::String(self.validity_url))));
-        param.push(("date", Some(ShItem::Integer(self.date))));
-        param.push(("expires", Some(ShItem::Integer(self.expires))));
+        param.push(("sig".into(), Some(ShItem::ByteSequence((&self.sig).into()))));
+        param.push((
+            "integrity".into(),
+            Some(ShItem::String("digest/mi-sha256-03".into())),
+        ));
+        param.push((
+            "cert-url".into(),
+            Some(ShItem::String(self.cert_url.into())),
+        ));
+        param.push((
+            "cert-sha256".into(),
+            Some(ShItem::ByteSequence(self.cert_sha256.into())),
+        ));
+        param.push((
+            "validity-url".into(),
+            Some(ShItem::String(self.validity_url.into())),
+        ));
+        param.push(("date".into(), Some(ShItem::Integer(self.date.into()))));
+        param.push(("expires".into(), Some(ShItem::Integer(self.expires.into()))));
         list.push(param);
         format!("{}", list).into_bytes()
     }

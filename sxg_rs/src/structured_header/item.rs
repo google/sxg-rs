@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::borrow::Cow;
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ShItem<'a> {
-    ByteSequence(&'a [u8]),
-    Integer(u64),
-    String(&'a str),
+    ByteSequence(Cow<'a, [u8]>),
+    Integer(i64),
+    String(Cow<'a, str>),
 }
 
 // should be https://tools.ietf.org/html/draft-ietf-httpbis-header-structure-10#section-4.1.5

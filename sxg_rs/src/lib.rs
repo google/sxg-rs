@@ -31,7 +31,7 @@ pub mod runtime;
 pub mod serde_helpers;
 pub mod signature;
 pub mod storage;
-mod structured_header;
+pub mod structured_header;
 pub mod sxg;
 pub mod utils;
 #[cfg(feature = "wasm")]
