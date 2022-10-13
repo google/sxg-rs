@@ -1,0 +1,48 @@
+<body data-instant-allow-query-string data-instant-allow-external-links>
+<p><a href="https://signed-exchange-testing.dev/sxgs/valid.html">HTML</a>
+<!-- TODO: Figure out why the image is not prefetching here. -->
+<p><a href="https://signed-exchange-testing.dev/sxgs/valid-image-subresource.html">HTML + image</a>
+<!-- TODO: Figure out how to make this populate the prefetch cache. -->
+<p><a href="https://example.com/">non-SXG</a>
+<script type=module>
+function cacheUrl(url) {
+  if (url && url.startsWith('https://')) {
+    return 'https://localhost:8080/doc/-/s/' + url.slice('https://'.length);
+  } else {
+    return url;
+  }
+}
+// TODO: Feature detection (and maybe UA sniff??).
+
+// NOTE: Prefetches via instant.page occur only ~100-300ms before navigation.
+// To increase the likelihood that the prefetch succeeds in time, add a caching
+// layer in front of the distributor (honoring the distributor's Cache-Control
+// headers).
+//
+// NOTE: This doesn't watch for modifications to the page. Do something fancier
+// if JS lazily renders content that might include external links.
+//
+// NOTE: If any link targets use both SXG and dynamic serving for
+// mobile/desktop, this could cause the wrong form factor to show.
+// 1. The recommended solution is to inspect the target for a `<meta
+//    name=supported-media>` [1] and, if present, only link to the cacheUrl if
+//    `window.matchMedia(..).matches` is true. This requires a database that
+//    can be written by the distributor and read by the referrer.
+// 2. A non-recommended option is to modify the distributor to pass the
+//    incoming request's User-Agent to the origin. This risks being a
+//    fingerprinting vector.
+//
+// [1] https://github.com/google/webpackager/blob/main/docs/supported_media.md
+document.querySelectorAll('a:not([download])').forEach((a) => {
+  if (a.href.startsWith('https://')) {
+    a.addEventListener('click', (event) => {
+      // Only override on left-click, so hover and Copy link still work.
+      if (event.button === 0) {
+        a.setAttribute('href', cacheUrl(a.getAttribute('href')));
+      }
+    });
+  }
+});
+window.instantUrlModifier = cacheUrl;
+</script>
+<script src=instantpage.js type=module></script>
