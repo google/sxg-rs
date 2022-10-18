@@ -25,7 +25,7 @@ use fetcher::FastlyFetcher;
 use std::convert::TryInto;
 use sxg_rs::{
     crypto::CertificateChain,
-    headers::{AcceptFilter, Headers},
+    headers::{AcceptFilter, Headers, VIA_SXGRS},
     http::HeaderFields,
     PresetContent, SxgWorker,
 };
@@ -103,12 +103,16 @@ pub fn sxg_rs_response_to_fastly_response(
     Ok(rsp.into())
 }
 
+/// The *name* of the host in Fastly service configuration.
+/// https://docs.fastly.com/en/guides/working-with-hosts
+const HTML_BACKEND_NAME: &str = "Origin HTML server";
+
 fn fetch_from_html_server(url: &Url, req_headers: Vec<(String, String)>) -> Result<Response> {
     let mut req = Request::new("GET", url);
     for (name, value) in req_headers {
         req.append_header(name, value);
     }
-    req.send("Origin HTML server")
+    req.send(HTML_BACKEND_NAME)
         .map_err(|err| Error::msg(format!(r#"Fetching "{}" leads to error "{}""#, url, err)))
 }
 
@@ -147,7 +151,7 @@ async fn generate_sxg_response(
     sxg_rs_response_to_fastly_response(sxg)
 }
 
-async fn handle_request(worker: &SxgWorker, req: Request) -> Result<Response> {
+async fn handle_request(worker: &SxgWorker, req: &Request) -> Result<Response> {
     let runtime = sxg_rs::runtime::Runtime {
         now: std::time::SystemTime::now(),
         fetcher: Box::new(FastlyFetcher::new("OCSP server")),
@@ -168,11 +172,11 @@ async fn handle_request(worker: &SxgWorker, req: Request) -> Result<Response> {
             fallback_url = Url::parse(&url).map_err(Error::new)?;
             (_, cert_origin) = worker.get_fallback_url_and_cert_origin(req.get_url())?;
             sxg_payload = sxg_rs_response_to_fastly_response(payload)?;
-            get_req_header_fields(worker, &req, AcceptFilter::AcceptsSxg).await?;
+            get_req_header_fields(worker, req, AcceptFilter::AcceptsSxg).await?;
         }
         None => {
             (fallback_url, cert_origin) = worker.get_fallback_url_and_cert_origin(req.get_url())?;
-            let req_headers = get_req_header_fields(worker, &req, AcceptFilter::PrefersSxg).await?;
+            let req_headers = get_req_header_fields(worker, req, AcceptFilter::PrefersSxg).await?;
             sxg_payload = fetch_from_html_server(&fallback_url, req_headers)?;
         }
     };
@@ -181,13 +185,30 @@ async fn handle_request(worker: &SxgWorker, req: Request) -> Result<Response> {
 
 #[fastly::main]
 fn main(req: Request) -> Result<Response, std::convert::Infallible> {
+    let has_network_loop = req
+        .get_header_all_str("via")
+        .iter()
+        .any(|v| v.contains(VIA_SXGRS));
+    if has_network_loop {
+        return Ok(text_response("Network loop detected."));
+    }
     tokio::runtime::Builder::new_current_thread()
         .build()
         .unwrap()
         .block_on(async {
             let worker = create_worker().await;
-            let response = handle_request(&worker, req).await.unwrap_or_else(|msg| {
-                text_response(&format!("A message is gracefully thrown.\n{:?}", msg))
+            let response = handle_request(&worker, &req).await.unwrap_or_else(|_| {
+                let mut req = req;
+                match worker.get_fallback_url_and_cert_origin(req.get_url()) {
+                    Ok((fallback_url, _)) => {
+                        req.set_url(fallback_url);
+                    }
+                    Err(_) => {
+                        return text_response("Failed to construct fallback URL");
+                    }
+                };
+                req.append_header("via", VIA_SXGRS);
+                req.send(HTML_BACKEND_NAME).unwrap()
             });
             Ok(response)
         })
