@@ -97,8 +97,6 @@ impl Headers {
             .filter_map(|(k, v)| {
                 let v = if forwarded_header_names.contains(&k) {
                     v
-                } else if k == "via" {
-                    format!("{}, {}", v, via)
                 } else {
                     return None;
                 };
@@ -497,6 +495,20 @@ mod tests {
                 .into_iter()
                 .collect::<HashMap<String, String>>(),
             header_fields(vec![("user-agent", USER_AGENT), ("via", "sxgrs")])
+        );
+    }
+    #[test]
+    fn upstream_via_header() {
+        assert_eq!(
+            headers(vec![
+                ("accept", "application/signed-exchange;v=b3"),
+                ("via", "nginx")
+            ])
+            .forward_to_origin_server(AcceptFilter::PrefersSxg, &BTreeSet::new())
+            .unwrap()
+            .into_iter()
+            .collect::<HashMap<String, String>>(),
+            header_fields(vec![("user-agent", USER_AGENT), ("via", "nginx, sxgrs")])
         );
     }
     #[test]
