@@ -32,4 +32,4 @@ $ popd
 $ google-chrome --user-data-dir=/tmp/udd --ignore-certificate-errors-spki-list=$(openssl x509 -pubkey -noout -in cert.pem | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64) http://localhost:8000/example.html &
 ```
 
-Open the DevTools Network tab to see how, on hoverm cross-origin links are prefetched from the distributor.
+Open the DevTools Network tab to see how, on hover, cross-origin links are prefetched from the distributor.
