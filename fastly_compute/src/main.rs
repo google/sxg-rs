@@ -16,11 +16,7 @@ mod fetcher;
 mod storage;
 
 use anyhow::{Error, Result};
-use fastly::{
-    http::{StatusCode, Url},
-    mime::Mime,
-    Request, Response,
-};
+use fastly::{http::Url, Error as FastlyError, Request, Response};
 use fetcher::FastlyFetcher;
 use std::convert::TryInto;
 use sxg_rs::{
@@ -51,18 +47,6 @@ async fn create_worker() -> SxgWorker {
         .await
         .unwrap();
     worker
-}
-
-fn binary_response(status_code: StatusCode, content_type: Mime, body: &[u8]) -> Response {
-    let mut response = Response::new();
-    response.set_status(status_code);
-    response.set_content_type(content_type);
-    response.set_body(body);
-    response
-}
-
-fn text_response(body: &str) -> Response {
-    binary_response(StatusCode::OK, fastly::mime::TEXT_PLAIN, body.as_bytes())
 }
 
 async fn get_req_header_fields(
@@ -184,32 +168,31 @@ async fn handle_request(worker: &SxgWorker, req: &Request) -> Result<Response> {
 }
 
 #[fastly::main]
-fn main(req: Request) -> Result<Response, std::convert::Infallible> {
+fn main(req: Request) -> Result<Response, FastlyError> {
     let has_network_loop = req
         .get_header_all_str("via")
         .iter()
         .any(|v| v.contains(VIA_SXGRS));
     if has_network_loop {
-        return Ok(text_response("Network loop detected."));
+        return Err(FastlyError::msg("Network loop detected."));
     }
     tokio::runtime::Builder::new_current_thread()
         .build()
         .unwrap()
         .block_on(async {
             let worker = create_worker().await;
-            let response = handle_request(&worker, &req).await.unwrap_or_else(|_| {
-                let mut req = req;
-                match worker.get_fallback_url_and_cert_origin(req.get_url()) {
-                    Ok((fallback_url, _)) => {
-                        req.set_url(fallback_url);
-                    }
-                    Err(_) => {
-                        return text_response("Failed to construct fallback URL");
-                    }
-                };
-                req.append_header("via", VIA_SXGRS);
-                req.send(HTML_BACKEND_NAME).unwrap()
-            });
-            Ok(response)
+            match handle_request(&worker, &req).await {
+                Ok(sxg_response) => Ok(sxg_response),
+                Err(_) => {
+                    let mut req = req;
+                    let (fallback_url, _) = worker
+                        .get_fallback_url_and_cert_origin(req.get_url())
+                        .map_err(|_| FastlyError::msg("Failed to construct fallback URL"))?;
+                    req.set_url(fallback_url);
+                    req.append_header("via", VIA_SXGRS);
+                    req.send(HTML_BACKEND_NAME)
+                        .map_err(|_| FastlyError::msg("Failed to fetch from fallback URL"))
+                }
+            }
         })
 }
