@@ -43,6 +43,11 @@ pub enum AcceptFilter {
 // A default mobile user agent, for when the upstream request doesn't include one.
 const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36";
 
+/// This value is appended to `via` header of all requests sent from an SXG worker.
+/// A network loop is believed to have happened when an SXG worker receives a request
+/// containing this value.
+pub const VIA_SXGRS: &str = "sxgrs";
+
 impl Headers {
     pub fn new(data: HeaderFields, strip_headers: &BTreeSet<String>) -> Self {
         let mut headers = Headers(HashMap::new());
@@ -86,7 +91,7 @@ impl Headers {
             .ok_or_else(|| anyhow!("The request does not have an Accept header"))?;
         validate_accept_header(accept, accept_filter)?;
         // Set Via per https://tools.ietf.org/html/rfc7230#section-5.7.1
-        let mut via = "sxgrs".to_string();
+        let mut via = VIA_SXGRS.to_string();
         if let Some(upstream_via) = self.0.get("via") {
             via = format!("{}, {}", upstream_via, via);
         }
