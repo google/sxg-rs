@@ -123,8 +123,9 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 
 The certificates need to be renewed every 90 days.
 
-1. If you are using ACME, run
-   `cargo run -p tools -- apply-acme-cert --artifact artifact.yaml --use-fastly-dictionary`.
+1. If you are using ACME:
+   1. Run `cargo run -p tools -- apply-acme-cert --artifact artifact.yaml --use-fastly-dictionary`.
+   1. Alternatively, you may run `cargo build -p tools` once and then run `tools apply-acme-cert --artifact artifact.yaml --use-fastly-dictionary` every 90 days.
 
 1. If you are not using ACME,
    1. Follow [these steps](../credentials/README.md#renew-certificate) to renew
