@@ -172,11 +172,11 @@ async fn handle_request(worker: &SxgWorker, req: &Request) -> Result<Response> {
             fallback_url = Url::parse(&url).map_err(Error::new)?;
             (_, cert_origin) = worker.get_fallback_url_and_cert_origin(req.get_url())?;
             sxg_payload = sxg_rs_response_to_fastly_response(payload)?;
-            get_req_header_fields(worker, &req, AcceptFilter::AcceptsSxg).await?;
+            get_req_header_fields(worker, req, AcceptFilter::AcceptsSxg).await?;
         }
         None => {
             (fallback_url, cert_origin) = worker.get_fallback_url_and_cert_origin(req.get_url())?;
-            let req_headers = get_req_header_fields(worker, &req, AcceptFilter::PrefersSxg).await?;
+            let req_headers = get_req_header_fields(worker, req, AcceptFilter::PrefersSxg).await?;
             sxg_payload = fetch_from_html_server(&fallback_url, req_headers)?;
         }
     };
@@ -204,7 +204,7 @@ fn main(req: Request) -> Result<Response, std::convert::Infallible> {
                         req.set_url(fallback_url);
                     }
                     Err(_) => {
-                        return text_response(&"Failed to construct fallback URL");
+                        return text_response("Failed to construct fallback URL");
                     }
                 };
                 req.append_header("via", VIA_SXGRS);
