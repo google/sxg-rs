@@ -1,7 +1,8 @@
-<body data-instant-allow-query-string data-instant-allow-external-links>
+<!-- See NOTEs below for changes you might want to make when productionizing. -->
+<body data-instant-allow-query-string>
 <p><a href="https://signed-exchange-testing.dev/sxgs/valid.html">HTML</a>
-<!-- TODO: Figure out why the image is not prefetching here. -->
 <p><a href="https://signed-exchange-testing.dev/sxgs/valid-image-subresource.html">HTML + image</a>
+<p><a href="https://twifkak.com/angular1/">HTML + lots of stuff</a>
 <!-- TODO: Figure out how to make this populate the prefetch cache. -->
 <p><a href="https://example.com/">non-SXG</a>
 <script type=module>
@@ -12,37 +13,73 @@ function cacheUrl(url) {
     return url;
   }
 }
-// TODO: Feature detection (and maybe UA sniff??).
 
-// NOTE: Prefetches via instant.page occur only ~100-300ms before navigation.
-// To increase the likelihood that the prefetch succeeds in time, add a caching
-// layer in front of the distributor (honoring the distributor's Cache-Control
-// headers).
-//
-// NOTE: This doesn't watch for modifications to the page. Do something fancier
-// if JS lazily renders content that might include external links.
-//
-// NOTE: If any link targets use both SXG and dynamic serving for
-// mobile/desktop, this could cause the wrong form factor to show.
-// 1. The recommended solution is to inspect the target for a `<meta
-//    name=supported-media>` [1] and, if present, only link to the cacheUrl if
-//    `window.matchMedia(..).matches` is true. This requires a database that
-//    can be written by the distributor and read by the referrer.
-// 2. A non-recommended option is to modify the distributor to pass the
-//    incoming request's User-Agent to the origin. This risks being a
-//    fingerprinting vector.
-//
-// [1] https://github.com/google/webpackager/blob/main/docs/supported_media.md
-document.querySelectorAll('a:not([download])').forEach((a) => {
-  if (a.href.startsWith('https://')) {
-    a.addEventListener('click', (event) => {
-      // Only override on left-click, so hover and Copy link still work.
-      if (event.button === 0) {
-        a.setAttribute('href', cacheUrl(a.getAttribute('href')));
-      }
-    });
-  }
-});
-window.instantUrlModifier = cacheUrl;
+// Returns true if SXG subresource substitution is supported, as described in
+// https://github.com/WICG/webpackage/blob/main/explainers/signed-exchange-subresource-substitution.md.
+// Unfortunately, this does not detect if the SXG flag is enabled in Chromium;
+// it is hard-coded in the list:
+// https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/html/rel_list.cc;l=39;drc=b5666c58a9cf7539e6f57c3e6e957c8fd956c650
+function supportsAllowedAltSxg() {
+  return document.createElement('link').relList.supports('allowed-alt-sxg');
+}
+
+// Returns true if the client supports SXGs with the `Vary: Cookie` header, as
+// specified in https://wicg.github.io/webpackage/loading.html#request-matching
+// and documented in
+// https://developer.chrome.com/blog/sxg-desktop/#support-for-server-side-personalization
+// and implemented in M98 in
+// https://chromiumdash.appspot.com/commit/6405d0afa7021ee4d0a8af19f8a67da6a81bc43d.
+// This is the latest SXG feature to be added to the browser. For any sites
+// that are using this feature, serving their SXGs to older browsers may result
+// in users seeing logged out experiences even when logged in.
+function supportsSxgVaryCookie() {
+  // Per https://wicg.github.io/ua-client-hints/#grease, we should expect to
+  // see an accurate version for the engine name, but not the browser name.
+  return navigator.userAgentData.brands.some(({brand, version}) => brand === 'Chromium' && version >= 98);
+}
+
+// NOTE: Proper feature detection requires server-side inspection of the Accept
+// header to see if `application/signed-exchange;v=b3` is present. This is the
+// only publicly visible aspect that's gated by the SignedHTTPExchange Chromium
+// feature flag
+// (https://source.chromium.org/chromium/chromium/src/+/main:content/public/common/content_features.cc;l=978;drc=b5666c58a9cf7539e6f57c3e6e957c8fd956c650),
+// but it can't be inspected client-side.
+if (supportsAllowedAltSxg() && supportsSxgVaryCookie()) {
+  // NOTE: Prefetches via instant.page occur only ~100-300ms before navigation.
+  // To increase the likelihood that the prefetch succeeds in time, one should
+  // add a caching layer in front of the distributor (honoring the
+  // distributor's Cache-Control headers).
+  //
+  // NOTE: This doesn't watch for modifications to the page, e.g. if JS lazily
+  // renders content that might include external links. Consider alternatives
+  // to fix this:
+  // - Put the click listener on document.body and check Event.currentTarget.
+  // - Add a MutationObserver and add click listeners on new links.
+  //
+  // NOTE: If any link targets use both SXG and mobile/desktop dynamic serving
+  // (https://developers.google.com/search/mobile-sites/mobile-seo/dynamic-serving),
+  // this could cause the wrong form factor to show.
+  // 1. The recommended solution is to inspect the target for a `<meta
+  //    name=supported-media>` [1] and, if present, only link to the cacheUrl if
+  //    `window.matchMedia(..).matches` is true. This requires a database that
+  //    can be written by the distributor and read by the referrer.
+  // 2. A non-recommended option is to modify the distributor to pass the
+  //    incoming request's User-Agent to the origin. This risks being a
+  //    fingerprinting vector.
+  //
+  // [1] https://github.com/google/webpackager/blob/main/docs/supported_media.md
+  document.querySelectorAll('a:not([download])').forEach((a) => {
+    if (a.href.startsWith('https://')) {
+      a.addEventListener('click', (event) => {
+        // Only override on left-click, so hover and Copy link still work.
+        if (event.button === 0) {
+          a.setAttribute('href', cacheUrl(a.getAttribute('href')));
+        }
+      });
+    }
+  });
+  window.instantUrlModifier = cacheUrl;
+  document.body.dataset.instantAllowExternalLinks = true;
+}
 </script>
 <script src=instantpage.js type=module></script>

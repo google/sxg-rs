@@ -32,7 +32,7 @@ use hyper::{
     Body, Request, Response, StatusCode,
 };
 use hyper_trust_dns::{RustlsHttpsConnector, TrustDnsResolver};
-use regex::Regex;
+use regex::{Captures, Regex};
 use rustls::{server::ServerConfig, Certificate, PrivateKey};
 use rustls_pemfile::Item as PemItem;
 use std::borrow::Cow;
@@ -71,6 +71,7 @@ struct Args {
     key: Option<PathBuf>,
 
     /// Web origin (https://foo.example) of the distributor; will be used in cert-url and outer Link headers.
+    // TODO: Infer ARGS.origin from request and/or make it gate the multidomain feature.
     #[clap(short, long)]
     origin: String,
 
@@ -231,16 +232,27 @@ const ACCEPT: &str = "text/html,application/xhtml+xml,application/xml;q=0.9,imag
 
 fn alternates(preloads: Vec<Preload>) -> Result<Vec<String>> {
     let mut alternates: Vec<String> = vec![];
+    lazy_static::lazy_static! {
+        static ref BASE64_STD_CHARS: Regex = Regex::new("[+/]").unwrap();
+    }
     for Preload { url, integrity } in preloads {
         let integrity = integrity
-            .get(..12)
+            .strip_prefix("sha256-")
+            .and_then(|i| i.get(..12))
+            .map(|i| {
+                BASE64_STD_CHARS.replace_all(i, |caps: &Captures| match caps.get(0) {
+                    Some(m) if m.as_str() == "+" => "-",
+                    Some(m) if m.as_str() == "/" => "_",
+                    _ => "",
+                })
+            })
             .ok_or_else(|| anyhow!("invalid header-integrity"))?;
         let suffix = url
             .strip_prefix("https://")
             .ok_or_else(|| anyhow!("invalid preload url"))?;
         alternates.push(
             Link {
-                uri: format!("/sub/{integrity}/s/{suffix}"),
+                uri: format!("{}/sub/{integrity}/s/{suffix}", &ARGS.origin),
                 params: vec![
                     ("rel".into(), Some("alternate".into())),
                     (
@@ -279,11 +291,9 @@ async fn handle(parsed: &ParsedRequest<'_>) -> Result<Response<Body>> {
         (_, Ok(resp)) => {
             let (parts, body) = resp.into_parts();
             // TODO: Validate any other outer headers?
-            ensure!(
-                parts.status == StatusCode::OK
-                    && is_nosniff(&parts.headers)
-                    && is_sxg(&parts.headers)
-            );
+            ensure!(parts.status == StatusCode::OK);
+            ensure!(is_nosniff(&parts.headers));
+            ensure!(is_sxg(&parts.headers));
             let parse_sxg::Parts {
                 fallback_url,
                 signature,
@@ -291,7 +301,6 @@ async fn handle(parsed: &ParsedRequest<'_>) -> Result<Response<Body>> {
                 payload_body,
             } = parse_sxg::parse(body).await?;
             // TODO: Separate "Unwrap" step that can save bool to storage, if specified.
-            // TODO: Infer ARGS.origin from request and/or make it gate the multidomain feature.
             let (rewritten_signature, preloads) = validate_sxg::validate(
                 &ARGS.origin,
                 &parsed.origin_url,
@@ -321,7 +330,9 @@ async fn handle(parsed: &ParsedRequest<'_>) -> Result<Response<Body>> {
             let mut resp = Response::builder()
                 .status(200)
                 .header("content-type", "application/signed-exchange;v=b3")
-                .header("x-content-type-options", "nosniff");
+                .header("x-content-type-options", "nosniff")
+                // Needed for subresource substitution:
+                .header("access-control-allow-origin", "*");
             let link: Vec<String> = alternates(preloads)?;
             if !link.is_empty() {
                 resp = resp.header("link", link.join(","));

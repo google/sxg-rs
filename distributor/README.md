@@ -14,13 +14,14 @@ to a serverless architecture.
 ### Launch the distributor
 ```bash
 $ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes -subj '/CN=localhost'
-$ cargo run -p distributor -- --origin https://localhost:8080 --user-agent Test --cert cert.pem --key key.pem &
+# Specifying `User-Agent: Googlebot` for now because Cloudflare Automatic Signed Exchanges is only enabled for certain combinations of User-Agent and Accept. Perhaps some others will work.
+$ cargo run -p distributor -- --origin https://localhost:8080 --user-agent Googlebot --cert cert.pem --key key.pem &
 ```
 
 ### Launch the prefetching referrer
 ```bash
 $ pushd distributor
-$ wget https://raw.githubusercontent.com/instantpage/instant.page/v5.1.1/instantpage.js
+$ curl -s https://raw.githubusercontent.com/instantpage/instant.page/v5.1.1/instantpage.js >instantpage.js
 $ patch instantpage.js instantpage.js.patch
 $ python3 -m http.server &
 ```

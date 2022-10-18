@@ -198,7 +198,6 @@ fn get_param(link: &Link, name: &str) -> Result<String> {
 
 fn validate_link_header(fallback_url: &str, value: &str) -> Result<Vec<Preload>> {
     // TODO: Ensure not present on subresources.
-    eprintln!("{value}");
     let links = parse_link_header(value).with_context(|| "parse_link_header")?;
     let mut num_preloads = 0;
     let mut preload_urls = vec![];
