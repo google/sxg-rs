@@ -28,7 +28,7 @@ declare let wasm_bindgen: any;
 
 type HeaderFields = Array<[string, string]>;
 
-export type AcceptFilter = 'PrefersSxg' | 'AcceptsSxg';
+export type AcceptLevel = 'RejectsSxg' | 'PrefersSxg' | 'AcceptsSxg';
 
 export interface WasmRequest {
   body: number[];
@@ -82,7 +82,7 @@ export interface WasmWorker {
   new (configYaml: string, certificatePem: string | undefined): WasmWorker;
   addAcmeCertificatesFromStorage(runtime: JsRuntimeInitParams): Promise<void>;
   createRequestHeaders(
-    accept_filter: AcceptFilter,
+    required_accept_level: AcceptLevel,
     fields: HeaderFields
   ): Promise<HeaderFields>;
   processHtml(

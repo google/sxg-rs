@@ -20,7 +20,7 @@ use crate::http_parser::{
 };
 use crate::link::process_link_header;
 use crate::MAX_PAYLOAD_SIZE;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, ensure, Result};
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use std::collections::{hash_map, BTreeSet, HashMap, HashSet};
@@ -29,15 +29,18 @@ use url::Url;
 
 pub struct Headers(HashMap<String, String>);
 
-// Which requestors to serve an SXG to.
-#[derive(Deserialize)]
-pub enum AcceptFilter {
-    // Those whose Accept header indicates they prefer an SXG over the unsigned
-    // version. That is, SXG caches and crawlers only.
-    PrefersSxg,
-    // Those whose Accept header indicates they accept an SXG, but generally
-    // prefer the unsigned version. That is, SXG-capable browsers plus the above.
+/// The preference level of how requestors accepts SXG content.
+#[derive(Debug, Deserialize, Eq, PartialEq, PartialOrd)]
+pub enum AcceptLevel {
+    /// The Accept header does not explicitly mention SXG, even when they accept `*/*`.
+    RejectsSxg,
+    /// The Accept header indicates they accept an SXG, but generally
+    /// prefer the unsigned version. That is, SXG-capable browsers plus the above.
     AcceptsSxg,
+    /// The Accept header indicates they prefer an SXG over the unsigned
+    /// version, by (explicitly or implicitly) setting `q` value to be `1`.
+    /// This does not include the case that the `q` of SXG is the biggest but smaller than `1`.
+    PrefersSxg,
 }
 
 // A default mobile user agent, for when the upstream request doesn't include one.
@@ -76,7 +79,7 @@ impl Headers {
     }
     pub fn forward_to_origin_server(
         self,
-        accept_filter: AcceptFilter,
+        required_accept_level: AcceptLevel,
         forwarded_header_names: &BTreeSet<String>,
     ) -> Result<HeaderFields> {
         if self.0.contains_key("authorization") {
@@ -89,7 +92,8 @@ impl Headers {
             .0
             .get("accept")
             .ok_or_else(|| anyhow!("The request does not have an Accept header"))?;
-        validate_accept_header(accept, accept_filter)?;
+        let actual_accept_level = parse_accept_level(accept);
+        ensure!(actual_accept_level >= required_accept_level);
         // Set Via per https://tools.ietf.org/html/rfc7230#section-5.7.1
         let mut via = VIA_SXGRS.to_string();
         if let Some(upstream_via) = self.0.get("via") {
@@ -393,11 +397,14 @@ static CACHE_CONTROL_HEADERS_SET: Lazy<HashSet<&'static str>> =
 // Checks whether to serve SXG based on the Accept header of the HTTP request.
 // Returns Ok iff the input string has a `application/signed-exchange;v=b3`,
 // and either accept_filter != PrefersSxg or its `q` value is 1.
-pub fn validate_accept_header(accept: &str, accept_filter: AcceptFilter) -> Result<()> {
+pub fn parse_accept_level(accept: &str) -> AcceptLevel {
     let accept = accept.trim();
-    let accept = parse_accept_header(accept)?;
+    let accept = match parse_accept_header(accept) {
+        Ok(accept) => accept,
+        Err(_) => return AcceptLevel::RejectsSxg,
+    };
     if accept.is_empty() {
-        return Err(anyhow!("Accept header is empty"));
+        return AcceptLevel::RejectsSxg;
     }
     let q_sxg = accept
         .iter()
@@ -426,26 +433,12 @@ pub fn validate_accept_header(accept: &str, accept_filter: AcceptFilter) -> Resu
         })
         .max()
         .unwrap_or(0);
-    const SXG: &str = "application/signed-exchange;v=b3";
     if q_sxg == 0 {
-        Err(anyhow!(
-            "The request accept header does not contain {}.",
-            SXG
-        ))
+        AcceptLevel::RejectsSxg
+    } else if q_sxg == 1000 {
+        AcceptLevel::PrefersSxg
     } else {
-        match accept_filter {
-            AcceptFilter::PrefersSxg => {
-                if q_sxg == 1000 {
-                    Ok(())
-                } else {
-                    Err(anyhow!(
-                        "The q value of {} is less than 1 in request Accept header.",
-                        SXG
-                    ))
-                }
-            }
-            AcceptFilter::AcceptsSxg => Ok(()),
-        }
+        AcceptLevel::AcceptsSxg
     }
 }
 
@@ -495,7 +488,7 @@ mod tests {
     fn basic_request_headers() {
         assert_eq!(
             headers(vec![("accept", "application/signed-exchange;v=b3")])
-                .forward_to_origin_server(AcceptFilter::PrefersSxg, &BTreeSet::new())
+                .forward_to_origin_server(AcceptLevel::PrefersSxg, &BTreeSet::new())
                 .unwrap()
                 .into_iter()
                 .collect::<HashMap<String, String>>(),
@@ -509,7 +502,7 @@ mod tests {
                 ("accept", "application/signed-exchange;v=b3"),
                 ("via", "nginx")
             ])
-            .forward_to_origin_server(AcceptFilter::PrefersSxg, &BTreeSet::new())
+            .forward_to_origin_server(AcceptLevel::PrefersSxg, &BTreeSet::new())
             .unwrap()
             .into_iter()
             .collect::<HashMap<String, String>>(),
@@ -523,122 +516,67 @@ mod tests {
                 ("accept", "application/signed-exchange;v=b3"),
                 ("authorization", "x")
             ])
-            .forward_to_origin_server(AcceptFilter::PrefersSxg, &BTreeSet::new())
+            .forward_to_origin_server(AcceptLevel::PrefersSxg, &BTreeSet::new())
             .unwrap_err()
             .to_string(),
             "The request contains an Authorization header."
         );
     }
 
-    // === validate_accept_header ===
+    #[test]
+    fn accept_level_ord() {
+        assert!(AcceptLevel::RejectsSxg < AcceptLevel::AcceptsSxg);
+        assert!(AcceptLevel::AcceptsSxg < AcceptLevel::PrefersSxg);
+    }
+
+    // === parse_accept_level ===
     #[test]
     fn prefers_sxg() {
-        assert!(validate_accept_header(
-            "application/signed-exchange;v=b3",
-            AcceptFilter::PrefersSxg
-        )
-        .is_ok());
-        assert!(validate_accept_header(
-            "application/signed-exchange;v=b3;q=1",
-            AcceptFilter::PrefersSxg
-        )
-        .is_ok());
-        assert!(validate_accept_header(
-            "  application/signed-exchange  ;  v=b3  ;  q=1  ,  */*  ;  q=0.8  ",
-            AcceptFilter::PrefersSxg
-        )
-        .is_ok());
-        assert!(validate_accept_header(
-            "text/html;q=0.5,application/signed-exchange;V=b3;Q=1",
-            AcceptFilter::PrefersSxg
-        )
-        .is_ok());
-        assert!(validate_accept_header(
-            "text/html;q=0.5,application/signed-exchange;v=b3",
-            AcceptFilter::PrefersSxg
-        )
-        .is_ok());
-
-        assert!(validate_accept_header(
-            "application/signed-exchange;v=b3;q=0.9,*/*;q=0.8",
-            AcceptFilter::PrefersSxg
-        )
-        .is_err());
-        assert!(validate_accept_header(
-            "text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-            AcceptFilter::PrefersSxg
-        )
-        .is_err());
-        assert!(validate_accept_header(
-            "application/signed-exchange;q=1;v=b3",
-            AcceptFilter::PrefersSxg
-        )
-        .is_err());
-        assert!(validate_accept_header("", AcceptFilter::PrefersSxg).is_err());
-        assert!(
-            validate_accept_header("application/signed-exchange", AcceptFilter::PrefersSxg)
-                .is_err()
+        assert_eq!(
+            parse_accept_level("application/signed-exchange;v=b3"),
+            AcceptLevel::PrefersSxg
         );
-        assert!(validate_accept_header(
-            "application/signed-exchange;v=b2",
-            AcceptFilter::PrefersSxg
-        )
-        .is_err());
-    }
-    #[test]
-    fn accepts_sxg() {
-        // Same list as above, but some more are ok.
-        assert!(validate_accept_header(
-            "application/signed-exchange;v=b3",
-            AcceptFilter::AcceptsSxg
-        )
-        .is_ok());
-        assert!(validate_accept_header(
-            "application/signed-exchange;v=b3;q=1",
-            AcceptFilter::AcceptsSxg
-        )
-        .is_ok());
-        assert!(validate_accept_header(
-            "  application/signed-exchange  ;  v=b3  ;  q=1  ,  */*  ;  q=0.8  ",
-            AcceptFilter::AcceptsSxg
-        )
-        .is_ok());
-        assert!(validate_accept_header(
-            "text/html;q=0.5,application/signed-exchange;V=b3;Q=1",
-            AcceptFilter::AcceptsSxg
-        )
-        .is_ok());
-        assert!(validate_accept_header(
-            "text/html;q=0.5,application/signed-exchange;v=b3",
-            AcceptFilter::AcceptsSxg
-        )
-        .is_ok());
-        assert!(validate_accept_header(
-            "application/signed-exchange;v=b3;q=0.9,*/*;q=0.8",
-            AcceptFilter::AcceptsSxg
-        )
-        .is_ok());
-        assert!(validate_accept_header(
-            "text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-            AcceptFilter::AcceptsSxg
-        )
-        .is_ok());
-
-        assert!(validate_accept_header(
-            "application/signed-exchange;q=1;v=b3",
-            AcceptFilter::AcceptsSxg
-        )
-        .is_err());
-        assert!(validate_accept_header("", AcceptFilter::AcceptsSxg).is_err());
-        assert!(
-            validate_accept_header("application/signed-exchange", AcceptFilter::AcceptsSxg)
-                .is_err()
+        assert_eq!(
+            parse_accept_level("application/signed-exchange;v=b3;q=1"),
+            AcceptLevel::PrefersSxg
         );
-        assert!(validate_accept_header(
-            "application/signed-exchange;v=b2",
-            AcceptFilter::AcceptsSxg
-        )
-        .is_err());
+        assert_eq!(
+            parse_accept_level(
+                "  application/signed-exchange  ;  v=b3  ;  q=1  ,  */*  ;  q=0.8  ",
+            ),
+            AcceptLevel::PrefersSxg
+        );
+        assert_eq!(
+            parse_accept_level("text/html;q=0.5,application/signed-exchange;V=b3;Q=1"),
+            AcceptLevel::PrefersSxg
+        );
+        assert_eq!(
+            parse_accept_level("text/html;q=0.5,application/signed-exchange;v=b3"),
+            AcceptLevel::PrefersSxg
+        );
+
+        assert_eq!(
+            parse_accept_level("application/signed-exchange;v=b3;q=0.9,*/*;q=0.8"),
+            AcceptLevel::AcceptsSxg
+        );
+        assert_eq!(
+            parse_accept_level("text/html,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9"),
+            AcceptLevel::AcceptsSxg
+        );
+        assert_eq!(
+            // A valid content type requires "v=b3" to come before "q"
+            parse_accept_level("application/signed-exchange;q=1;v=b3"),
+            AcceptLevel::RejectsSxg
+        );
+        assert_eq!(parse_accept_level(""), AcceptLevel::RejectsSxg);
+        assert_eq!(
+            parse_accept_level("application/signed-exchange"),
+            AcceptLevel::RejectsSxg
+        );
+        assert_eq!(
+            parse_accept_level("application/signed-exchange;v=b2"),
+            AcceptLevel::RejectsSxg
+        );
     }
 
     // === validate_as_sxg_payload ===

@@ -42,7 +42,7 @@ use crate::utils::console_log;
 use anyhow::{anyhow, Error, Result};
 use config::Config;
 use crypto::CertificateChain;
-use headers::{AcceptFilter, Headers};
+use headers::{AcceptLevel, Headers};
 use http_cache::HttpCache;
 use runtime::Runtime;
 use serde::Serialize;
@@ -385,10 +385,11 @@ impl SxgWorker {
     pub fn transform_request_headers(
         &self,
         fields: HeaderFields,
-        accept_filter: AcceptFilter,
+        required_accept_level: AcceptLevel,
     ) -> Result<HeaderFields> {
         let headers = Headers::new(fields, &self.config.strip_request_headers);
-        headers.forward_to_origin_server(accept_filter, &self.config.forward_request_headers)
+        headers
+            .forward_to_origin_server(required_accept_level, &self.config.forward_request_headers)
     }
     /// Checks `fields` as response headers from backend server,
     /// and returns the reqsponse headers to be sent to browser.
