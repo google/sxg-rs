@@ -44,7 +44,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;
 use sxg_rs::{
-    headers::{validate_accept_header, AcceptFilter::AcceptsSxg},
+    headers::{parse_accept_level, AcceptLevel::AcceptsSxg},
     http_parser::{link::Link, parse_content_type_header},
     sxg,
 };
@@ -169,7 +169,7 @@ fn accepts_sxg(headers: &HeaderMap) -> bool {
     header_is(headers, "accept", |value| {
         matches!(std::str::from_utf8(value),
                  Ok(value_str) if value_str == "application/cert-chain+cbor"
-                     || validate_accept_header(value_str, AcceptsSxg).is_ok())
+                     || parse_accept_level(value_str) >= AcceptsSxg)
     })
 }
 

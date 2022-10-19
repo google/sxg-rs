@@ -21,7 +21,7 @@ use fetcher::FastlyFetcher;
 use std::convert::TryInto;
 use sxg_rs::{
     crypto::CertificateChain,
-    headers::{AcceptFilter, Headers, VIA_SXGRS},
+    headers::{AcceptLevel, Headers, VIA_SXGRS},
     http::HeaderFields,
     PresetContent, SxgWorker,
 };
@@ -52,7 +52,7 @@ async fn create_worker() -> SxgWorker {
 async fn get_req_header_fields(
     worker: &SxgWorker,
     req: &Request,
-    accept_filter: AcceptFilter,
+    accept_filter: AcceptLevel,
 ) -> Result<HeaderFields> {
     let mut fields: Vec<(String, String)> = vec![];
     for name in req.get_header_names() {
@@ -156,11 +156,11 @@ async fn handle_request(worker: &SxgWorker, req: &Request) -> Result<Response> {
             fallback_url = Url::parse(&url).map_err(Error::new)?;
             (_, cert_origin) = worker.get_fallback_url_and_cert_origin(req.get_url())?;
             sxg_payload = sxg_rs_response_to_fastly_response(payload)?;
-            get_req_header_fields(worker, req, AcceptFilter::AcceptsSxg).await?;
+            get_req_header_fields(worker, req, AcceptLevel::AcceptsSxg).await?;
         }
         None => {
             (fallback_url, cert_origin) = worker.get_fallback_url_and_cert_origin(req.get_url())?;
-            let req_headers = get_req_header_fields(worker, req, AcceptFilter::PrefersSxg).await?;
+            let req_headers = get_req_header_fields(worker, req, AcceptLevel::PrefersSxg).await?;
             sxg_payload = fetch_from_html_server(&fallback_url, req_headers)?;
         }
     };

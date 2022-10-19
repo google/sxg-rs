@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::crypto::CertificateChain;
-use crate::headers::AcceptFilter;
+use crate::headers::AcceptLevel;
 use crate::http::HttpResponse;
 use crate::process_html::ProcessHtmlOption;
 use crate::runtime::{js_runtime::JsRuntimeInitParams, Runtime};
@@ -115,18 +115,18 @@ impl WasmWorker {
     #[wasm_bindgen(js_name=createRequestHeaders)]
     pub fn create_request_headers(
         &self,
-        accept_filter: JsValue,
+        required_accept_level: JsValue,
         requestor_headers: JsValue,
     ) -> JsPromise {
         let worker = self.0.clone();
         future_to_promise(async move {
             let fields = serde_wasm_bindgen::from_value(requestor_headers).map_err(to_js_error)?;
-            let accept_filter: AcceptFilter =
-                serde_wasm_bindgen::from_value(accept_filter).map_err(to_js_error)?;
+            let required_accept_level: AcceptLevel =
+                serde_wasm_bindgen::from_value(required_accept_level).map_err(to_js_error)?;
             let fields = worker
                 .read()
                 .await
-                .transform_request_headers(fields, accept_filter)
+                .transform_request_headers(fields, required_accept_level)
                 .map_err(to_js_error)?;
             Ok(serde_wasm_bindgen::to_value(&fields).unwrap())
         })
