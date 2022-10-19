@@ -42,7 +42,7 @@ use sxg_rs::{
     acme,
     crypto::CertificateChain,
     fetcher::Fetcher,
-    headers::AcceptFilter,
+    headers::AcceptLevel,
     http::{HttpRequest, HttpResponse, Method},
     http_cache::HttpCache,
     process_html::ProcessHtmlOption,
@@ -360,7 +360,7 @@ async fn handle_impl(client_ip: IpAddr, req: HttpRequest) -> Result<HandleAction
             fallback_url = url;
             let payload: Response<Vec<u8>> = payload.try_into()?;
             sxg_payload = payload.map(Body::from);
-            worker.transform_request_headers(req.headers, AcceptFilter::AcceptsSxg)?;
+            worker.transform_request_headers(req.headers, AcceptLevel::AcceptsSxg)?;
         }
         None => {
             // TODO: Reduce the amount of conversion needed between request/response/header types.
@@ -370,7 +370,7 @@ async fn handle_impl(client_ip: IpAddr, req: HttpRequest) -> Result<HandleAction
                 .0
                 .to_string();
             let req_headers =
-                worker.transform_request_headers(req.headers, AcceptFilter::PrefersSxg)?;
+                worker.transform_request_headers(req.headers, AcceptLevel::PrefersSxg)?;
             let mut request = Request::builder()
                 .method(match req.method {
                     Method::Get => "GET",
