@@ -22,7 +22,6 @@ use crate::link::process_link_header;
 use crate::MAX_PAYLOAD_SIZE;
 use anyhow::{anyhow, ensure, Result};
 use once_cell::sync::Lazy;
-use regex::Regex;
 use serde::Deserialize;
 use std::collections::{hash_map, BTreeSet, HashMap, HashSet};
 use std::time::Duration;
@@ -456,14 +455,19 @@ pub fn parse_accept_level(accept: &str) -> AcceptLevel {
     }
 }
 
-static CHROME_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(Chromium|Chrome)/(\d+)(?:\.(\d+)|)(?:\.(\d+)|)(?:\.(\d+)|)"#).unwrap()
-});
-
 fn parse_chrome_major_version(user_agent: &str) -> Option<u32> {
-    let captures = CHROME_REGEX.captures(user_agent)?;
-    let major_version = captures.get(2)?;
-    major_version.as_str().parse().ok()
+    parse_number_after(user_agent, " Chrome/")
+        .or_else(|| parse_number_after(user_agent, " Chromium/"))
+}
+
+// Find the substring coming after `pattern`, and parse it as a number.
+fn parse_number_after(input: &str, pattern: &str) -> Option<u32> {
+    let i = input.find(pattern)? + pattern.len();
+    if i >= input.len() {
+        return None;
+    }
+    let (x, _) = input[i..].split_once('.')?;
+    x.parse().ok()
 }
 
 #[cfg(test)]
@@ -606,11 +610,25 @@ mod tests {
     #[test]
     fn parse_chrome_major_version_works() {
         assert_eq!(parse_chrome_major_version("Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML like Gecko) Chrome/27.0.1453.110 Safari/537.36"), Some(27));
-        assert_eq!(parse_chrome_major_version("Chrome/11.22.33.44"), Some(11));
-        assert_eq!(parse_chrome_major_version("Chrome/11.22.33"), Some(11));
-        assert_eq!(parse_chrome_major_version("Chrome/11.22"), Some(11));
-        assert_eq!(parse_chrome_major_version("Chrome/11"), Some(11));
-        assert_eq!(parse_chrome_major_version("Chrome/a"), None);
+        assert_eq!(
+            parse_chrome_major_version("Mozilla Chrome/11.22.33.44"),
+            Some(11)
+        );
+        assert_eq!(
+            parse_chrome_major_version("Mozilla Chromium/11.22.33"),
+            Some(11)
+        );
+        assert_eq!(parse_chrome_major_version("Mozilla Chrome/11.22"), Some(11));
+        assert_eq!(parse_chrome_major_version("Mozilla Chrome/11"), None);
+        assert_eq!(parse_chrome_major_version("Mozilla Chrome/a"), None);
+        assert_eq!(parse_chrome_major_version("OtherChrome/11.22.33"), None);
+        // Although this should be parsed as `Some(11)`,
+        // we know that the User-Agent string of Chrome M73-M78 does not look like this.
+        // Hence it is fine to parse it as `None`.
+        assert_eq!(parse_chrome_major_version("Chrome/11.22.33"), None);
+        assert_eq!(parse_chrome_major_version("Chrome/"), None);
+        assert_eq!(parse_chrome_major_version("Chrome/."), None);
+        assert_eq!(parse_chrome_major_version("Chrome/-1."), None);
         assert_eq!(parse_chrome_major_version("Internet Explorer"), None);
     }
 

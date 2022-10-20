@@ -3576,7 +3576,6 @@ dependencies = [
  "once_cell",
  "p256",
  "pem",
- "regex",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
