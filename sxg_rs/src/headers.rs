@@ -22,6 +22,7 @@ use crate::link::process_link_header;
 use crate::MAX_PAYLOAD_SIZE;
 use anyhow::{anyhow, ensure, Result};
 use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::Deserialize;
 use std::collections::{hash_map, BTreeSet, HashMap, HashSet};
 use std::time::Duration;
@@ -30,7 +31,7 @@ use url::Url;
 pub struct Headers(HashMap<String, String>);
 
 /// The preference level of how requestors accepts SXG content.
-#[derive(Debug, Deserialize, Eq, PartialEq, PartialOrd)]
+#[derive(Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd)]
 pub enum AcceptLevel {
     /// The Accept header does not explicitly mention SXG, even when they accept `*/*`.
     RejectsSxg,
@@ -92,7 +93,20 @@ impl Headers {
             .0
             .get("accept")
             .ok_or_else(|| anyhow!("The request does not have an Accept header"))?;
-        let actual_accept_level = parse_accept_level(accept);
+        let mut actual_accept_level = parse_accept_level(accept);
+        if let Some(user_agent) = self.0.get("user-agent").as_ref() {
+            if let Some(major_version) = parse_chrome_major_version(user_agent) {
+                // https://github.com/google/sxg-rs/issues/395
+                // Chrome M73-78 incorrectly uses `SXG;q=1` in `Accept` header.
+                // Chrome M79 fixed it by replacing it with `SXG;q=0.9`.
+                // Hence for M73-78, when the parsed `Accept` header is `PrefersSxg`,
+                // we downgrade it to `AcceptsSxg`.
+                if (73..=78).contains(&major_version) {
+                    actual_accept_level =
+                        std::cmp::max(actual_accept_level, AcceptLevel::AcceptsSxg);
+                }
+            }
+        }
         ensure!(actual_accept_level >= required_accept_level);
         // Set Via per https://tools.ietf.org/html/rfc7230#section-5.7.1
         let mut via = VIA_SXGRS.to_string();
@@ -442,6 +456,16 @@ pub fn parse_accept_level(accept: &str) -> AcceptLevel {
     }
 }
 
+static CHROME_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(Chromium|Chrome)/(\d+)(?:\.(\d+)|)(?:\.(\d+)|)(?:\.(\d+)|)"#).unwrap()
+});
+
+fn parse_chrome_major_version(user_agent: &str) -> Option<u32> {
+    let captures = CHROME_REGEX.captures(user_agent)?;
+    let major_version = captures.get(2)?;
+    major_version.as_str().parse().ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -577,6 +601,17 @@ mod tests {
             parse_accept_level("application/signed-exchange;v=b2"),
             AcceptLevel::RejectsSxg
         );
+    }
+
+    #[test]
+    fn parse_chrome_major_version_works() {
+        assert_eq!(parse_chrome_major_version("Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML like Gecko) Chrome/27.0.1453.110 Safari/537.36"), Some(27));
+        assert_eq!(parse_chrome_major_version("Chrome/11.22.33.44"), Some(11));
+        assert_eq!(parse_chrome_major_version("Chrome/11.22.33"), Some(11));
+        assert_eq!(parse_chrome_major_version("Chrome/11.22"), Some(11));
+        assert_eq!(parse_chrome_major_version("Chrome/11"), Some(11));
+        assert_eq!(parse_chrome_major_version("Chrome/a"), None);
+        assert_eq!(parse_chrome_major_version("Internet Explorer"), None);
     }
 
     // === validate_as_sxg_payload ===
