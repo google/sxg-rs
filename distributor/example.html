@@ -1,9 +1,8 @@
 <!-- See NOTEs below for changes you might want to make when productionizing. -->
-<body data-instant-allow-query-string>
+<body data-instant-allow-query-string data-instant-as-document>
 <p><a href="https://signed-exchange-testing.dev/sxgs/valid.html">HTML</a>
 <p><a href="https://signed-exchange-testing.dev/sxgs/valid-image-subresource.html">HTML + image</a>
 <p><a href="https://twifkak.com/angular1/">HTML + lots of stuff</a>
-<!-- TODO: Figure out how to make this populate the prefetch cache. -->
 <p><a href="https://example.com/">non-SXG</a>
 <script type=module>
 function cacheUrl(url) {
@@ -82,4 +81,8 @@ if (supportsAllowedAltSxg() && supportsSxgVaryCookie()) {
   document.body.dataset.instantAllowExternalLinks = true;
 }
 </script>
+<!--
+To update the patch, run:
+$ diff <(curl -s https://raw.githubusercontent.com/instantpage/instant.page/v5.1.1/instantpage.js) instantpage.js >instantpage.js.patch
+-->
 <script src=instantpage.js type=module></script>
