@@ -1,11 +1,9 @@
-10a11
-> const asDocument = 'instantAsDocument' in document.body.dataset
-234a236,239
+234a235,238
 >   if (typeof instantUrlModifier === 'function') {
 >     url = instantUrlModifier(url);
 >   }
 > 
-241a247,249
->   if (asDocument) {
->     prefetcher.as = 'document'
+241a246,248
+>   if (typeof instantLinkModifier === 'function') {
+>     instantLinkModifier(prefetcher);
 >   }

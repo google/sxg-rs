@@ -1,5 +1,5 @@
 <!-- See NOTEs below for changes you might want to make when productionizing. -->
-<body data-instant-allow-query-string data-instant-as-document>
+<body data-instant-allow-query-string>
 <p><a href="https://signed-exchange-testing.dev/sxgs/valid.html">HTML</a>
 <p><a href="https://signed-exchange-testing.dev/sxgs/valid-image-subresource.html">HTML + image</a>
 <p><a href="https://twifkak.com/angular1/">HTML + lots of stuff</a>
@@ -78,6 +78,7 @@ if (supportsAllowedAltSxg() && supportsSxgVaryCookie()) {
     }
   });
   window.instantUrlModifier = cacheUrl;
+  window.instantLinkModifier = (link) => { link.as = 'document' };
   document.body.dataset.instantAllowExternalLinks = true;
 }
 </script>
