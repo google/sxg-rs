@@ -117,6 +117,11 @@ but may reuse them for up to 7 days. To ensure they expire sooner, set
 1. To check whether the worker generates a valid SXG,
    use Chrome browser to open `https://${WORKER_HOST}/.sxg/test.html`.
 
+1. Configure Fastly caching so that it doesn't serve SXGs to non-SXG request. Either:
+   - Include in the cache key, a boolean of whether the `Accept` header matches [this regex](https://github.com/google/webpackager/tree/main/cmd/webpkgserver#content-negotiation).
+   - Include conditional logic that bypasses the cache if the `Accept` header matches that regex.
+   - Disable caching.
+
 1. Read on for [next steps](../README.md#next-steps).
 
 ## Maintain
