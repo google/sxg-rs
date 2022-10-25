@@ -231,7 +231,12 @@ impl SxgWorker {
                 ("x-content-type-options".into(), "nosniff".into()),
                 (
                     "cache-control".into(),
-                    format!("public, max-age={}", max_age.as_secs()),
+                    format!(
+                        "public, max-age={}",
+                        // The outer max-age is set smaller, hence the downstream CDNs are able to
+                        // refetch SXG before the SXG signature expires.
+                        max_age.as_secs() / 4,
+                    ),
                 ),
             ],
             status: 200,
