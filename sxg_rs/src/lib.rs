@@ -198,9 +198,8 @@ impl SxgWorker {
             .now
             .checked_sub(BACKDATING)
             .ok_or_else(|| anyhow!("Failed to construct date"))?;
-        let expires = runtime
-            .now
-            .checked_add(payload_headers.signature_duration()?);
+        let max_age = payload_headers.signature_duration()?;
+        let expires = runtime.now.checked_add(max_age);
         let signature = signature::Signature::new(signature::SignatureParams {
             cert_url: cert_url.as_str(),
             cert_sha256: &latest_certificate.end_entity_sha256,
@@ -230,6 +229,10 @@ impl SxgWorker {
                     "application/signed-exchange;v=b3".into(),
                 ),
                 ("x-content-type-options".into(), "nosniff".into()),
+                (
+                    "cache-control".into(),
+                    format!("public, max-age={}", max_age.as_secs()),
+                ),
             ],
             status: 200,
         })
