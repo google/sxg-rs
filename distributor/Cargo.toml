@@ -21,22 +21,22 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = { version = "1.0.65", features = ["backtrace"] }
-base64 = "0.13.0"
+anyhow = { version = "1.0.66", features = ["backtrace"] }
+base64 = "0.13.1"
 byte-strings = { version = "0.2.2", features = ["const-friendly"] }
 ciborium = "0.2.0"
-clap = { version = "3.2.22", features = ["derive"] }
+clap = { version = "3.2.23", features = ["derive"] }
 form_urlencoded = "1.1.0"
-futures = "0.3.24"
+futures = "0.3.25"
 http = "0.2.8"
 hyper-rustls = "0.23.0"
 hyper-trust-dns = { version = "0.5.0", default-features = false, features = ["rustls-webpki", "rustls-http1", "rustls-tls-12"] }
-hyper = { version = "0.14.20", features = ["http1", "http2", "server", "stream", "tcp"] }
+hyper = { version = "0.14.22", features = ["http1", "http2", "server", "stream", "tcp"] }
 lazy_static = "1.4.0"
 nom = { version = "7.1.1" }
 percent-encoding = "2.2.0"
 regex = "1.6.0"
-rustls = "0.20.6"
+rustls = "0.20.7"
 rustls-pemfile = "1.0.1"
 sha2 = "0.10.6"
 # TODO: Determine if I can remove strip_id_headers because it's default.
