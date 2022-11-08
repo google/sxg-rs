@@ -31,11 +31,11 @@ futures = "0.3.25"
 http = "0.2.8"
 hyper-rustls = "0.23.0"
 hyper-trust-dns = { version = "0.5.0", default-features = false, features = ["rustls-webpki", "rustls-http1", "rustls-tls-12"] }
-hyper = { version = "0.14.22", features = ["http1", "http2", "server", "stream", "tcp"] }
+hyper = { version = "0.14.23", features = ["http1", "http2", "server", "stream", "tcp"] }
 lazy_static = "1.4.0"
 nom = { version = "7.1.1" }
 percent-encoding = "2.2.0"
-regex = "1.6.0"
+regex = "1.7.0"
 rustls = "0.20.7"
 rustls-pemfile = "1.0.1"
 sha2 = "0.10.6"
