@@ -34,7 +34,7 @@ crate-type = ["cdylib", "rlib"]
 anyhow = "1.0.66"
 async-trait = "0.1.58"
 base64 = "0.13.1"
-chrono = { version = "0.4.22", features = ["serde"] }
+chrono = { version = "0.4.23", features = ["serde"] }
 der-parser = { version = "8.1.0", features = ["bigint", "serialize"] }
 futures = { version = "0.3.25" }
 getrandom = { version = "0.2.8", features = ["js"] }

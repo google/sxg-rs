@@ -28,7 +28,7 @@ fs2 = "0.4.3"
 futures = "0.3.25"
 http = "0.2.8"
 hyper-reverse-proxy = { git = "https://github.com/felipenoris/hyper-reverse-proxy", rev = "96a398de8522fac07a5e15bd0699f6cd7fa84bce" }
-hyper-rustls = "0.23.0"
+hyper-rustls = "0.23.1"
 hyper-tls = "0.5.0"
 hyper-trust-dns = { version = "0.5.0", default-features = false, features = ["rustls-webpki", "rustls-http1", "rustls-tls-12"] }
 hyper = { version = "0.14.23", features = ["http1", "http2", "server", "stream", "tcp"] }
