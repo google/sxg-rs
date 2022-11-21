@@ -21,7 +21,7 @@
   "dependencies": {
     "commander": "9.4.1",
     "dompurify": "2.4.1",
-    "fastify": "4.10.0",
+    "fastify": "4.10.2",
     "jsdom": "20.0.2",
     "node-fetch": "3.3.0",
     "puppeteer": "17.1.3"
