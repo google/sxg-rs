@@ -7,8 +7,8 @@
     "lint": "gts lint"
   },
   "devDependencies": {
-    "@types/jasmine": "4.3.0",
-    "esbuild": "0.15.15",
+    "@types/jasmine": "4.3.1",
+    "esbuild": "0.16.2",
     "gts": "3.1.1",
     "jasmine-core": "4.5.0",
     "karma": "6.4.1",
