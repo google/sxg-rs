@@ -183,7 +183,7 @@ pub mod tests {
 
     // For use in other modules' tests.
     pub fn null_integrity_fetcher() -> HeaderIntegrityFetcherImpl<'static, NullCache> {
-        new_fetcher(&NULL_FETCHER, NullCache {}, &*EMPTY_SET)
+        new_fetcher(&NULL_FETCHER, NullCache {}, &EMPTY_SET)
     }
 
     const TEST_URL: &str = "https://signed-exchange-testing.dev/sxgs/image.jpg";

@@ -34,9 +34,9 @@ pub fn calculate(input: &[u8], record_size: usize) -> (Vec<u8>, Vec<u8>) {
         hasher.update(record);
         if let Some(f) = proofs.front() {
             hasher.update(f);
-            hasher.update(&[1u8]);
+            hasher.update([1u8]);
         } else {
-            hasher.update(&[0u8]);
+            hasher.update([0u8]);
         }
         proofs.push_front(hasher.finalize().to_vec());
     }
