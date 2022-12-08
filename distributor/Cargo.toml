@@ -29,7 +29,7 @@ clap = { version = "3.2.23", features = ["derive"] }
 form_urlencoded = "1.1.0"
 futures = "0.3.25"
 http = "0.2.8"
-hyper-rustls = "0.23.1"
+hyper-rustls = "0.23.2"
 hyper-trust-dns = { version = "0.5.0", default-features = false, features = ["rustls-webpki", "rustls-http1", "rustls-tls-12"] }
 hyper = { version = "0.14.23", features = ["http1", "http2", "server", "stream", "tcp"] }
 lazy_static = "1.4.0"
@@ -43,6 +43,6 @@ sha2 = "0.10.6"
 sxg_rs = { path = "../sxg_rs", features = ["strip_id_headers", "rust_signer", "srcset"] }
 thiserror = "1.0.37"
 tls-listener = { version = "0.5.1", features = ["hyper-h1", "hyper-h2", "rustls"] }
-tokio = { version = "1.22.0", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio = { version = "1.23.0", features = ["rt-multi-thread", "macros", "sync", "time"] }
 tokio-rustls = "0.23.4"
 url = "2.3.1"
