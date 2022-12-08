@@ -235,7 +235,7 @@ impl Headers {
             fields.push((k, v));
         }
         let status_code = status_code.to_string();
-        let digest = format!("mi-sha256-03={}", ::base64::encode(&mice_digest));
+        let digest = format!("mi-sha256-03={}", ::base64::encode(mice_digest));
         fields.push((":status", &status_code));
         fields.push(("content-encoding", "mi-sha256-03"));
         fields.push(("digest", &digest));
