@@ -23,7 +23,7 @@ edition = "2018"
 anyhow = "1.0.66"
 async-trait = "0.1.59"
 base64 = "0.13.1"
-clap = { version = "3.2.23", features = ["derive"] }
+clap = { version = "4.0.29", features = ["derive"] }
 ctrlc = "3.2.3"
 der-parser = { version = "7.0.0", features = ["bigint", "serialize"] }
 http = "0.2.8"

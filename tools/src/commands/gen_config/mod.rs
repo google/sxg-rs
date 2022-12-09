@@ -20,7 +20,7 @@ use crate::linux_commands::generate_private_key_pem;
 use crate::runtime::openssl_signer::OpensslSigner;
 use crate::tokio_block_on;
 use anyhow::{Error, Result};
-use clap::{ArgEnum, Parser};
+use clap::{Parser, ValueEnum};
 use cloudflare::CloudlareSpecificInput;
 use fastly::FastlySpecificInput;
 use serde::{Deserialize, Serialize};
@@ -29,7 +29,7 @@ use sxg_rs::acme::{directory::Directory as AcmeDirectory, Account as AcmeAccount
 use sxg_rs::crypto::EcPrivateKey;
 use tools::Artifact;
 
-#[derive(ArgEnum, Clone, Debug, Eq, PartialEq)]
+#[derive(ValueEnum, Clone, Debug, Eq, PartialEq)]
 enum Platform {
     Cloudflare,
     Fastly,
@@ -49,7 +49,7 @@ pub struct Opts {
     /// If set `true`, no longer log in to worker service providers.
     #[clap(long)]
     use_ci_mode: bool,
-    #[clap(arg_enum, long)]
+    #[clap(value_enum, long)]
     platform: Option<Platform>,
 }
 
