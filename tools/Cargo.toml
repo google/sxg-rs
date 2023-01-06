@@ -36,7 +36,7 @@ serde_json = "1.0.89"
 serde_yaml = "0.9.14"
 sxg_rs = { path = "../sxg_rs", features = ["rust_signer"] }
 toml = "0.5.9"
-tokio = { version = "1.23.0", features = ["full"] }
+tokio = { version = "1.23.1", features = ["full"] }
 url = "2.3.1"
 warp = "0.3.3"
 wrangler = "1.19.13"

@@ -34,7 +34,7 @@ pem = "1.1.0"
 serde = { version = "1.0.149", features = ["derive"] }
 serde_yaml = "0.9.14"
 sxg_rs = { path = "../sxg_rs", features = ["rust_signer"] }
-tokio = { version = "1.23.0", features = ["rt"] }
+tokio = { version = "1.23.1", features = ["rt"] }
 url = "2.3.1"
 
 [features]
