@@ -38,7 +38,7 @@ rand = "0.8.5"
 serde_yaml = "0.9.14"
 # TODO: Determine if I can remove strip_id_headers because it's default.
 sxg_rs = { path = "../sxg_rs", features = ["strip_id_headers", "rust_signer"] }
-tokio = { version = "1.23.0", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros", "sync", "time"] }
 tools = { path = "../tools" }
 url = "2.3.1"
 
