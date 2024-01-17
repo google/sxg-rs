@@ -24,7 +24,7 @@ jobs:
   cloudflare_worker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Create self-signed cert
         working-directory: credentials
         run: |
@@ -41,7 +41,7 @@ jobs:
   fastly_compute:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Create self-signed cert
         working-directory: credentials
         run: |
@@ -73,12 +73,12 @@ jobs:
   gen_sxg:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Create self-signed cert
         working-directory: credentials
         run: |
           cargo run -p tools -- gen-dev-cert --domain example.org
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v5
         with:
           go-version: '>=1.16'
       - run: go install github.com/WICG/webpackage/go/signedexchange/cmd/dump-signedexchange@latest
@@ -96,8 +96,8 @@ jobs:
   playground:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/
