@@ -27,10 +27,10 @@ anyhow = "1.0.66"
 async-trait = "0.1.59"
 base64 = "0.13.1"
 fastly = "^0.8.9"
-http = "0.2.8"
+http = "1.1.0"
 log = "0.4.17"
 log-fastly = "0.8.9"
-pem = "1.1.0"
+pem = "3.0.3"
 serde = { version = "1.0.149", features = ["derive"] }
 serde_yaml = "0.9.14"
 sxg_rs = { path = "../sxg_rs", features = ["rust_signer"] }

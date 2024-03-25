@@ -23,13 +23,13 @@ edition = "2018"
 anyhow = "1.0.66"
 async-trait = "0.1.59"
 base64 = "0.13.1"
-clap = { version = "3.2.23", features = ["derive"] }
+clap = { version = "4.5.4", features = ["derive"] }
 ctrlc = "3.2.3"
-der-parser = { version = "7.0.0", features = ["bigint", "serialize"] }
-http = "0.2.8"
-hyper = { version = "0.14.23", features = ["client", "http2"]}
+der-parser = { version = "9.0.0", features = ["bigint", "serialize"] }
+http = "1.1.0"
+hyper = { version = "1.2.0", features = ["client", "http2"]}
 hyper-tls = "0.5.0"
-pem = "1.1.0"
+pem = "3.0.3"
 regex = "1.7.0"
 serde = { version = "1.0.149", features = ["derive"] }
 serde_json = "1.0.89"
