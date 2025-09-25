@@ -22,23 +22,23 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0.66"
 async-trait = "0.1.59"
-base64 = "0.13.1"
+base64 = "0.22.0"
 clap = { version = "3.2.23", features = ["derive"] }
 ctrlc = "3.2.3"
 der-parser = { version = "7.0.0", features = ["bigint", "serialize"] }
 http = "0.2.8"
 hyper = { version = "0.14.23", features = ["client", "http2"]}
-hyper-tls = "0.5.0"
+hyper-tls = "0.6.0"
 pem = "1.1.0"
 regex = "1.7.0"
 serde = { version = "1.0.149", features = ["derive"] }
 serde_json = "1.0.89"
 serde_yaml = "0.9.14"
 sxg_rs = { path = "../sxg_rs", features = ["rust_signer"] }
-toml = "0.5.9"
+toml = "0.9.0"
 tokio = { version = "1.23.0", features = ["full"] }
 url = "2.3.1"
-warp = "0.3.3"
+warp = "0.4.0"
 wrangler = "1.19.13"
 
 [features]
