@@ -7,12 +7,12 @@
     "lint": "gts lint"
   },
   "devDependencies": {
-    "@types/jasmine": "4.3.1",
+    "@types/jasmine": "4.6.5",
     "esbuild": "0.16.14",
     "gts": "3.1.1",
-    "jasmine-core": "4.5.0",
-    "karma": "6.4.1",
-    "karma-chrome-launcher": "3.1.1",
+    "jasmine-core": "4.6.1",
+    "karma": "6.4.4",
+    "karma-chrome-launcher": "3.2.0",
     "karma-jasmine": "5.1.0"
   }
 }
